@@ -1,0 +1,1253 @@
+# Кандидаты в пул фоновой музыки из OpenGameArt.org (CC0). Слушает человек; mood/energy — догадка по метаданным.
+# Поиск: art-search-advanced, тип Music (field_art_type_tid=12), лицензия CC0 (field_art_licenses_tid=4 — в примере
+# из задания параметр назван field_art_license_tid и сайтом игнорируется), сортировка по избранному, первая страница
+# (48) по ключам chiptune (2 стр.), 8-bit, 8bit, nes, retro, loop — 190 уникальных страниц.
+# Запросы к opengameart.org — не чаще раза в 11 с (robots.txt: Crawl-delay: 10).
+# Номер трека в паке (<id>-N) — порядок аудиофайла в zip по имени либо в списке File(s) на странице; исходный файл — в source_file.
+# download_url и source_file — дополнительные поля для прослеживаемости.
+source: opengameart
+collected_at: 2026-10-24
+candidates:
+  - id: oga-chill-chiptunes-collection-5
+    title: "Chill Chiptunes (Collection) — Scroller"
+    author: "Holizna"
+    page_url: https://opengameart.org/content/chill-chiptunes-collection
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2024-04-11
+    archive_url: https://web.archive.org/web/20261024125327/https://opengameart.org/content/chill-chiptunes-collection
+    file: music/tracks/oga/oga-chill-chiptunes-collection-5.ogg
+    download_url: https://opengameart.org/sites/default/files/chill_chiptunes.zip
+    source_file: "chill_chiptunes.zip/Chill Chiptunes/04 HoliznaCC0 - Scroller.ogg"
+    sha256: 832aa142b1800f2575d758cfb67a84a4509c724de7c1facb580c0ba55813868c
+    duration_s: 153.9
+    format: ogg
+    mood_guess: true
+    mood: [neutral]
+    energy: 2
+    notes: "сборник «chill, relaxing, calm»; в zip есть ogg и mp3 одной длины, взят ogg"
+  - id: oga-chill-chiptunes-collection-4
+    title: "Chill Chiptunes (Collection) — Level 2"
+    author: "Holizna"
+    page_url: https://opengameart.org/content/chill-chiptunes-collection
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2024-04-11
+    archive_url: https://web.archive.org/web/20261024125327/https://opengameart.org/content/chill-chiptunes-collection
+    file: music/tracks/oga/oga-chill-chiptunes-collection-4.ogg
+    download_url: https://opengameart.org/sites/default/files/chill_chiptunes.zip
+    source_file: "chill_chiptunes.zip/Chill Chiptunes/04 HoliznaCC0 - Level 2.ogg"
+    sha256: 4377b7e43d33db70e3192c20dcc1b2a34392016ee283367b6a2e0dd5283a77bb
+    duration_s: 122.1
+    format: ogg
+    mood_guess: true
+    mood: [neutral]
+    energy: 2
+    notes: "сборник «chill, relaxing, calm»; ogg из zip"
+  - id: oga-free-nes-music-pack-6
+    title: "Free NES Music Pack — nes_07-jazz"
+    author: "pmiller (Phillip Miller)"
+    page_url: https://opengameart.org/content/free-nes-music-pack
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2019-07-01
+    archive_url: https://web.archive.org/web/20261024125403/https://opengameart.org/content/free-nes-music-pack
+    file: music/tracks/oga/oga-free-nes-music-pack-6.wav
+    download_url: https://opengameart.org/sites/default/files/Free_NES_Music_Pack.zip
+    source_file: "Free_NES_Music_Pack.zip/nes_07-jazz.wav"
+    sha256: 6a1fa62653a1149d369775fa42e2187632de0f4aeb195df784830163b01d209c
+    duration_s: 140.2
+    format: wav
+    mood_guess: true
+    mood: [neutral]
+    energy: 2
+    notes: "Famitracker; автор: «one of the better songs»; read_me в zip: Phillip Miller, «freely available to use for anything»; автор предупреждает, что не все треки ровно зацикливаются"
+  - id: oga-free-nes-music-pack-11
+    title: "Free NES Music Pack — nes_23-chill"
+    author: "pmiller (Phillip Miller)"
+    page_url: https://opengameart.org/content/free-nes-music-pack
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2019-07-01
+    archive_url: https://web.archive.org/web/20261024125403/https://opengameart.org/content/free-nes-music-pack
+    file: music/tracks/oga/oga-free-nes-music-pack-11.wav
+    download_url: https://opengameart.org/sites/default/files/Free_NES_Music_Pack.zip
+    source_file: "Free_NES_Music_Pack.zip/nes_23-chill.wav"
+    sha256: 9ee3445ce7c3829e0fe73a1a0fdd83cfe9fee20f1129271ffe21d367bb4c8d0b
+    duration_s: 36.9
+    format: wav
+    mood_guess: true
+    mood: [neutral]
+    energy: 2
+    notes: "Famitracker, спокойный по названию; короткий — под подложку придётся зацикливать"
+  - id: oga-bossa-nova
+    title: "Bossa Nova"
+    author: "Joth"
+    page_url: https://opengameart.org/content/bossa-nova
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2016-08-28
+    archive_url: https://web.archive.org/web/20261024130857/https://opengameart.org/content/bossa-nova
+    file: music/tracks/oga/oga-bossa-nova.mp3
+    download_url: https://opengameart.org/sites/default/files/8bit%20Bossa.mp3
+    sha256: 0ee835fd279ac5fa15f9346744cbafc2ba800c1c0671b78ca9abe2b4353402f7
+    duration_s: 59.6
+    format: mp3
+    mood_guess: true
+    mood: [neutral]
+    energy: 2
+    notes: "спокойная 8-bit босса «for lengthy elevator sequences»; 129 bpm — быстрее брифа. СОМНЕНИЕ: комментатор пишет, что трек сильно напоминает музыку Mii Channel (Wii), автор отвечает, что не слышал её — сравнить на слух"
+  - id: oga-insert-coin
+    title: "Insert Coin"
+    author: "megupets"
+    page_url: https://opengameart.org/content/insert-coin
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2014-11-25
+    archive_url: https://web.archive.org/web/20261024131017/https://opengameart.org/content/insert-coin
+    file: music/tracks/oga/oga-insert-coin.mp3
+    download_url: https://opengameart.org/sites/default/files/Insert%20Coin_1.mp3
+    sha256: d51348a20578edbf4cc295d7bb811ed76094566ba8d3145ab083e73106550ded
+    duration_s: 51.3
+    format: mp3
+    mood_guess: true
+    mood: [neutral]
+    energy: 3
+    notes: "простая заставка «chiptune/8bit style», автор передал в public domain вместо альбома; только mp3"
+  - id: oga-chiptune-medieval-the-old-tower-inn
+    title: "[Chiptune] Medieval: The Old Tower Inn"
+    author: "RandomMind"
+    page_url: https://opengameart.org/content/chiptune-medieval-the-old-tower-inn
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2018-11-22
+    archive_url: https://web.archive.org/web/20261024131055/https://opengameart.org/content/chiptune-medieval-the-old-tower-inn
+    file: music/tracks/oga/oga-chiptune-medieval-the-old-tower-inn.wav
+    download_url: https://opengameart.org/sites/default/files/CHIPTUNE_Loop_The_Old_Tower_Inn.wav
+    sha256: 87acf6f6d0f8029ac13c9fef10aa4a0a0cdab9d1416ce13a2da339e2431ae765
+    duration_s: 33.3
+    format: wav
+    mood_guess: true
+    mood: [neutral, hopeful]
+    energy: 2
+    notes: "NES-луп собственного трека автора, теги neutral, peaceful; средневековый фолк-колорит; взят луп-wav (полная версия только в mp3); автор выкладывает трек на YouTube — проверить, что Content ID не заявлен"
+  - id: oga-c1-bgm
+    title: "C1 [bgm]"
+    author: "obscure music"
+    page_url: https://opengameart.org/content/c1-bgm
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2016-10-14
+    archive_url: https://web.archive.org/web/20261024131132/https://opengameart.org/content/c1-bgm
+    file: music/tracks/oga/oga-c1-bgm.flac
+    download_url: https://opengameart.org/sites/default/files/c1.flac
+    sha256: 9d2570e896f5bf712269b2732342ffdfed7484a8b25427cf61324e022ce879d3
+    duration_s: 148.0
+    format: flac
+    mood_guess: true
+    mood: [neutral, tense]
+    energy: 3
+    notes: "фоновый «industrial/techno» чиптюн; оригинал во FLAC (без потерь), wav на странице нет"
+  - id: oga-title-x
+    title: "Title-X"
+    author: "poinl"
+    page_url: https://opengameart.org/content/title-x
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2015-08-09
+    archive_url: https://web.archive.org/web/20261024131212/https://opengameart.org/content/title-x
+    file: music/tracks/oga/oga-title-x.mp3
+    download_url: https://opengameart.org/sites/default/files/gba1complete.mp3
+    sha256: 887a78fe0169ab3cda028bc250905019715356a5a68fc4597b9686566826c3fe
+    duration_s: 192.1
+    format: mp3
+    mood_guess: true
+    mood: [neutral]
+    energy: 3
+    notes: "ретро-луп 100 bpm (попадает в темп neutral); файл «gba1complete» — стиль скорее GBA, чем NES; только mp3"
+  - id: oga-8-bit-mechanical-complex
+    title: "8-bit Mechanical Complex"
+    author: "HydroGene"
+    page_url: https://opengameart.org/content/8-bit-mechanical-complex
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2023-06-18
+    archive_url: https://web.archive.org/web/20261024130749/https://opengameart.org/content/8-bit-mechanical-complex
+    file: music/tracks/oga/oga-8-bit-mechanical-complex.mp3
+    download_url: https://opengameart.org/sites/default/files/8-bit_mechanical_complex_0.mp3
+    sha256: ffe3eb080f49e6d848a1eb56c36501b7cf06bac18735f0123732b741fd8f7009
+    duration_s: 162.7
+    format: mp3
+    mood_guess: true
+    mood: [neutral, curious]
+    energy: 3
+    notes: "уровень «mechanical complex», зацикливается; только mp3; в тегах есть «metroid» (жанровая метка)"
+  - id: oga-5-chiptunes-action-4
+    title: "5 Chiptunes (Action) — Level 3"
+    author: "SubspaceAudio (Juhani Junkala)"
+    page_url: https://opengameart.org/content/5-chiptunes-action
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2016-04-17
+    archive_url: https://web.archive.org/web/20261024121035/https://opengameart.org/content/5-chiptunes-action
+    file: music/tracks/oga/oga-5-chiptunes-action-4.wav
+    download_url: https://opengameart.org/sites/default/files/5%20Action%20Chiptunes%20By%20Juhani%20Junkala.zip
+    source_file: "5 Action Chiptunes By Juhani Junkala.zip/Juhani Junkala [Retro Game Music Pack] Level 3.wav"
+    sha256: c30ae8521119deefd0e22224310e45c07ca726c20760dd93e64e02b9b59a8e6c
+    duration_s: 81.9
+    format: wav
+    mood_guess: true
+    mood: [tense]
+    energy: 4
+    notes: "экшен-уровень, «seamlessly looping»; INFO.txt в zip подтверждает CC0 от автора; треки также продаются в паке автора на itch.io"
+  - id: oga-dark-music-vrc6-and-2a03-1
+    title: "Dark Music (VRC6 and 2A03) — DarkMusicFinal"
+    author: "celestialghost8"
+    page_url: https://opengameart.org/content/dark-music-vrc6-and-2a03
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2016-07-19
+    archive_url: https://web.archive.org/web/20261024125659/https://opengameart.org/content/dark-music-vrc6-and-2a03
+    file: music/tracks/oga/oga-dark-music-vrc6-and-2a03-1.wav
+    download_url: https://opengameart.org/sites/default/files/DarkMusicFinal.wav
+    sha256: fb91db6bcaa94fc8b5a910e661e9c5465895f7a2ee1bd0c8cb616f634d929ac2
+    duration_s: 51.3
+    format: wav
+    mood_guess: true
+    mood: [tense]
+    energy: 3
+    notes: "Famitracker VRC6+2A03, «perfect for darkness: caves, nighttime»"
+  - id: oga-inevitable-doom
+    title: "Inevitable Doom"
+    author: "celestialghost8"
+    page_url: https://opengameart.org/content/inevitable-doom
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2016-08-30
+    archive_url: https://web.archive.org/web/20261024125738/https://opengameart.org/content/inevitable-doom
+    file: music/tracks/oga/oga-inevitable-doom.wav
+    download_url: https://opengameart.org/sites/default/files/Inevitable%20Doom.wav
+    sha256: cef9610f1a708fa039c6ef61f2851413f0d2d09b27cdca4943778a76d428be47
+    duration_s: 76.8
+    format: wav
+    mood_guess: true
+    mood: [tense]
+    energy: 3
+    notes: "Famitracker 2A03; по названию мрачный; на странице есть ещё вариант intro+loop"
+  - id: oga-abandoned-hopes
+    title: "Abandoned Hopes"
+    author: "Jonathan So"
+    page_url: https://opengameart.org/content/abandoned-hopes
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2017-04-20
+    archive_url: https://web.archive.org/web/20261024130456/https://opengameart.org/content/abandoned-hopes
+    file: music/tracks/oga/oga-abandoned-hopes.wav
+    download_url: https://opengameart.org/sites/default/files/Abandoned%20Hopes.wav
+    sha256: 556a2178173bf62a44bcc0e3e5c640f1b9421f8f9c28c49a6fd8c3b17f032f7d
+    duration_s: 153.7
+    format: wav
+    mood_guess: true
+    mood: [tense, somber]
+    energy: 3
+    notes: "Famitracker, «loops once»; по тегам экшен-шутер, по названию мрачнее"
+  - id: oga-8-bit-slay-the-evil
+    title: "8-bit - Slay The Evil"
+    author: "HydroGene"
+    page_url: https://opengameart.org/content/8-bit-slay-the-evil
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2023-12-15
+    archive_url: https://web.archive.org/web/20261024131248/https://opengameart.org/content/8-bit-slay-the-evil
+    file: music/tracks/oga/oga-8-bit-slay-the-evil.ogg
+    download_url: https://opengameart.org/sites/default/files/8-bit_slay_the_evil_0.ogg
+    sha256: 5395085c82d3af221fdae57613c857a366ae55e27f23bad6730ec686f494800d
+    duration_s: 82.3
+    format: ogg
+    mood_guess: true
+    mood: [tense]
+    energy: 4
+    notes: "«dangerous/epic levels», зацикливается; в комментарии: «Reminds me of Nintendo World Cup» — сравнить на слух"
+  - id: oga-mecha-collection
+    title: "Mecha Collection"
+    author: "Jonathan So"
+    page_url: https://opengameart.org/content/mecha-collection
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2017-04-20
+    archive_url: https://web.archive.org/web/20261024130419/https://opengameart.org/content/mecha-collection
+    file: music/tracks/oga/oga-mecha-collection.wav
+    download_url: https://opengameart.org/sites/default/files/Mecha%20Collection.wav
+    sha256: d2d1e2b188c91a99efab0e5cb964861b5540095b0e1c2c646b83601a7874ecb5
+    duration_s: 138.8
+    format: wav
+    mood_guess: true
+    mood: [tense, urgent]
+    energy: 4
+    notes: "Famitracker, экшен-шутер, «loops once»"
+  - id: oga-sinister-abode
+    title: "Sinister Abode"
+    author: "Zane Little Music"
+    page_url: https://opengameart.org/content/sinister-abode
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2022-06-18
+    archive_url: https://web.archive.org/web/20261024131327/https://opengameart.org/content/sinister-abode
+    file: music/tracks/oga/oga-sinister-abode.wav
+    download_url: https://opengameart.org/sites/default/files/sinister_abode.wav
+    sha256: 6fe48ddb27f779331e765b496ceaca2b1bea352167fc249f7545e2a2b2ea275c
+    duration_s: 147.0
+    format: wav
+    mood_guess: true
+    mood: [tense]
+    energy: 3
+    notes: "«EVIL theme for a totally EVIL castle» — может оказаться слишком «злодейским»"
+  - id: oga-8-bit-haunted-house-theme
+    title: "8-bit Haunted House Theme"
+    author: "Wolfgang_"
+    page_url: https://opengameart.org/content/8-bit-haunted-house-theme
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2021-06-10
+    archive_url: https://web.archive.org/web/20261024130212/https://opengameart.org/content/8-bit-haunted-house-theme
+    file: music/tracks/oga/oga-8-bit-haunted-house-theme.wav
+    download_url: https://opengameart.org/sites/default/files/hauntedcastle.wav
+    sha256: 7cfc341aab55a79308001db99d3abb0c24130cdbfbc1825012b930dff9911952
+    duration_s: 44.8
+    format: wav
+    mood_guess: true
+    mood: [tense, curious]
+    energy: 2
+    notes: "spooky; хэллоуинская тема может звучать несерьёзно"
+  - id: oga-5-chiptunes-action-2
+    title: "5 Chiptunes (Action) — Level 1"
+    author: "SubspaceAudio (Juhani Junkala)"
+    page_url: https://opengameart.org/content/5-chiptunes-action
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2016-04-17
+    archive_url: https://web.archive.org/web/20261024121035/https://opengameart.org/content/5-chiptunes-action
+    file: music/tracks/oga/oga-5-chiptunes-action-2.wav
+    download_url: https://opengameart.org/sites/default/files/5%20Action%20Chiptunes%20By%20Juhani%20Junkala.zip
+    source_file: "5 Action Chiptunes By Juhani Junkala.zip/Juhani Junkala [Retro Game Music Pack] Level 1.wav"
+    sha256: 6f79ae4c6f2b59baa62c46bcd264c9d157f5dca2c30845fabc3c5be4e2b64a43
+    duration_s: 74.3
+    format: wav
+    mood_guess: true
+    mood: [urgent]
+    energy: 4
+    notes: "экшен-уровень, «seamlessly looping»; INFO.txt в zip подтверждает CC0 от автора; треки также продаются в паке автора на itch.io"
+  - id: oga-free-nes-music-pack-5
+    title: "Free NES Music Pack — nes_05-hectic"
+    author: "pmiller (Phillip Miller)"
+    page_url: https://opengameart.org/content/free-nes-music-pack
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2019-07-01
+    archive_url: https://web.archive.org/web/20261024125403/https://opengameart.org/content/free-nes-music-pack
+    file: music/tracks/oga/oga-free-nes-music-pack-5.wav
+    download_url: https://opengameart.org/sites/default/files/Free_NES_Music_Pack.zip
+    source_file: "Free_NES_Music_Pack.zip/nes_05-hectic.wav"
+    sha256: fae8b7b584ab198ec24f69ee3ce6561179a9cf816e0d6254fa80f42d094f668e
+    duration_s: 144.1
+    format: wav
+    mood_guess: true
+    mood: [urgent]
+    energy: 4
+    notes: "Famitracker, «hectic» по названию"
+  - id: oga-8-bit-battle-theme-famitracker
+    title: "8 bit battle theme (famitracker)"
+    author: "celestialghost8"
+    page_url: https://opengameart.org/content/8-bit-battle-theme-famitracker
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2016-05-12
+    archive_url: https://web.archive.org/web/20261024125855/https://opengameart.org/content/8-bit-battle-theme-famitracker
+    file: music/tracks/oga/oga-8-bit-battle-theme-famitracker.wav
+    download_url: https://opengameart.org/sites/default/files/newbattle.wav
+    sha256: 73d4f61dd69a89edb7948cdc0bac14ce878c6ab46bc8ec4118867b5ab147772b
+    duration_s: 74.8
+    format: wav
+    mood_guess: true
+    mood: [urgent]
+    energy: 4
+    notes: "Famitracker, батальная тема"
+  - id: oga-australis-frontier
+    title: "Australis Frontier"
+    author: "celestialghost8"
+    page_url: https://opengameart.org/content/australis-frontier
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2016-08-30
+    archive_url: https://web.archive.org/web/20261024130020/https://opengameart.org/content/australis-frontier
+    file: music/tracks/oga/oga-australis-frontier.wav
+    download_url: https://opengameart.org/sites/default/files/Australis%20Frontier.wav
+    sha256: 98adcc1429055daa8d1021fc5fe0469f48729e3b3818c811071c5269e781119e
+    duration_s: 108.9
+    format: wav
+    mood_guess: true
+    mood: [urgent]
+    energy: 4
+    notes: "Famitracker 2A03+VRC6, 150 bpm — быстрее брифа (125–140); взята полная версия (на странице есть intro и loop отдельно)"
+  - id: oga-fields-of-ice
+    title: "Fields of Ice"
+    author: "Jonathan So"
+    page_url: https://opengameart.org/content/fields-of-ice
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2017-04-21
+    archive_url: https://web.archive.org/web/20261024130251/https://opengameart.org/content/fields-of-ice
+    file: music/tracks/oga/oga-fields-of-ice.wav
+    download_url: https://opengameart.org/sites/default/files/Fields%20of%20Ice.wav
+    sha256: 520c7e040e76af9e5767495a84064f990182c0f172de77d1efbf9ef6d152c468
+    duration_s: 121.8
+    format: wav
+    mood_guess: true
+    mood: [urgent]
+    energy: 4
+    notes: "Famitracker, экшен-шутер, «loops once»"
+  - id: oga-confrontation-1
+    title: "Confrontation"
+    author: "Centurion_of_war"
+    page_url: https://opengameart.org/content/confrontation-1
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2024-04-12
+    archive_url: https://web.archive.org/web/20261024131405/https://opengameart.org/content/confrontation-1
+    file: music/tracks/oga/oga-confrontation-1.ogg
+    download_url: https://opengameart.org/sites/default/files/confrontation_2.ogg
+    sha256: c0cd38305967ac4b4ba07c38101ae275d8568934493d3c48e8f211c7cab9c284
+    duration_s: 59.1
+    format: ogg
+    mood_guess: true
+    mood: [urgent]
+    energy: 4
+    notes: "«small energetic chiptune», boss/combat"
+  - id: oga-interstellar-fleet-1
+    title: "Interstellar Fleet 1"
+    author: "Zane Little Music"
+    page_url: https://opengameart.org/content/interstellar-fleet-1
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2023-05-02
+    archive_url: https://web.archive.org/web/20261024131444/https://opengameart.org/content/interstellar-fleet-1
+    file: music/tracks/oga/oga-interstellar-fleet-1.wav
+    download_url: https://opengameart.org/sites/default/files/interstellar_fleet_1.zip
+    source_file: "interstellar_fleet_1.zip/WAV/Interstellar Fleet 1 [LOOP].wav"
+    sha256: 23707c1a9c451681c15634638969635bc24acfdf2eabb5ab6448ea6003fb1c69
+    duration_s: 88.6
+    format: wav
+    mood_guess: true
+    mood: [urgent]
+    energy: 4
+    notes: "энергичный космический бой; в zip полная версия и луп, взят луп (полная — 104,5 с); WAV 32-bit float"
+  - id: oga-fire-level
+    title: "Fire Level"
+    author: "Spring Spring"
+    page_url: https://opengameart.org/content/fire-level
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2017-09-09
+    archive_url: https://web.archive.org/web/20261024131523/https://opengameart.org/content/fire-level
+    file: music/tracks/oga/oga-fire-level.mp3
+    download_url: https://opengameart.org/sites/default/files/Danish%20Mega%20Pony%20v.%204%20OST%20-%20Track%2002%20%28Fire%20Level%29_0.mp3
+    sha256: af5a02ca8b95fa95aecd57e61c1e4532c296136b48f307e06375e32d478ce607
+    duration_s: 103.6
+    format: mp3
+    mood_guess: true
+    mood: [urgent]
+    energy: 4
+    notes: "«Intense chiptune», Famitracker; взят оригинал (на странице ещё две авторские переаранжировки); только mp3"
+  - id: oga-6-genuinely-c64-soundtracks-released-as-public-domain-may-2017-2
+    title: "6 genuinely C64 soundtracks released as public domain, May 2017 — Epics"
+    author: "skrjablin («Skrjablin»)"
+    page_url: https://opengameart.org/content/6-genuinely-c64-soundtracks-released-as-public-domain-may-2017
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2017-05-18
+    archive_url: https://web.archive.org/web/20261024125544/https://opengameart.org/content/6-genuinely-c64-soundtracks-released-as-public-domain-may-2017
+    file: music/tracks/oga/oga-6-genuinely-c64-soundtracks-released-as-public-domain-may-2017-2.ogg
+    download_url: https://opengameart.org/sites/default/files/epics_c64.ogg
+    sha256: 5c1ed61c8989463397ecb8d1c4026026e18c0e501f86189cd26f09aebb268e83
+    duration_s: 129.7
+    format: ogg
+    mood_guess: true
+    mood: [somber]
+    energy: 1
+    notes: "C64/SID, «slow and haunting melody»; звучание SID, не NES"
+  - id: oga-slow-melancholic-theme-c64-style-1
+    title: "Slow Melancholic Theme C64 Style — short version"
+    author: "skrjablin («Skrjablin»)"
+    page_url: https://opengameart.org/content/slow-melancholic-theme-c64-style
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2013-09-12
+    archive_url: https://web.archive.org/web/20261024125620/https://opengameart.org/content/slow-melancholic-theme-c64-style
+    file: music/tracks/oga/oga-slow-melancholic-theme-c64-style-1.ogg
+    download_url: https://opengameart.org/sites/default/files/slow_melancholic_theme_c64_style.ogg
+    sha256: 5e0ddcc03f15c4473861e66d3676185a5a1c0fa5fb8d4d157392bbf3866ebe03
+    duration_s: 68.9
+    format: ogg
+    mood_guess: true
+    mood: [somber]
+    energy: 1
+    notes: "C64/SID, sad, slow, loopable; страница CC-BY 3.0 и CC0 — берём по CC0"
+  - id: oga-slow-melancholic-theme-c64-style-2
+    title: "Slow Melancholic Theme C64 Style — long version with refrain"
+    author: "skrjablin («Skrjablin»)"
+    page_url: https://opengameart.org/content/slow-melancholic-theme-c64-style
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2013-09-12
+    archive_url: https://web.archive.org/web/20261024125620/https://opengameart.org/content/slow-melancholic-theme-c64-style
+    file: music/tracks/oga/oga-slow-melancholic-theme-c64-style-2.ogg
+    download_url: https://opengameart.org/sites/default/files/slow_melancholic_theme_c64_style_long_version_with_refrain.ogg
+    sha256: eabbeb306d1882fbe9d129ea50920210134e5a3636a5fa7c469dd0f318d409d2
+    duration_s: 233.8
+    format: ogg
+    mood_guess: true
+    mood: [somber]
+    energy: 1
+    notes: "длинная версия того же трека (куплет + припев); страница CC-BY 3.0 и CC0 — берём по CC0"
+  - id: oga-dark-music-vrc6-and-2a03-2
+    title: "Dark Music (VRC6 and 2A03) — [SLOW] DarkMusic"
+    author: "celestialghost8"
+    page_url: https://opengameart.org/content/dark-music-vrc6-and-2a03
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2016-07-19
+    archive_url: https://web.archive.org/web/20261024125659/https://opengameart.org/content/dark-music-vrc6-and-2a03
+    file: music/tracks/oga/oga-dark-music-vrc6-and-2a03-2.wav
+    download_url: https://opengameart.org/sites/default/files/%5BSLOW%5D%20DarkMusic.wav
+    sha256: 5e2a06e8b0ae884994b02e165a1c7d94dd65a6a0d4d31c3d028a6dd63e503d21
+    duration_s: 76.8
+    format: wav
+    mood_guess: true
+    mood: [somber, curious]
+    energy: 2
+    notes: "замедленная версия DarkMusic; вероятно есть ритм — для somber нужно проверить"
+  - id: oga-8-bit-truth
+    title: "8-bit - Truth"
+    author: "HydroGene"
+    page_url: https://opengameart.org/content/8-bit-truth
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2024-01-13
+    archive_url: https://web.archive.org/web/20261024130552/https://opengameart.org/content/8-bit-truth
+    file: music/tracks/oga/oga-8-bit-truth.mp3
+    download_url: https://opengameart.org/sites/default/files/16._truth_0.mp3
+    sha256: ecbf55eeac469e72fa336a5e1838bc50a95ca8f6049ce551cd43eeaf06e066c9
+    duration_s: 110.8
+    format: mp3
+    mood_guess: true
+    mood: [somber]
+    energy: 2
+    notes: "«first calm theme… sad or reveal situation»; только mp3"
+  - id: oga-ambient-the-beach-where-dreams-die
+    title: "Ambient - The Beach Where Dreams Die"
+    author: "Chloe Wolfe"
+    page_url: https://opengameart.org/content/ambient-the-beach-where-dreams-die
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2016-08-18
+    archive_url: https://web.archive.org/web/20261024131601/https://opengameart.org/content/ambient-the-beach-where-dreams-die
+    file: music/tracks/oga/oga-ambient-the-beach-where-dreams-die.wav
+    download_url: https://opengameart.org/sites/default/files/The%20Beach%20Where%20Dreams%20Die.wav
+    sha256: 361d60c6aa6b5f8bdc028eefba9464074b8ece65d51c8381f1f0b7f575b00edb
+    duration_s: 164.6
+    format: wav
+    mood_guess: true
+    mood: [somber]
+    energy: 1
+    notes: "эмбиент-чиптюн; на SoundCloud автор как chad-wolfe-1 — проверить, что это тот же человек"
+  - id: oga-chill-chiptunes-collection-7
+    title: "Chill Chiptunes (Collection) — ICE temple"
+    author: "Holizna"
+    page_url: https://opengameart.org/content/chill-chiptunes-collection
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2024-04-11
+    archive_url: https://web.archive.org/web/20261024125327/https://opengameart.org/content/chill-chiptunes-collection
+    file: music/tracks/oga/oga-chill-chiptunes-collection-7.ogg
+    download_url: https://opengameart.org/sites/default/files/chill_chiptunes.zip
+    source_file: "chill_chiptunes.zip/Chill Chiptunes/08 HoliznaCC0 - ICE temple.ogg"
+    sha256: 7b98a32de479102254e1b88d5856f56b0e5febb70a6cc9cb89bfea3822c2f49d
+    duration_s: 104.9
+    format: ogg
+    mood_guess: true
+    mood: [somber, curious]
+    energy: 1
+    notes: "сборник «chill, relaxing, calm»; ogg из zip"
+  - id: oga-4-chiptunes-adventure-1
+    title: "4 Chiptunes (Adventure) — Stage 1"
+    author: "SubspaceAudio (Juhani Junkala)"
+    page_url: https://opengameart.org/content/4-chiptunes-adventure
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2017-05-26
+    archive_url: https://web.archive.org/web/20261024125120/https://opengameart.org/content/4-chiptunes-adventure
+    file: music/tracks/oga/oga-4-chiptunes-adventure-1.wav
+    download_url: https://opengameart.org/sites/default/files/Juhani%20Junkala%20%5BChiptune%20Adventures%5D%20WAV.zip
+    source_file: "Juhani Junkala [Chiptune Adventures] WAV.zip/Juhani Junkala [Chiptune Adventures] 1. Stage 1.wav"
+    sha256: f7e4bb2b4311aa5790c6b37b54fe8db8081bf0d17cdef01f4d95cf2ec7d33749
+    duration_s: 41.1
+    format: wav
+    mood_guess: true
+    mood: [hopeful]
+    energy: 3
+    notes: "«lighthearted platformers», seamlessly looping; автор: «seriously catchy» — может отвлекать от голоса"
+  - id: oga-4-chiptunes-adventure-2
+    title: "4 Chiptunes (Adventure) — Stage 2"
+    author: "SubspaceAudio (Juhani Junkala)"
+    page_url: https://opengameart.org/content/4-chiptunes-adventure
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2017-05-26
+    archive_url: https://web.archive.org/web/20261024125120/https://opengameart.org/content/4-chiptunes-adventure
+    file: music/tracks/oga/oga-4-chiptunes-adventure-2.wav
+    download_url: https://opengameart.org/sites/default/files/Juhani%20Junkala%20%5BChiptune%20Adventures%5D%20WAV.zip
+    source_file: "Juhani Junkala [Chiptune Adventures] WAV.zip/Juhani Junkala [Chiptune Adventures] 2. Stage2.wav"
+    sha256: 777f8d5e3c80a120ee71058048420d99a587ae9db11b446fc698b969010ec34e
+    duration_s: 56.1
+    format: wav
+    mood_guess: true
+    mood: [hopeful]
+    energy: 3
+    notes: "«lighthearted platformers», seamlessly looping"
+  - id: oga-free-nes-music-pack-4
+    title: "Free NES Music Pack — nes_03-cheery"
+    author: "pmiller (Phillip Miller)"
+    page_url: https://opengameart.org/content/free-nes-music-pack
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2019-07-01
+    archive_url: https://web.archive.org/web/20261024125403/https://opengameart.org/content/free-nes-music-pack
+    file: music/tracks/oga/oga-free-nes-music-pack-4.wav
+    download_url: https://opengameart.org/sites/default/files/Free_NES_Music_Pack.zip
+    source_file: "Free_NES_Music_Pack.zip/nes_03-cheery.wav"
+    sha256: b0c4e58beaf62dc2ba25ab64ea4519e6501053c303a5bec1123b860c663a11ef
+    duration_s: 48.1
+    format: wav
+    mood_guess: true
+    mood: [hopeful]
+    energy: 3
+    notes: "Famitracker, «cheery» по названию"
+  - id: oga-6-genuinely-c64-soundtracks-released-as-public-domain-may-2017-6
+    title: "6 genuinely C64 soundtracks released as public domain, May 2017 — Shanty"
+    author: "skrjablin («Skrjablin»)"
+    page_url: https://opengameart.org/content/6-genuinely-c64-soundtracks-released-as-public-domain-may-2017
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2017-05-18
+    archive_url: https://web.archive.org/web/20261024125544/https://opengameart.org/content/6-genuinely-c64-soundtracks-released-as-public-domain-may-2017
+    file: music/tracks/oga/oga-6-genuinely-c64-soundtracks-released-as-public-domain-may-2017-6.ogg
+    download_url: https://opengameart.org/sites/default/files/shanty_c64.ogg
+    sha256: 0827c6db97420320f3ee20017648484d59eedf9b8b7a582e38efddc7237fc1cd
+    duration_s: 56.1
+    format: ogg
+    mood_guess: true
+    mood: [hopeful]
+    energy: 3
+    notes: "C64/SID, «A happy sailor's title melody» — оригинальная ли мелодия шанти, проверить на слух"
+  - id: oga-summer-sunday
+    title: "Summer Sunday"
+    author: "celestialghost8"
+    page_url: https://opengameart.org/content/summer-sunday
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2017-03-07
+    archive_url: https://web.archive.org/web/20261024125817/https://opengameart.org/content/summer-sunday
+    file: music/tracks/oga/oga-summer-sunday.wav
+    download_url: https://opengameart.org/sites/default/files/Summer%20Sunday.wav
+    sha256: 3a30674e1783c7134a6173a6c91592269eea4ec49c1fce94f330e3e0acb091bf
+    duration_s: 64.2
+    format: wav
+    mood_guess: true
+    mood: [hopeful]
+    energy: 3
+    notes: "Famitracker VRC6, «Upbeat»; взята обычная версия (есть ещё lower pitch)"
+  - id: oga-my-street
+    title: "My Street"
+    author: "congusbongus"
+    page_url: https://opengameart.org/content/my-street
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2021-01-22
+    archive_url: https://web.archive.org/web/20261024131640/https://opengameart.org/content/my-street
+    file: music/tracks/oga/oga-my-street.ogg
+    download_url: https://opengameart.org/sites/default/files/my_street.ogg
+    sha256: 5560f25dc0075045c21359dfbc6757a5b921c8ca1e7684ceddcb1431b9fc2c55
+    duration_s: 213.0
+    format: ogg
+    mood_guess: true
+    mood: [hopeful]
+    energy: 3
+    notes: "MilkyTracker, «Upbeat 8-bit… starting town»"
+  - id: oga-pushing-ahead
+    title: "Pushing ahead"
+    author: "Centurion_of_war"
+    page_url: https://opengameart.org/content/pushing-ahead
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2021-02-23
+    archive_url: https://web.archive.org/web/20261024131817/https://opengameart.org/content/pushing-ahead
+    file: music/tracks/oga/oga-pushing-ahead.ogg
+    download_url: https://opengameart.org/sites/default/files/push_ahead_0.ogg
+    sha256: dcd7fa1f6365c3b8113bb72c8f7c43eee9f253c726f99d223e9d0f860ae12d91
+    duration_s: 106.7
+    format: ogg
+    mood_guess: true
+    mood: [hopeful]
+    energy: 3
+    notes: "«positive experience of adventure»; страница CC-BY 4.0 и CC0 — берём по CC0"
+  - id: oga-flowerbed-fields-loop
+    title: "Flowerbed Fields [Loop]"
+    author: "Zane Little Music"
+    page_url: https://opengameart.org/content/flowerbed-fields-loop
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2023-05-14
+    archive_url: https://web.archive.org/web/20261024131853/https://opengameart.org/content/flowerbed-fields-loop
+    file: music/tracks/oga/oga-flowerbed-fields-loop.wav
+    download_url: https://opengameart.org/sites/default/files/flowerbed_fields.wav
+    sha256: 335dd7dee07e673b18dbed61097e717d2de757c78933bcfa9dab4e216ad447b7
+    duration_s: 105.9
+    format: wav
+    mood_guess: true
+    mood: [hopeful]
+    energy: 3
+    notes: "«cute chiptune loop», NES/Game Boy; WAV 32-bit float"
+  - id: oga-sunny-day-day-6
+    title: "Sunny Day - Day 6"
+    author: "Zane Little Music"
+    page_url: https://opengameart.org/content/sunny-day-day-6
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2022-07-16
+    archive_url: https://web.archive.org/web/20261024131930/https://opengameart.org/content/sunny-day-day-6
+    file: music/tracks/oga/oga-sunny-day-day-6.wav
+    download_url: https://opengameart.org/sites/default/files/sunnyday.wav
+    sha256: 83b61051a5c6b6d4de68fb4259cde2ea06a740b47af235d58567c6016c5f623e
+    duration_s: 64.1
+    format: wav
+    mood_guess: true
+    mood: [hopeful]
+    energy: 3
+    notes: "«A sunny cheery day», Game Boy; WAV 32-bit float 48 kHz"
+  - id: oga-happy-adventure-loop
+    title: "Happy Adventure (Loop)"
+    author: "TinyWorlds"
+    page_url: https://opengameart.org/content/happy-adventure-loop
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2014-02-04
+    archive_url: https://web.archive.org/web/20261024132114/https://opengameart.org/content/happy-adventure-loop
+    file: music/tracks/oga/oga-happy-adventure-loop.mp3
+    download_url: https://opengameart.org/sites/default/files/happy_adveture.mp3
+    sha256: 50aa6a32625fe8565403a0c8ceb772d7fb500b9267d0019eacfe0fc742b6c73d
+    duration_s: 46.8
+    format: mp3
+    mood_guess: true
+    mood: [hopeful]
+    energy: 3
+    notes: "сгенерирован Autotracker и доработан в Audacity; только mp3"
+  - id: oga-6-genuinely-c64-soundtracks-released-as-public-domain-may-2017-3
+    title: "6 genuinely C64 soundtracks released as public domain, May 2017 — Freddie the Spider Swamp Theme"
+    author: "skrjablin («Skrjablin»)"
+    page_url: https://opengameart.org/content/6-genuinely-c64-soundtracks-released-as-public-domain-may-2017
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2017-05-18
+    archive_url: https://web.archive.org/web/20261024125544/https://opengameart.org/content/6-genuinely-c64-soundtracks-released-as-public-domain-may-2017
+    file: music/tracks/oga/oga-6-genuinely-c64-soundtracks-released-as-public-domain-may-2017-3.ogg
+    download_url: https://opengameart.org/sites/default/files/freddie_swamp.ogg
+    sha256: 68faacff00ac03d1f9a6b4d1209fd83f0ae3d4dabbfd87ee8928946db9eb6de2
+    duration_s: 70.3
+    format: ogg
+    mood_guess: true
+    mood: [curious]
+    energy: 2
+    notes: "C64/SID, «slow mysterious soundtrack»"
+  - id: oga-free-nes-music-pack-3
+    title: "Free NES Music Pack — nes_03-blues"
+    author: "pmiller (Phillip Miller)"
+    page_url: https://opengameart.org/content/free-nes-music-pack
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2019-07-01
+    archive_url: https://web.archive.org/web/20261024125403/https://opengameart.org/content/free-nes-music-pack
+    file: music/tracks/oga/oga-free-nes-music-pack-3.wav
+    download_url: https://opengameart.org/sites/default/files/Free_NES_Music_Pack.zip
+    source_file: "Free_NES_Music_Pack.zip/nes_03-blues.wav"
+    sha256: daa2740da8108846103825317b8c88196f47d50d386fe0822a7591b5be1abf1c
+    duration_s: 77.0
+    format: wav
+    mood_guess: true
+    mood: [curious, neutral]
+    energy: 2
+    notes: "Famitracker, блюз"
+  - id: oga-chill-chiptunes-collection-6
+    title: "Chill Chiptunes (Collection) — Complications"
+    author: "Holizna"
+    page_url: https://opengameart.org/content/chill-chiptunes-collection
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2024-04-11
+    archive_url: https://web.archive.org/web/20261024125327/https://opengameart.org/content/chill-chiptunes-collection
+    file: music/tracks/oga/oga-chill-chiptunes-collection-6.ogg
+    download_url: https://opengameart.org/sites/default/files/chill_chiptunes.zip
+    source_file: "chill_chiptunes.zip/Chill Chiptunes/05 HoliznaCC0 - Complications.ogg"
+    sha256: c25700fff62496682a392e4ee09c08b2c8ff92527ede3392facac6c636496e25
+    duration_s: 118.7
+    format: ogg
+    mood_guess: true
+    mood: [curious]
+    energy: 2
+    notes: "сборник «chill, relaxing, calm»; ogg из zip"
+  - id: oga-8-bit-forest-theme
+    title: "8-bit Forest Theme"
+    author: "Wolfgang_"
+    page_url: https://opengameart.org/content/8-bit-forest-theme
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2017-08-04
+    archive_url: https://web.archive.org/web/20261024130057/https://opengameart.org/content/8-bit-forest-theme
+    file: music/tracks/oga/oga-8-bit-forest-theme.wav
+    download_url: https://opengameart.org/sites/default/files/TheForest_0.wav
+    sha256: 153832c278e7afa6849487a36e341e0363f318386403297f76b3a0590dd2fb28
+    duration_s: 170.8
+    format: wav
+    mood_guess: true
+    mood: [curious]
+    energy: 2
+    notes: "«wandering around in a not-so-menacing forest»"
+  - id: oga-8-bit-cave-loop
+    title: "8-Bit Cave Loop"
+    author: "Wolfgang_"
+    page_url: https://opengameart.org/content/8-bit-cave-loop
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2017-12-20
+    archive_url: https://web.archive.org/web/20261024130134/https://opengameart.org/content/8-bit-cave-loop
+    file: music/tracks/oga/oga-8-bit-cave-loop.wav
+    download_url: https://opengameart.org/sites/default/files/8BitCave.wav
+    sha256: 62d699b0ca1810d3c503a7837efd726db052bbeb5de03c54df49dba377e26c1d
+    duration_s: 64.0
+    format: wav
+    mood_guess: true
+    mood: [curious]
+    energy: 2
+    notes: "Famitracker, пещера"
+  - id: oga-delayed-chiptune
+    title: "Delayed Chiptune"
+    author: "Centurion_of_war"
+    page_url: https://opengameart.org/content/delayed-chiptune
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2024-04-24
+    archive_url: https://web.archive.org/web/20261024132156/https://opengameart.org/content/delayed-chiptune
+    file: music/tracks/oga/oga-delayed-chiptune.ogg
+    download_url: https://opengameart.org/sites/default/files/delayed_chips_0.ogg
+    sha256: 2cebadd22e45de697b2ef38579dc44d7dd913c700a93b6183dd01a8beb9a405d
+    duration_s: 45.4
+    format: ogg
+    mood_guess: true
+    mood: [curious]
+    energy: 2
+    notes: "теги mysterious, adventurer; много дилея в мелодии"
+  - id: oga-haunting-chiptune-loop-void-estate
+    title: "Haunting Chiptune Loop [Void Estate]"
+    author: "Zane Little Music"
+    page_url: https://opengameart.org/content/haunting-chiptune-loop-void-estate
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2023-05-21
+    archive_url: https://web.archive.org/web/20261024132232/https://opengameart.org/content/haunting-chiptune-loop-void-estate
+    file: music/tracks/oga/oga-haunting-chiptune-loop-void-estate.wav
+    download_url: https://opengameart.org/sites/default/files/void_estate.wav
+    sha256: 95ebd3ce00a66744eb0b9b9881691fe8b2e9c2d10cda8dced32c46f1b8a4d0ca
+    duration_s: 86.5
+    format: wav
+    mood_guess: true
+    mood: [curious, tense]
+    energy: 2
+    notes: "spooky NES-луп; взята «clean version» (есть ещё «haunted arcade»); WAV 32-bit float"
+  - id: oga-backup-plan
+    title: "Backup Plan"
+    author: "Zane Little Music"
+    page_url: https://opengameart.org/content/backup-plan
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2022-12-27
+    archive_url: https://web.archive.org/web/20261024132311/https://opengameart.org/content/backup-plan
+    file: music/tracks/oga/oga-backup-plan.wav
+    download_url: https://opengameart.org/sites/default/files/backup_plan.wav
+    sha256: 3f310ccdcb25f08a01dcf69a3890f3260ca4d62e324b30fc7360a802876f32ac
+    duration_s: 192.0
+    format: wav
+    mood_guess: true
+    mood: [curious, tense]
+    energy: 3
+    notes: "heist/drama, NES/SNES «digital fusion»; WAV 32-bit float"
+  - id: oga-time-to-puzzle-it-up
+    title: "Time to Puzzle it Up!"
+    author: "Spring Spring"
+    page_url: https://opengameart.org/content/time-to-puzzle-it-up
+    license: CC0-1.0
+    license_url: http://creativecommons.org/publicdomain/zero/1.0/
+    uploaded_at: 2018-11-17
+    archive_url: https://web.archive.org/web/20261024132448/https://opengameart.org/content/time-to-puzzle-it-up
+    file: music/tracks/oga/oga-time-to-puzzle-it-up.ogg
+    download_url: https://opengameart.org/sites/default/files/puzzleitnes_0.ogg
+    sha256: cdeb9d7d3c0ef057ff07b0b894d62956d1218806ac91fd4b099ffe15f842fdfd
+    duration_s: 71.9
+    format: ogg
+    mood_guess: true
+    mood: [curious]
+    energy: 2
+    notes: "puzzle, gentle; взята NES-версия (на странице ещё FM- и PCE-версии)"
+excluded:
+  - page_url: https://opengameart.org/content/adventure-theme
+    reason: "known_game: в описании «Inspired by: Mega man, Sonic Blast and X-men»; гибрид 8/16-bit с рок-барабанами"
+  - page_url: https://opengameart.org/content/the-slimekings-tower-ost-retro-like
+    reason: "uploader: OST игры выложил разработчик «my team and I»; композитор не назван, передачи прав от него нет"
+  - page_url: https://opengameart.org/content/cc0-scraps
+    reason: "cover: в наборе «drunken sailor.wav» — аранжировка народной песни; остальное — незаконченные наброски без названий"
+  - page_url: https://opengameart.org/content/long-away-home-8bit
+    reason: "known_game: в описании образец — «retro 8bit games such as Zelda»"
+  - page_url: https://opengameart.org/content/free-run-8-bitish
+    reason: "known_game: файл «Project 2 marioish.mp3» — стилизация под Mario"
+  - page_url: https://opengameart.org/content/8bit-title-screen
+    reason: "short: «Short loop», mp3 356 KB — около 20 с"
+  - page_url: https://opengameart.org/content/theme-song-8-bit
+    reason: "not_selected: героическая заглавная тема (заставка + цикл); по метаданным не совпадает с настроениями брифа"
+  - page_url: https://opengameart.org/content/leap-8bit
+    reason: "not_selected: автор сам пишет «not sure if this is suitable», версия неполная"
+  - page_url: https://opengameart.org/content/boss-battle-2-8-bit
+    reason: "not_selected: старая загрузка, по словам автора — «in removal condition», заменена re-upload; битва с боссом"
+  - page_url: https://opengameart.org/content/spooky-dungeon
+    reason: "uploader: «music by Memoraphile», загрузила студия You're Perfect Studio; явной передачи прав нет"
+  - page_url: https://opengameart.org/content/summer-park-8bit-tune-loop
+    reason: "not_selected: автор: «first attempt… rather annoying after a little while»"
+  - page_url: https://opengameart.org/content/victory
+    reason: "jingle: «2A03 Victory fanfare» — фанфара"
+  - page_url: https://opengameart.org/content/pulsar-famitracker-2a03
+    reason: "short: WAV 2,4 MB — около 14 с"
+  - page_url: https://opengameart.org/content/boss-battle-3-8-bit-re-upload
+    reason: "not_selected: битва с боссом — максимальная энергия, не «controlled intensity» для подложки"
+  - page_url: https://opengameart.org/content/boss-battle-4-8-bit-re-upload
+    reason: "not_selected: битва с боссом — максимальная энергия, не «controlled intensity» для подложки"
+  - page_url: https://opengameart.org/content/boss-battle-2-8-bit-re-upload
+    reason: "not_selected: битва с боссом — максимальная энергия, не «controlled intensity» для подложки"
+  - page_url: https://opengameart.org/content/great-boss
+    reason: "not_selected: босс-тема, автор: «unimaginative and repetetive»; срочных хватает"
+  - page_url: https://opengameart.org/content/it-takes-a-hero
+    reason: "not_selected: героический/триумфальный трек, бриф hopeful — «not triumphant»"
+  - page_url: https://opengameart.org/content/boss-battle-5-8-bit
+    reason: "not_selected: битва с боссом — максимальная энергия, не «controlled intensity» для подложки"
+  - page_url: https://opengameart.org/content/fight-for-better-future-rockmetal
+    reason: "not_chiptune: рок/метал: гитары, барабаны"
+  - page_url: https://opengameart.org/content/8-bit-danger-strong-boss
+    reason: "not_selected: босс/побег, энергия 5 — выше «controlled intensity»"
+  - page_url: https://opengameart.org/content/boss-battle-1-8-bit-re-upload
+    reason: "not_selected: битва с боссом — максимальная энергия, не «controlled intensity» для подложки"
+  - page_url: https://opengameart.org/content/end-credits-theme
+    reason: "not_chiptune: нет тегов chiptune/8-bit; финальные титры, «Looped: Not supposed to be»"
+  - page_url: https://opengameart.org/content/8-bit-theme-on-the-offensive
+    reason: "not_selected: срочных кандидатов хватает; атакующая тема с MMC5"
+  - page_url: https://opengameart.org/content/boss-battle-8-retro
+    reason: "not_selected: битва с боссом — максимальная энергия, не «controlled intensity» для подложки"
+  - page_url: https://opengameart.org/content/spooky-action-loop-hallow-quest
+    reason: "known_game: «Think Castlevania!»; трек писался для заказчика, который не заплатил, — права под вопросом"
+  - page_url: https://opengameart.org/content/8-bit-victory-loop
+    reason: "jingle: победный луп «like for completing a level»"
+  - page_url: https://opengameart.org/content/continue
+    reason: "not_selected: трек из альбома без описания настроения; mp3 11,8 MB — по размеру длиннее 4 мин"
+  - page_url: https://opengameart.org/content/porkymon-battle-theme
+    reason: "known_game: пародия на боевую тему Pokémon («PKMN Battle»)"
+  - page_url: https://opengameart.org/content/10-free-chiptune-tracks-a-bag-of-chips
+    reason: "not_selected: альбом Zane Little Music, дублирует отдельные страницы; треки героические/быстрые"
+  - page_url: https://opengameart.org/content/8-bit-battle-loop
+    reason: "short: «Very short 8-bit battle loop»"
+  - page_url: https://opengameart.org/content/endless-pain-of-nightmares
+    reason: "too_long: метал, переложенный в «8bit»; WAV 45,5 MB — около 4,3 мин, больше 240 с"
+  - page_url: https://opengameart.org/content/space-cadet-training-montage
+    reason: "not_selected: героический монтаж, бриф hopeful — «not triumphant»"
+  - page_url: https://opengameart.org/content/dark-8bit-song
+    reason: "uploader: автор sauer2, загрузил Anonymous; авторство подтверждено только анонимным комментарием"
+  - page_url: https://opengameart.org/content/snow-city-theme
+    reason: "known_game: теги undertale, pokemon; фортепиано"
+  - page_url: https://opengameart.org/content/nes-shooter-music-5-tracks-3-jingles
+    reason: "claim_risk: в комментариях MetroVG Studio заявляет права через JASRAC, пользователь получил DMCA takedown в Steam; модератор OGA счёл это троллингом, но риск claims реальный"
+  - page_url: https://opengameart.org/content/talking-cute-chiptune
+    reason: "not_selected: описания нет (только ссылка на блог), по тегам джаз"
+  - page_url: https://opengameart.org/content/moon-chime
+    reason: "not_chiptune: dubstep с wobble, 16-bit"
+  - page_url: https://opengameart.org/content/12-music-loops
+    reason: "not_selected: экшен-лупы Juhani Junkala; от автора уже достаточно треков"
+  - page_url: https://opengameart.org/content/apple-cider
+    reason: "not_chiptune: акустическая гитара, флейта, свист; в тегах Animal Crossing, Harvest Moon, Stardew Valley"
+  - page_url: https://opengameart.org/content/lasso-lady-seamless-loop
+    reason: "not_selected: вестерн-стилизация — слишком характерна для новостной подложки"
+  - page_url: https://opengameart.org/content/a-wonderful-nightmare-chiptune-version
+    reason: "cover: «chiptune version» неуказанного оригинала — происхождение мелодии неясно"
+  - page_url: https://opengameart.org/content/extradimensional-portalhopping-day-23
+    reason: "not_chiptune: fusion с металом, демо-рил"
+  - page_url: https://opengameart.org/content/superpowers-assets-music
+    reason: "uploader: музыка Sparklin Labs (Superpowers), загрузил MedicineStorm"
+  - page_url: https://opengameart.org/content/gods-forbid
+    reason: "not_chiptune: spacesynth/techno; от Centurion_of_war уже 3 трека"
+  - page_url: https://opengameart.org/content/napping-on-a-cloud
+    reason: "too_long: длительность 248,4 с — больше 240 с"
+  - page_url: https://opengameart.org/content/sailor-waltz-with-water-effects-c64-style
+    reason: "not_selected: вальс со звуками воды (эффекты внутри трека)"
+  - page_url: https://opengameart.org/content/electronic
+    reason: "not_chiptune: файлы Techno 1–7 без описания"
+  - page_url: https://opengameart.org/content/toy-soldiers
+    reason: "not_selected: марш, «silly»"
+  - page_url: https://opengameart.org/content/sideways-city
+    reason: "not_selected: 16-bit SNES, дурашливый («nothing really makes much sense»)"
+  - page_url: https://opengameart.org/content/suez-crisis
+    reason: "not_selected: египетский лад; название — историческое событие, неуместно для новостей"
+  - page_url: https://opengameart.org/content/a-few-famitracks
+    reason: "short: батальные треки, mp3 356 и 562 KB — около 20–35 с"
+  - page_url: https://opengameart.org/content/10-more-chiptune-tracks-another-bag-of-chips
+    reason: "not_selected: альбом Zane Little Music, дублирует отдельные страницы"
+  - page_url: https://opengameart.org/content/7-pop-punk-chiptune-tracks
+    reason: "claim_risk: инструментальные версии песен с вокалом из альбома на Spotify/Bandcamp — риск Content ID; поп-панк с электрогитарой"
+  - page_url: https://opengameart.org/content/8-bit-perilous-dungeon
+    reason: "not_selected: тег Rock; от HydroGene уже 3 трека"
+  - page_url: https://opengameart.org/content/unstable-field
+    reason: "not_selected: «a rearrange of a previous piece», spacesynth; ogg 7,3 MB — по размеру длинный"
+  - page_url: https://opengameart.org/content/melodic-adventure-theme-and-rhythmic-variation-c64-style
+    reason: "not_selected: от skrjablin уже 5 треков"
+  - page_url: https://opengameart.org/content/electronic-outlaw
+    reason: "not_selected: «hyper», срочных хватает"
+  - page_url: https://opengameart.org/content/chiptune-medieval-the-bards-tale
+    reason: "not_selected: средневековая фолк-мелодия; от RandomMind уже 1 трек"
+  - page_url: https://opengameart.org/content/ciptuned-rock-tune
+    reason: "not_chiptune: рок с барабанами, «Short track made for a trailer»"
+  - page_url: https://opengameart.org/content/motivational-chips-day-2
+    reason: "not_selected: мотивационный «wooah dude», только mp3"
+  - page_url: https://opengameart.org/content/moms-workout-cd
+    reason: "not_selected: шуточный «workout», слишком бодрый"
+  - page_url: https://opengameart.org/content/egyptian-fortress-boss
+    reason: "short: «Very short boss theme», египетский лад"
+  - page_url: https://opengameart.org/content/pixel-sprinter
+    reason: "not_chiptune: гибрид фортепиано, струнных и чипа; гоночный"
+  - page_url: https://opengameart.org/content/brahms-val3
+    reason: "cover: переложение вальса Брамса (Vals no. 3)"
+  - page_url: https://opengameart.org/content/nightmarechiptunefinal
+    reason: "not_selected: боевой techno-чиптюн; срочных хватает"
+  - page_url: https://opengameart.org/content/sunny-side-up-electronic
+    reason: "not_selected: описания нет, тег только chiptune"
+  - page_url: https://opengameart.org/content/the-war-over-a-melon-field-themes-and-jingles
+    reason: "jingle: джинглы win/lose/charselect; банджо, губная гармоника"
+  - page_url: https://opengameart.org/content/medieval-battle
+    reason: "not_chiptune: оркестровая средневековая тема"
+  - page_url: https://opengameart.org/content/poker-night
+    reason: "not_selected: digifu, казино; от Zane Little Music уже 6 треков"
+  - page_url: https://opengameart.org/content/synesthesia
+    reason: "not_selected: «Super bubbly… Nintendo-esque», очень энергичный"
+  - page_url: https://opengameart.org/content/cupcakes-vinegar-sour-mood
+    reason: "too_long: длительность 337,2 с — больше 240 с"
+  - page_url: https://opengameart.org/content/old-tricks
+    reason: "not_selected: 16-bit; от Zane Little Music уже 6 треков"
+  - page_url: https://opengameart.org/content/exploring-town
+    reason: "not_chiptune: FM-синтез (Sega Genesis), не NES"
+  - page_url: https://opengameart.org/content/autism-island
+    reason: "not_selected: описания нет; название неуместно для новостного канала"
+  - page_url: https://opengameart.org/content/lo-fi-chiptune-glitch-dnb
+    reason: "not_chiptune: glitch drum'n'bass"
+  - page_url: https://opengameart.org/content/8-bit-monstervania-2-0
+    reason: "known_game: в описании «Castlevania style game», тег Castlevania"
+  - page_url: https://opengameart.org/content/we-are-prophet-happy-energetic-tune
+    reason: "short: mp3 330 KB — около 20 с"
+  - page_url: https://opengameart.org/content/welcome-to-the-item-shop
+    reason: "not_chiptune: 16-bit FM (YM2608), не NES"
+  - page_url: https://opengameart.org/content/crow-mans-stage
+    reason: "known_game: «as if he was a Megaman boss»"
+  - page_url: https://opengameart.org/content/post-adventure-tea-party
+    reason: "not_selected: празднование победы, бриф hopeful — «not triumphant»"
+  - page_url: https://opengameart.org/content/classical-pop-chiptune
+    reason: "not_selected: «Classical Pop» — возможны цитаты классики; теги jazz, rock"
+  - page_url: https://opengameart.org/content/8-bit-jester-battle
+    reason: "not_selected: битва; от HydroGene уже 3 трека"
+  - page_url: https://opengameart.org/content/invincibility-loop
+    reason: "known_game: теги «super star, power star» — отсылка к Mario; луп около 30 с"
+  - page_url: https://opengameart.org/content/8-bit-rush-point
+    reason: "not_selected: срочных хватает, от HydroGene уже 3 трека"
+  - page_url: https://opengameart.org/content/starlight-city-loop-included
+    reason: "not_selected: zip 87,6 MB; от Zane Little Music уже 6 треков"
+  - page_url: https://opengameart.org/content/beyond-cosmos
+    reason: "not_chiptune: spacesynth/techno; от Centurion_of_war уже 3 трека"
+  - page_url: https://opengameart.org/content/heavy-heist
+    reason: "not_chiptune: «Chip tune inspired», электрогитара и барабаны"
+  - page_url: https://opengameart.org/content/insect-factory-wii-style-music
+    reason: "known_game: «Wii-style», тег mii — стилизация под музыку Wii"
+  - page_url: https://opengameart.org/content/stargazer
+    reason: "not_chiptune: «Catchy techno/retro tune», автор «still trying to improve it»"
+  - page_url: https://opengameart.org/content/crystal-cave-song18
+    reason: "not_chiptune: эмбиент: колокольчики, арпеджио"
+  - page_url: https://opengameart.org/content/loading-screen-loop
+    reason: "not_chiptune: электронный эмбиент для FPS"
+  - page_url: https://opengameart.org/content/the-field-of-dreams
+    reason: "not_chiptune: кинематографичная оркестровка (Sibelius)"
+  - page_url: https://opengameart.org/content/menu-music
+    reason: "not_chiptune: GarageBand + Apple Loops; автор сам спрашивает, не нарушает ли права"
+  - page_url: https://opengameart.org/content/another-space-background-track
+    reason: "not_chiptune: LMMS-эмбиент"
+  - page_url: https://opengameart.org/content/mysterious-ambience-song21
+    reason: "not_chiptune: эмбиент: фортепиано"
+  - page_url: https://opengameart.org/content/background-space-track
+    reason: "not_chiptune: дрон/шум, сирены"
+  - page_url: https://opengameart.org/content/next-to-you
+    reason: "not_chiptune: эмоциональный луп без признаков 8-bit (теги loop, emotional)"
+  - page_url: https://opengameart.org/content/snowfall
+    reason: "not_chiptune: фортепианный вальс"
+  - page_url: https://opengameart.org/content/medieval-the-old-tower-inn
+    reason: "not_chiptune: фолк-версия; чиптюн-версия того же трека взята в кандидаты"
+  - page_url: https://opengameart.org/content/underwater-theme
+    reason: "not_chiptune: арфа, колокольчики, флейта"
+  - page_url: https://opengameart.org/content/tower-defense-theme
+    reason: "not_chiptune: techno/trance"
+  - page_url: https://opengameart.org/content/fast-fight-battle-music-looped
+    reason: "uploader: зацикленная версия трека Ville Nousiainen, загрузил XCVG"
+  - page_url: https://opengameart.org/content/dungeon-ambience
+    reason: "not_chiptune: тёмный эмбиент"
+  - page_url: https://opengameart.org/content/creepy
+    reason: "not_chiptune: хоррор-луп на сэмплах"
+  - page_url: https://opengameart.org/content/i-swear-i-saw-it-background-track
+    reason: "not_chiptune: LMMS-эмбиент около 3,5 мин"
+  - page_url: https://opengameart.org/content/happy-lullaby-song17
+    reason: "not_chiptune: колыбельная на колокольчиках"
+  - page_url: https://opengameart.org/content/jrpg-pack-1-exploration
+    reason: "not_chiptune: JRPG-пак без тегов chiptune/8-bit"
+  - page_url: https://opengameart.org/content/zombies-march
+    reason: "not_chiptune: тёмный LMMS-луп"
+  - page_url: https://opengameart.org/content/eye-of-the-storm
+    reason: "not_chiptune: «solo version», теги loop, calm, sad — без признаков 8-bit"
+  - page_url: https://opengameart.org/content/insistent-background-loop
+    reason: "not_chiptune: хоррор-эмбиент"
+  - page_url: https://opengameart.org/content/boss-battle-2-symphonic-metal
+    reason: "not_chiptune: симфо-метал"
+  - page_url: https://opengameart.org/content/music-loop-variations
+    reason: "not_selected: короткие лупы («short loop»), жанр не указан"
+  - page_url: https://opengameart.org/content/medieval-the-bards-tale
+    reason: "not_chiptune: лютня, флейта"
+  - page_url: https://opengameart.org/content/searching
+    reason: "not_chiptune: индустриальный дрон"
+  - page_url: https://opengameart.org/content/medieval-minstrel-dance
+    reason: "not_chiptune: лютня, виола"
+  - page_url: https://opengameart.org/content/42-monster-rpg-2-music-tracks
+    reason: "uploader: музыка Nooskewl Games из исходников игры, перелицензировал загрузивший; один трек уже удалён как «not original»"
+  - page_url: https://opengameart.org/content/space-music-out-there
+    reason: "too_long: «4 minutes of a background music», LMMS-эмбиент"
+  - page_url: https://opengameart.org/content/gone-fishin
+    reason: "uploader: «by memoraphile», загрузила студия; банджо/кантри"
+  - page_url: https://opengameart.org/content/shrine
+    reason: "not_chiptune: LMMS-эмбиент"
+  - page_url: https://opengameart.org/content/carnival-rides
+    reason: "short: короткий луп из MuseScore для «Weekly Challenge»"
+  - page_url: https://opengameart.org/content/happy-synths-loop-with-slight-christmas-feeling
+    reason: "not_selected: рождественский колорит — сезонный; синтезаторы, не NES"
+  - page_url: https://opengameart.org/content/horror-atmosphere
+    reason: "too_long: 5:23 — больше 240 с; шумовой эмбиент"
+  - page_url: https://opengameart.org/content/emotional-piano-loop
+    reason: "not_chiptune: фортепиано"
+  - page_url: https://opengameart.org/content/at-the-end-of-hope
+    reason: "not_chiptune: электропиано"
+  - page_url: https://opengameart.org/content/adventure-time
+    reason: "not_chiptune: «medieval-ish sounds and rock»"
+  - page_url: https://opengameart.org/content/the-9th-circle
+    reason: "not_chiptune: industrial/dubstep"
+  - page_url: https://opengameart.org/content/where-was-i
+    reason: "not_chiptune: LMMS-трек без признаков 8-bit"
+  - page_url: https://opengameart.org/content/story-time
+    reason: "known_game: «like a old zelda game»; «Made it short»"
+  - page_url: https://opengameart.org/content/determined-pursuit-epic-orchestra-loop
+    reason: "not_chiptune: оркестр"
+  - page_url: https://opengameart.org/content/lonelyhood
+    reason: "not_chiptune: LMMS с SoundFont-инструментами"
+  - page_url: https://opengameart.org/content/ambience-pack-1-sci-fi-horror
+    reason: "not_chiptune: тёмный sci-fi эмбиент"
+  - page_url: https://opengameart.org/content/emptycity-background-music
+    reason: "not_chiptune: тёмный эмбиент"
+  - page_url: https://opengameart.org/content/interactive-jrpg-music-in-fmod-studio
+    reason: "not_selected: адаптивная музыка для FMOD (стемы), не готовые треки"
+  - page_url: https://opengameart.org/content/head-in-the-sand-seamless-loop
+    reason: "short: ogg 108 KB — около 10 с"
+  - page_url: https://opengameart.org/content/8-bit-rpg-battleencounter-theme
+    reason: "not_selected: автор: «Not really a fan of how it turned out»"
+  - page_url: https://opengameart.org/content/through-the-portal
+    reason: "not_chiptune: techno, первые опыты автора"
+  - page_url: https://opengameart.org/content/forest-of-hope
+    reason: "known_game: «inspired by undertale»"
+  - page_url: https://opengameart.org/content/dizzy-racing
+    reason: "not_selected: «Wicked fast», гоночный"
+  - page_url: https://opengameart.org/content/8bit-monstervania-track-1
+    reason: "known_game: пак для «Castlevania-like» игр, тег Castlevania"
+  - page_url: https://opengameart.org/content/rat-sewer
+    reason: "not_selected: эмбиент с каплями воды (звуковые эффекты внутри трека)"
+  - page_url: https://opengameart.org/content/game-over-theme
+    reason: "jingle: тема game over («No Hope (You died)»), фортепиано"
+  - page_url: https://opengameart.org/content/cc0-remakes
+    reason: "cover: ремейки чужих треков с OGA («remake», «OGA Remix»)"
+  - page_url: https://opengameart.org/content/rpg-battle-theme-ii
+    reason: "known_game: «Inspired by: mega man, lufia»; power metal"
+  - page_url: https://opengameart.org/content/megasong
+    reason: "known_game: «in the vein of Megaman», метал с гитарами"
+  - page_url: https://opengameart.org/content/royalty-free-game-music-loops
+    reason: "not_selected: DJ-лупы, жанр не указан (тег только loop)"
+  - page_url: https://opengameart.org/content/midi-town-theme-melody
+    reason: "not_selected: набросок идеи с флейтой («just an idea»)"
+  - page_url: https://opengameart.org/content/forest-whisper-theme
+    reason: "not_chiptune: флейта, струнные, колокольчики"
+  - page_url: https://opengameart.org/content/space-echo
+    reason: "not_chiptune: spacesynth-эмбиент, не NES-звучание"
+  - page_url: https://opengameart.org/content/boss-battle-10-retro
+    reason: "not_chiptune: теги guitars, drums, strings — не чиптюн; битва с боссом"
+  - page_url: https://opengameart.org/content/boss-battle-6-8-bit
+    reason: "not_selected: битва с боссом — максимальная энергия, не «controlled intensity» для подложки"
+  - page_url: https://opengameart.org/content/5-chiptunes-action
+    track: "Title Screen"
+    reason: "short: 11,3 с"
+  - page_url: https://opengameart.org/content/5-chiptunes-action
+    track: "Ending"
+    reason: "not_selected: концовка"
+  - page_url: https://opengameart.org/content/5-chiptunes-action
+    track: "Level 2"
+    reason: "not_selected: срочных хватает, от Juhani Junkala уже 4 трека"
+  - page_url: https://opengameart.org/content/4-chiptunes-adventure
+    track: "Stage Select"
+    reason: "short: 21,3 с"
+  - page_url: https://opengameart.org/content/4-chiptunes-adventure
+    track: "Boss Fight"
+    reason: "not_selected: битва с боссом"
+  - page_url: https://opengameart.org/content/chill-chiptunes-collection
+    track: "Asteroids"
+    reason: "known_game: название известной игры (Asteroids)"
+  - page_url: https://opengameart.org/content/chill-chiptunes-collection
+    track: "In The End"
+    reason: "known_song: совпадает с названием известной песни (Linkin Park)"
+  - page_url: https://opengameart.org/content/chill-chiptunes-collection
+    track: "Pixel Party / Gamer 75"
+    reason: "not_selected: от Holizna уже 4 трека"
+  - page_url: https://opengameart.org/content/free-nes-music-pack
+    track: "nes_02-incomplete"
+    reason: "short: 16,1 с, незаконченный"
+  - page_url: https://opengameart.org/content/free-nes-music-pack
+    track: "nes_07-simple"
+    reason: "not_selected: 25,3 с — на границе"
+  - page_url: https://opengameart.org/content/free-nes-music-pack
+    track: "nes_11-soft_then_loud"
+    reason: "not_selected: резкий перепад громкости по названию"
+  - page_url: https://opengameart.org/content/free-nes-music-pack
+    track: "nes_02-doom / nes_07-lost_blues / nes_19-upbeat"
+    reason: "not_selected: от pmiller уже 5 треков"
+  - page_url: https://opengameart.org/content/6-genuinely-c64-soundtracks-released-as-public-domain-may-2017
+    track: "Uptempo Chiptune"
+    reason: "not_selected: срочных хватает"
+  - page_url: https://opengameart.org/content/6-genuinely-c64-soundtracks-released-as-public-domain-may-2017
+    track: "Freddie the Spider / Quasi Medieval Suite"
+    reason: "not_selected: «comical», «ironic»"
