@@ -7,13 +7,17 @@
    и world_press_analyst ПАРАЛЛЕЛЬНО одним шагом, "await_wave": true. В input каждому — story_brief целиком.
 2. Все три отчёта сданы → analyst; в input — story_brief и id трёх отчётов.
 3. research_dossier сдан → fact_checker с target_artifact_id досье.
-4. Ревью approved и в summary critical=0, major=0 → DONE outcome=done.
+4. Ревью approved и в summary critical=0, major=0 → DONE outcome=done. Кроме лимита из п.6, это единственный
+   путь к outcome=done: последний артефакт задачи — ревью approved на последнюю версию research_dossier.
 5. Ревью changes_requested (или critical/major > 0 при approved — трактуй в пользу проблем):
    - замечания к фактам/источникам → fact_researcher; к группам мнений → local_press_analyst; к мировым кластерам →
      world_press_analyst — каждому только его замечания, параллельно одним шагом; затем analyst пересобирает досье
      с новыми отчётами;
    - замечания только к review/risks/сведению → сразу analyst со всеми замечаниями.
    Потом снова fact_checker.
+   Правило очереди: если после последнего ревью changes_requested уже сданы исправленные отчёты, а нового
+   research_dossier после них нет, — следующий шаг всегда analyst. DONE в этом состоянии запрещён: если в reason
+   ты пишешь, что нужен следующий агент, ответ — запуск этого агента, а не DONE.
 6. Лимит: две доработки досье. После второй: critical=0 → DONE outcome=done (оставшиеся замечания перечисли в reason);
    critical остался → DONE outcome=needs_human.
 7. Агент упал или сообщил, что данных не хватает до минимума схемы, → один повтор с уточнённым input;
