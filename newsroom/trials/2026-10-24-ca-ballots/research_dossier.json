@@ -1,0 +1,752 @@
+{
+ "as_of": "2026-10-24T20:00:00Z",
+ "facts": [
+  {
+   "id": "F1",
+   "claim": "On Oct. 15, 2026, the DOJ, working with DHS, sued the State of California, Secretary of State Shirley Weber, and LA County Registrar-Recorder Dean Logan (each in official capacity) in the U.S. District Court for the Central District of California, United States v. State of California et al., No. 2:26-cv-12025, seeking to bar the state from tabulating mail-in ballots from roughly 20,000 people DOJ calls \"likely noncitizens\" until their citizenship is verified.",
+   "is_new": false,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://www.justice.gov/opa/media/1466286/dl",
+     "kind": "primary",
+     "title": "Complaint, United States v. State of California et al., No. 2:26-cv-12025",
+     "outlet": "U.S. Department of Justice (court filing)",
+     "published_at": "2026-10-15"
+    }
+   ],
+   "primary_source": {
+    "url": "https://www.justice.gov/opa/media/1466286/dl",
+    "kind": "primary",
+    "title": "Complaint, United States v. State of California et al., No. 2:26-cv-12025",
+    "outlet": "U.S. Department of Justice (court filing)",
+    "published_at": "2026-10-15"
+   }
+  },
+  {
+   "id": "F2",
+   "claim": "The lawsuit followed an Oct. 13, 2026 letter from Acting Deputy Attorney General Trent McCotter to LA County Registrar Dean Logan and California Secretary of State Shirley Weber, demanding review of a list of more than 20,000 names of people DOJ/DHS consider \"likely noncitizens\" who had been sent a vote-by-mail ballot, and enclosing a USB thumb drive containing the list.",
+   "is_new": false,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://content.lavote.gov/docs/rrcc/documents/20261014-statement_doj_letter-2.pdf",
+     "kind": "primary",
+     "title": "Statement from Dean Logan Regarding U.S. Department of Justice Correspondence",
+     "outlet": "LA County Registrar-Recorder/County Clerk",
+     "published_at": "2026-10-14"
+    },
+    {
+     "url": "https://admin.cdn.sos.ca.gov/pdf/other/casos-to-doj-101526.pdf",
+     "kind": "primary",
+     "title": "Letter from Secretary of State Shirley N. Weber to R. Trent McCotter re: October 13, 2026 Letter",
+     "outlet": "California Secretary of State",
+     "published_at": "2026-10-15"
+    }
+   ],
+   "primary_source": {
+    "url": "https://content.lavote.gov/docs/rrcc/documents/20261014-statement_doj_letter-2.pdf",
+    "kind": "primary",
+    "title": "Statement from Dean Logan Regarding U.S. Department of Justice Correspondence",
+    "outlet": "LA County Registrar-Recorder/County Clerk",
+    "published_at": "2026-10-14"
+   }
+  },
+  {
+   "id": "F3",
+   "note": "Not a conflict: \"password-protected\" and \"encrypted\" come from two different primary documents (LA County's opposition brief and DOJ's complaint, respectively) describing the same drive. Logan's own Oct. 14 statement uses neither word but confirms a password was supplied on a handwritten note.",
+   "claim": "The thumb drive LA County received with the Oct. 13 letter was accompanied by a handwritten note providing a password (per LA County's own Oct. 14 statement); the county's Oct. 20 court filing separately describes the device as \"password-protected,\" and DOJ's Oct. 15 complaint describes it as \"encrypted\" when recounting LA County's press release about rejecting it.",
+   "is_new": false,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://content.lavote.gov/docs/rrcc/documents/20261014-statement_doj_letter-2.pdf",
+     "kind": "primary",
+     "title": "Statement from Dean Logan Regarding U.S. Department of Justice Correspondence",
+     "outlet": "LA County Registrar-Recorder/County Clerk",
+     "published_at": "2026-10-14"
+    },
+    {
+     "url": "https://www.democracydocket.com/wp-content/uploads/2026/10/2026-10-20-TRO-Opposition.pdf",
+     "kind": "primary",
+     "title": "Defendant Dean C. Logan's Opposition to Plaintiff's Ex Parte Application for Temporary Restraining Order, No. 2:26-cv-12025, Doc. 32-1",
+     "outlet": "U.S. District Court, C.D. Cal. (court filing)",
+     "published_at": "2026-10-20"
+    },
+    {
+     "url": "https://www.justice.gov/opa/media/1466286/dl",
+     "kind": "primary",
+     "title": "Complaint, United States v. State of California et al., No. 2:26-cv-12025",
+     "outlet": "U.S. Department of Justice (court filing)",
+     "published_at": "2026-10-15"
+    }
+   ],
+   "primary_source": {
+    "url": "https://www.democracydocket.com/wp-content/uploads/2026/10/2026-10-20-TRO-Opposition.pdf",
+    "kind": "primary",
+    "title": "Defendant Dean C. Logan's Opposition to Plaintiff's Ex Parte Application for Temporary Restraining Order, No. 2:26-cv-12025, Doc. 32-1",
+    "outlet": "U.S. District Court, C.D. Cal. (court filing)",
+    "published_at": "2026-10-20"
+   }
+  },
+  {
+   "id": "F4",
+   "note": "The three phrasings (\"within 48 hours\"/\"a mere 48 hours\", \"October 15 at noon EST\", \"today at noon\") describe one and the same deadline, not conflicting accounts: DOJ's complaint, filed Oct. 15, uses \"today\" because that was the deadline date itself.",
+   "claim": "DOJ's Oct. 13, 2026 letter gave California and LA County a deadline described as \"within 48 hours\" in Weber's reply letter and in LA County's opposition brief, and specifically as compliance by \"October 15 [2026] at noon EST\" per Weber's letter quoting DOJ's letter -- the same deadline DOJ's own Oct. 15 complaint refers to as requiring review \"by today at noon.\"",
+   "is_new": false,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://admin.cdn.sos.ca.gov/pdf/other/casos-to-doj-101526.pdf",
+     "kind": "primary",
+     "title": "Letter from Secretary of State Shirley N. Weber to R. Trent McCotter re: October 13, 2026 Letter",
+     "outlet": "California Secretary of State",
+     "published_at": "2026-10-15"
+    },
+    {
+     "url": "https://www.democracydocket.com/wp-content/uploads/2026/10/2026-10-20-TRO-Opposition.pdf",
+     "kind": "primary",
+     "title": "Defendant Dean C. Logan's Opposition to Plaintiff's Ex Parte Application for Temporary Restraining Order, No. 2:26-cv-12025, Doc. 32-1",
+     "outlet": "U.S. District Court, C.D. Cal. (court filing)",
+     "published_at": "2026-10-20"
+    },
+    {
+     "url": "https://www.justice.gov/opa/media/1466286/dl",
+     "kind": "primary",
+     "title": "Complaint, United States v. State of California et al., No. 2:26-cv-12025",
+     "outlet": "U.S. Department of Justice (court filing)",
+     "published_at": "2026-10-15"
+    }
+   ],
+   "primary_source": {
+    "url": "https://admin.cdn.sos.ca.gov/pdf/other/casos-to-doj-101526.pdf",
+    "kind": "primary",
+    "title": "Letter from Secretary of State Shirley N. Weber to R. Trent McCotter re: October 13, 2026 Letter",
+    "outlet": "California Secretary of State",
+    "published_at": "2026-10-15"
+   }
+  },
+  {
+   "id": "F5",
+   "claim": "LA County's Registrar-Recorder/County Clerk's office stated it had not accessed the DOJ-provided thumb drive, citing data privacy and information security protocols, and said it did not consider the device a secure medium.",
+   "is_new": false,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://content.lavote.gov/docs/rrcc/documents/20261014-statement_doj_letter-2.pdf",
+     "kind": "primary",
+     "title": "Statement from Dean Logan Regarding U.S. Department of Justice Correspondence",
+     "outlet": "LA County Registrar-Recorder/County Clerk",
+     "published_at": "2026-10-14"
+    }
+   ],
+   "primary_source": {
+    "url": "https://content.lavote.gov/docs/rrcc/documents/20261014-statement_doj_letter-2.pdf",
+    "kind": "primary",
+    "title": "Statement from Dean Logan Regarding U.S. Department of Justice Correspondence",
+    "outlet": "LA County Registrar-Recorder/County Clerk",
+    "published_at": "2026-10-14"
+   }
+  },
+  {
+   "id": "F6",
+   "claim": "Secretary of State Shirley Weber responded in an Oct. 15, 2026 letter to DOJ calling the 48-hour review demand \"an emergency of the DOJ's creation,\" stating the roughly 20,000-name list \"lacks both the detail and function to be of any investigative use,\" and noting DHS had earlier (July 16, 2026) alleged over 190,000 potential noncitizens on California's rolls without providing supporting data or methodology.",
+   "is_new": false,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://admin.cdn.sos.ca.gov/pdf/other/casos-to-doj-101526.pdf",
+     "kind": "primary",
+     "title": "Letter from Secretary of State Shirley N. Weber to R. Trent McCotter re: October 13, 2026 Letter",
+     "outlet": "California Secretary of State",
+     "published_at": "2026-10-15"
+    }
+   ],
+   "primary_source": {
+    "url": "https://admin.cdn.sos.ca.gov/pdf/other/casos-to-doj-101526.pdf",
+    "kind": "primary",
+    "title": "Letter from Secretary of State Shirley N. Weber to R. Trent McCotter re: October 13, 2026 Letter",
+    "outlet": "California Secretary of State",
+    "published_at": "2026-10-15"
+   }
+  },
+  {
+   "id": "F7",
+   "claim": "DOJ's complaint asks the court to order California to set aside mail ballots from the roughly 20,000 flagged voters and independently verify their citizenship before the ballots are tabulated, resting its sole claim for relief on the U.S. Constitution's Supremacy Clause.",
+   "is_new": false,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://www.justice.gov/opa/media/1466286/dl",
+     "kind": "primary",
+     "title": "Complaint, United States v. State of California et al., No. 2:26-cv-12025",
+     "outlet": "U.S. Department of Justice (court filing)",
+     "published_at": "2026-10-15"
+    }
+   ],
+   "primary_source": {
+    "url": "https://www.justice.gov/opa/media/1466286/dl",
+    "kind": "primary",
+    "title": "Complaint, United States v. State of California et al., No. 2:26-cv-12025",
+    "outlet": "U.S. Department of Justice (court filing)",
+    "published_at": "2026-10-15"
+   }
+  },
+  {
+   "id": "F8",
+   "claim": "A court hearing on DOJ's request for emergency relief in the case is scheduled for Tuesday, Oct. 27, 2026.",
+   "is_new": false,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://www.yahoo.com/news/politics/articles/doj-demands-california-counties-set-025430644.html",
+     "kind": "wire",
+     "title": "DOJ demands that some California counties set aside alleged noncitizen ballots",
+     "outlet": "Yahoo News (CBS/AP)",
+     "published_at": "2026-10-24T02:54:30Z"
+    },
+    {
+     "url": "https://www.democracydocket.com/news-alerts/doj-demands-more-california-counties-segregate-ballots-threatening-to-prosecute-election-officials/",
+     "kind": "press",
+     "title": "DOJ Demands More California Counties Segregate Ballots, Threatening To Prosecute Election Officials",
+     "outlet": "Democracy Docket",
+     "published_at": "2026-10-24T13:32:06Z"
+    }
+   ]
+  },
+  {
+   "id": "F9",
+   "claim": "LA County's Oct. 20, 2026 opposition brief (Doc. 32-1, No. 2:26-cv-12025), citing a declaration by Assistant Registrar-Recorder Monica Flores (Flores Dec. ¶46), states that of a 200-record sample drawn from DOJ's list, 25.8% of the sampled voters recorded a place of birth in the United States, which the brief calls \"a strong indicator of citizenship status.\"",
+   "is_new": false,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://www.democracydocket.com/wp-content/uploads/2026/10/2026-10-20-TRO-Opposition.pdf",
+     "kind": "primary",
+     "title": "Defendant Dean C. Logan's Opposition to Plaintiff's Ex Parte Application for Temporary Restraining Order, No. 2:26-cv-12025, Doc. 32-1",
+     "outlet": "U.S. District Court, C.D. Cal. (court filing)",
+     "published_at": "2026-10-20"
+    }
+   ],
+   "primary_source": {
+    "url": "https://www.democracydocket.com/wp-content/uploads/2026/10/2026-10-20-TRO-Opposition.pdf",
+    "kind": "primary",
+    "title": "Defendant Dean C. Logan's Opposition to Plaintiff's Ex Parte Application for Temporary Restraining Order, No. 2:26-cv-12025, Doc. 32-1",
+    "outlet": "U.S. District Court, C.D. Cal. (court filing)",
+    "published_at": "2026-10-20"
+   }
+  },
+  {
+   "id": "F10",
+   "claim": "The same opposition brief, citing a declaration by Assistant Registrar Aman Bhullar, states that of the 200-record sample, 42.9% had canceled voter registrations, 42.4% were active, 4.6% were inactive, and 71.2% had never voted; it also states that of the more than 20,000 total records on DOJ's list, 7,035 bore Los Angeles County addresses.",
+   "is_new": false,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://www.democracydocket.com/wp-content/uploads/2026/10/2026-10-20-TRO-Opposition.pdf",
+     "kind": "primary",
+     "title": "Defendant Dean C. Logan's Opposition to Plaintiff's Ex Parte Application for Temporary Restraining Order, No. 2:26-cv-12025, Doc. 32-1",
+     "outlet": "U.S. District Court, C.D. Cal. (court filing)",
+     "published_at": "2026-10-20"
+    }
+   ],
+   "primary_source": {
+    "url": "https://www.democracydocket.com/wp-content/uploads/2026/10/2026-10-20-TRO-Opposition.pdf",
+    "kind": "primary",
+    "title": "Defendant Dean C. Logan's Opposition to Plaintiff's Ex Parte Application for Temporary Restraining Order, No. 2:26-cv-12025, Doc. 32-1",
+    "outlet": "U.S. District Court, C.D. Cal. (court filing)",
+    "published_at": "2026-10-20"
+   }
+  },
+  {
+   "id": "F11",
+   "note": "ABC7's 38.9% figure and its attribution to Bhullar conflict with LA County's own opposition brief (F9), which ties the birthplace statistic specifically to Monica Flores's declaration (Flores Dec. ¶46) and gives a different number: 25.8% of the full 200-record sample, not a subset limited to \"meaningful\" birthplace data. The other three statistics ABC7 cites (71.2%, 42.9%, 42.4%) do match the brief's figures, which the brief attributes to Bhullar's declaration -- so ABC7 appears to have folded Flores's distinct birthplace finding into its Bhullar attribution. Script/legal review should not treat 38.9% and 25.8% as interchangeable; cite each with its own source and attribution.",
+   "claim": "ABC7 San Francisco's Oct. 23, 2026 article reports that \"among records with meaningful birthplace information, 38.9% indicated the individuals were born in the United States\" -- attributing this figure, together with the 71.2%/42.9%/42.4% statistics, to \"a sworn declaration filed Oct. 20 by Aman Bhullar.\"",
+   "is_new": false,
+   "status": "disputed",
+   "sources": [
+    {
+     "url": "https://abc7news.com/story/department-justice-alleges-noncitizen-voting-california-heres-what-evidence-shows/19969653/",
+     "kind": "press",
+     "title": "Department of Justice alleges noncitizen voting in California. Here's what evidence shows",
+     "outlet": "ABC7 San Francisco",
+     "published_at": "2026-10-23T02:04:00Z"
+    }
+   ]
+  },
+  {
+   "id": "F12",
+   "note": "Numbers genuinely differ across sources: AP/CBS (via the LA County registrar) says \"at least 18 counties\"; NBC News says 57 of 58; DOJ's own Essayli says \"every county.\" This may reflect different snapshots as letters went out county-by-county on Oct. 23, but no single source reconciles the counts.",
+   "claim": "On Friday, Oct. 23, 2026, federal prosecutors sent letters to California county registrars demanding they set aside and verify mail ballots of people DOJ identifies as likely noncitizens within 48 hours and provide voter identifying data. The scope is reported inconsistently: the LA County registrar's office said at least 18 counties received such letters; NBC News, citing a letter it obtained, reported the letters went to 57 of California's 58 counties; and First Assistant U.S. Attorney Bill Essayli told NBC4 the letters went to \"every county in California.\"",
+   "is_new": true,
+   "status": "disputed",
+   "sources": [
+    {
+     "url": "https://www.yahoo.com/news/politics/articles/doj-demands-california-counties-set-025430644.html",
+     "kind": "wire",
+     "title": "DOJ demands that some California counties set aside alleged noncitizen ballots",
+     "outlet": "Yahoo News (CBS/AP)",
+     "published_at": "2026-10-24T02:54:30Z"
+    },
+    {
+     "url": "https://www.nbcnews.com/politics/2026-election/doj-demands-california-counties-help-identify-noncitizen-voters-rcna605356",
+     "kind": "press",
+     "title": "DOJ demands California counties help identify noncitizen voters",
+     "outlet": "NBC News",
+     "published_at": "2026-10-24T05:13:12Z"
+    },
+    {
+     "url": "https://www.nbclosangeles.com/news/local/doj-presses-california-counties-to-verify-voter-eligibility-ahead-of-midterms/3960151/",
+     "kind": "press",
+     "title": "DOJ Presses California Counties to Verify Voter Eligibility Ahead of Midterms",
+     "outlet": "NBC Los Angeles",
+     "published_at": "2026-10-24T03:06:30Z"
+    }
+   ]
+  },
+  {
+   "id": "F13",
+   "claim": "First Assistant U.S. Attorney Bill Essayli said, \"Any election official who knowingly processes the ballot of a noncitizen is opening themselves to legal jeopardy.\"",
+   "is_new": true,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://www.yahoo.com/news/politics/articles/doj-demands-california-counties-set-025430644.html",
+     "kind": "wire",
+     "title": "DOJ demands that some California counties set aside alleged noncitizen ballots",
+     "outlet": "Yahoo News (CBS/AP)",
+     "published_at": "2026-10-24T02:54:30Z"
+    },
+    {
+     "url": "https://www.nbcnews.com/politics/2026-election/doj-demands-california-counties-help-identify-noncitizen-voters-rcna605356",
+     "kind": "press",
+     "title": "DOJ demands California counties help identify noncitizen voters",
+     "outlet": "NBC News",
+     "published_at": "2026-10-24T05:13:12Z"
+    }
+   ]
+  },
+  {
+   "id": "F14",
+   "claim": "In a letter to the San Bernardino County Registrar of Voters obtained by NBC News, Essayli wrote that his office was providing a list of 1,133 names of \"likely aliens,\" asked the county to \"commit to working with DOJ and DHS to identify who on the accompanying list is a citizen and who is not\" within 48 hours, and wrote that \"the legal consequences for either facilitating or ignoring federal crimes are significant ... knowingly facilitating such conduct is equally unlawful.\"",
+   "is_new": true,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://www.nbcnews.com/politics/2026-election/doj-demands-california-counties-help-identify-noncitizen-voters-rcna605356",
+     "kind": "press",
+     "title": "DOJ demands California counties help identify noncitizen voters",
+     "outlet": "NBC News",
+     "published_at": "2026-10-24T05:13:12Z"
+    },
+    {
+     "url": "https://www.yahoo.com/news/politics/articles/doj-demands-california-counties-set-025430644.html",
+     "kind": "wire",
+     "title": "DOJ demands that some California counties set aside alleged noncitizen ballots",
+     "outlet": "Yahoo News (CBS/AP)",
+     "published_at": "2026-10-24T02:54:30Z"
+    }
+   ]
+  },
+  {
+   "id": "F15",
+   "claim": "On Oct. 19, 2026, DOJ announced criminal charges against 28 foreign nationals (all lawful permanent residents) across California, accusing them of fraudulently registering to vote and, in most cases, illegally casting ballots; charges include false statements in naturalization applications and fraudulent voter registration (felonies, max. 5 years, in the Central District) and voting by an alien (misdemeanor, max. 1 year, in other districts).",
+   "is_new": false,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://www.justice.gov/opa/pr/justice-department-charges-28-foreign-nationals-california-election-crimes",
+     "kind": "primary",
+     "title": "Justice Department Charges 28 Foreign Nationals in California for Election Crimes",
+     "outlet": "U.S. Department of Justice, Office of Public Affairs",
+     "published_at": "2026-10-19"
+    }
+   ],
+   "primary_source": {
+    "url": "https://www.justice.gov/opa/pr/justice-department-charges-28-foreign-nationals-california-election-crimes",
+    "kind": "primary",
+    "title": "Justice Department Charges 28 Foreign Nationals in California for Election Crimes",
+    "outlet": "U.S. Department of Justice, Office of Public Affairs",
+    "published_at": "2026-10-19"
+   }
+  },
+  {
+   "id": "F16",
+   "claim": "Acting Deputy Attorney General Trent McCotter said each of the 28 people charged Oct. 19 \"appears on the list of more than 20,000 likely noncitizen registrants we provided to California election officials last week,\" and that \"California must verify the citizenship of those more than 20,000 registrants before mail-in ballots are counted.\"",
+   "is_new": false,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://www.justice.gov/opa/pr/justice-department-charges-28-foreign-nationals-california-election-crimes",
+     "kind": "primary",
+     "title": "Justice Department Charges 28 Foreign Nationals in California for Election Crimes",
+     "outlet": "U.S. Department of Justice, Office of Public Affairs",
+     "published_at": "2026-10-19"
+    }
+   ],
+   "primary_source": {
+    "url": "https://www.justice.gov/opa/pr/justice-department-charges-28-foreign-nationals-california-election-crimes",
+    "kind": "primary",
+    "title": "Justice Department Charges 28 Foreign Nationals in California for Election Crimes",
+    "outlet": "U.S. Department of Justice, Office of Public Affairs",
+    "published_at": "2026-10-19"
+   }
+  },
+  {
+   "id": "F17",
+   "claim": "Responding to the Oct. 23 letter campaign, Sen. Alex Padilla (D-CA) said in a statement: \"This is NOT A DRILL: Donald Trump and Todd Blanche are trying to interfere in California elections ... Trump's DOJ has not provided any evidence for their claims of massive voter fraud. They've admitted that the data they point to is inaccurate and unreliable.\"",
+   "is_new": true,
+   "status": "confirmed",
+   "sources": [
+    {
+     "url": "https://www.democracydocket.com/news-alerts/doj-demands-more-california-counties-segregate-ballots-threatening-to-prosecute-election-officials/",
+     "kind": "press",
+     "title": "DOJ Demands More California Counties Segregate Ballots, Threatening To Prosecute Election Officials",
+     "outlet": "Democracy Docket",
+     "published_at": "2026-10-24T13:32:06Z"
+    },
+    {
+     "url": "https://www.yahoo.com/news/politics/articles/doj-demands-california-counties-set-025430644.html",
+     "kind": "wire",
+     "title": "DOJ demands that some California counties set aside alleged noncitizen ballots",
+     "outlet": "Yahoo News (CBS/AP)",
+     "published_at": "2026-10-24T02:54:30Z"
+    }
+   ]
+  },
+  {
+   "id": "F18",
+   "note": "Reported only in the single AP/CBS wire story found (reprinted by several outlets, counted as one source); no independent confirmation or primary filing located for this specific appellate maneuver.",
+   "claim": "Separately, the Trump administration asked the 9th U.S. Circuit Court of Appeals on Friday, Oct. 23, 2026, to rule directly on DOJ's request in the California case rather than wait for the district court, setting a deadline of Saturday, Oct. 24 for a response.",
+   "is_new": true,
+   "status": "unverified",
+   "sources": [
+    {
+     "url": "https://www.yahoo.com/news/politics/articles/doj-demands-california-counties-set-025430644.html",
+     "kind": "wire",
+     "title": "DOJ demands that some California counties set aside alleged noncitizen ballots",
+     "outlet": "Yahoo News (CBS/AP)",
+     "published_at": "2026-10-24T02:54:30Z"
+    }
+   ]
+  },
+  {
+   "id": "F19",
+   "note": "Figure comes from a single AP/CBS wire account of California's legal filings; the filings themselves were not located and checked directly.",
+   "claim": "California has roughly 23 million registered voters and had already received or counted ballots before the Oct. 23 letter campaign; the state said in legal filings that more than 330,000 mail-in ballots had already been counted.",
+   "is_new": false,
+   "status": "unverified",
+   "sources": [
+    {
+     "url": "https://www.yahoo.com/news/politics/articles/doj-demands-california-counties-set-025430644.html",
+     "kind": "wire",
+     "title": "DOJ demands that some California counties set aside alleged noncitizen ballots",
+     "outlet": "Yahoo News (CBS/AP)",
+     "published_at": "2026-10-24T02:54:30Z"
+    }
+   ]
+  }
+ ],
+ "polls": [
+  {
+   "url": "https://www.pewresearch.org/politics/2026/10/20/broad-public-confidence-in-elections-in-the-u-s-but-partisans-differ-over-concerns-about-access-security/",
+   "sample": "5,062 U.S. adults, including 3,917 registered voters",
+   "finding": "68% of registered voters are at least somewhat confident that if noncitizens try to cast a ballot they will be stopped (NET: 34% very + 34% somewhat), but with a wide partisan gap: 90% among voters backing Democratic congressional candidates versus 45% among those backing Republican candidates.",
+   "pollster": "Pew Research Center",
+   "fieldwork": "Sept. 28 - Oct. 4, 2026"
+  }
+ ],
+ "risks": [
+  "DOJ's characterization of ~20,000 flagged voters as 'likely noncitizens' is an unproven civil-litigation claim, not a conviction or finding of fact; script language must attribute it to DOJ's complaint/letters ('DOJ alleges/claims') rather than state it as settled fact, per the channel's rule against asserting guilt before adjudication.",
+  "The number of counties that received the Oct. 23 letters is itself disputed (18 vs. 57/58 vs. 'every county'); any on-screen figure must be attributed to its specific source and framed as a range, not a single confirmed number.",
+  "The two birthplace percentages (25.8% in LA County's court filing vs. 38.9% in ABC7's report) must not be merged or presented as a single number; each needs its own attribution.",
+  "F18 (DOJ's 9th Circuit emergency motion) and F19 (330,000 ballots already counted) rest on a single wire account with no primary-document confirmation found; label as reported/unverified, not established fact.",
+  "Any depiction of named real officials (Logan, Weber, Padilla, Essayli, McCotter, Newsom, Carney) must stay within what is documented in the dossier -- no dramatized arrest, crime, or endorsement scenes -- and must use stylized, non-photorealistic pixel art with the required 'AI illustration' flag, per policy's visual rules for real people and elections.",
+  "Al Jazeera is used only as an attributed scholar's viewpoint amplified by a state-funded outlet; if shown on screen it must be labeled '(state media)' per policy's disclosure rule for state-funded outlets.",
+  "This airs inside the ten-day pre-election window the channel's election policy flags; avoid any wording that could read as guidance on how to vote or as an assertion that the disputed mail ballots are themselves fraudulent."
+ ],
+ "story": {
+  "title": "Justice Department Widens Noncitizen-Ballot Fight to California Counties Statewide",
+  "summary": "The U.S. Justice Department sued California, its Secretary of State and the Los Angeles County registrar to block the counting of mail ballots cast by roughly 20,000 people it calls likely noncitizens, after the county refused a password-protected list; state and county officials call the data unverified and the demand unlawful, and a court hearing is set for Oct. 27.",
+  "development": "On Friday, Oct. 23, DOJ widened its demand from Los Angeles County to letters sent to county registrars across California -- reported counts range from at least 18 to 57 of 58 counties to 'every county' -- ordering flagged mail ballots segregated within 48 hours and warning, for the first time, that officials who knowingly tabulate them risk federal criminal liability."
+ },
+ "review": {
+  "known": "The dispute began when DOJ sued California, Weber and LA County Registrar Logan on Oct. 15 to block counting of roughly 20,000 ballots it calls 'likely noncitizens' [F1]. That followed a 48-hour ultimatum DOJ sent LA County and Weber on Oct. 13 with a password-protected thumb drive the county refused to open [F2][F3][F5]. Weber called the demand 'an emergency of the DOJ's creation' and said the list 'lacks...detail' to be useful [F6]. DOJ charged 28 lawful residents with election fraud on Oct. 19, tying them to the list [F15][F16]. LA County's sampling disputes the list's reliability, though birthplace figures conflict between the county's brief and press coverage [F9][F11]. A hearing on DOJ's request is set for Oct. 27 [F8].",
+  "unknown": "Unresolved: exactly how many California counties received the Oct. 23 letters (18 to 57/58 to 'every county') [F12]; the outcome of DOJ's 9th Circuit motion and the Oct. 27 hearing [F18][F8]; and why LA County's brief (25.8%) and press coverage (38.9%) give different birthplace figures for the same sample [F9][F11]. DHS's underlying data-matching methodology remains undisclosed [F6].",
+  "language": "en-US",
+  "whats_new": "DOJ widened its demand from one county to letters sent statewide, with reported counts ranging from 'at least 18' to 57 of 58 counties to 'every county' [F12]. The letters order flagged ballots set aside within 48 hours and warn officials of criminal liability if they knowingly count them [F13][F14].",
+  "local_opinions": "Administration officials and allied Republicans argue federal matching found over 20,000 likely noncitizens who received ballots and say officials who knowingly count them risk prosecution; the Oct. 23 letters widened that demand statewide with the first explicit criminal warning to local officials [L1]. California election administrators, across party lines, call the list unverified and the new round of letters a 'posture of intimidation' [L2]. Congressional Democrats and allied groups, already suing the administration before this development, now cite the wider letters as evidence of 'escalating weaponization' of DOJ meant to interfere with the Nov. 3 election [L3].",
+  "world_opinions": "International coverage reviewed so far frames DOJ's pressure on California as federal overreach built on unreliable data, citing Los Angeles officials' finding that many flagged voters were born in the U.S. and Governor Newsom calling the push an attempt to suppress votes -- but no outlet has yet published a dedicated reaction to the Oct. 23 widening itself [W1]. Canadian coverage places the campaign in a separate frame, linking it to a U.S.-Canada dispute over alleged election interference via trade policy -- an angle absent from the domestic U.S. debate over data reliability and federal versus state authority [W2]."
+ },
+ "language": "en-US",
+ "timeline": [
+  {
+   "time": "2026-07-16",
+   "event": "DHS Secretary Markwayne Mullin's office alleges over 190,000 potential noncitizens on California voter rolls, without supporting data.",
+   "fact_ids": [
+    "F6"
+   ]
+  },
+  {
+   "time": "2026-10-13",
+   "event": "DOJ sends letter and thumb drive to LA County Registrar Dean Logan and CA Secretary of State Shirley Weber, demanding review within 48 hours.",
+   "fact_ids": [
+    "F2",
+    "F3",
+    "F4"
+   ]
+  },
+  {
+   "time": "2026-10-14",
+   "event": "LA County's Registrar-Recorder/County Clerk says it has not accessed the thumb drive, citing security protocols.",
+   "fact_ids": [
+    "F5"
+   ]
+  },
+  {
+   "time": "2026-10-15",
+   "event": "DOJ sues California, Weber, and Logan; Weber sends a letter to DOJ rejecting the demand as impossible and unsupported.",
+   "fact_ids": [
+    "F1",
+    "F6",
+    "F7"
+   ]
+  },
+  {
+   "time": "2026-10-19",
+   "event": "DOJ announces criminal charges against 28 foreign nationals tied to the same 20,000-name list.",
+   "fact_ids": [
+    "F15",
+    "F16"
+   ]
+  },
+  {
+   "time": "2026-10-20",
+   "event": "LA County files its opposition brief with declarations from Bhullar, Flores and Pelham disputing the reliability of DOJ's list.",
+   "fact_ids": [
+    "F9",
+    "F10"
+   ]
+  },
+  {
+   "time": "2026-10-23",
+   "event": "ABC7 San Francisco reports LA County's preliminary sample findings, including a disputed birthplace statistic.",
+   "fact_ids": [
+    "F11"
+   ]
+  },
+  {
+   "time": "2026-10-23",
+   "event": "DOJ sends letters to additional California counties (count disputed: 18 to 57/58) demanding ballot segregation within 48 hours and warning of criminal liability; DOJ separately seeks 9th Circuit intervention.",
+   "fact_ids": [
+    "F12",
+    "F13",
+    "F14",
+    "F18"
+   ]
+  },
+  {
+   "time": "2026-10-24",
+   "event": "Sen. Alex Padilla and California officials publicly reject the DOJ's widened demand.",
+   "fact_ids": [
+    "F17"
+   ]
+  },
+  {
+   "time": "2026-10-27",
+   "event": "Court hearing scheduled on DOJ's request for emergency relief against California and LA County.",
+   "fact_ids": [
+    "F8"
+   ]
+  }
+ ],
+ "unknowns": [
+  "The exact number of California counties that received the Oct. 23 letters: sources range from \"at least 18\" to \"57 of 58\" to \"every county.\"",
+  "Whether LA County's preliminary sample review has identified any confirmed noncitizen voter among the ~20,000 names on DOJ's list -- as of Oct. 23, the county says it has not.",
+  "The outcome of DOJ's 9th Circuit emergency motion and of the Oct. 27 district court hearing -- neither has been decided as of this report.",
+  "DHS/USCIS's underlying data-matching methodology for the noncitizen list -- Secretary Weber's office says DOJ/DHS have not provided it despite repeated requests.",
+  "How to reconcile the 38.9% (ABC7, attributed to Bhullar) versus 25.8% (LA County's opposition brief, attributed to Flores Dec. ¶46) birthplace statistics -- no source found addresses this discrepancy directly.",
+  "International press had not yet published dedicated coverage reacting specifically to the Oct. 23 widening to 18+ counties and the criminal-liability warning as of this report; existing world coverage addresses only earlier phases of the DOJ campaign."
+ ],
+ "channel_id": "8bitnews-us",
+ "local_groups": [
+  {
+   "id": "L1",
+   "label": "Administration and allied Republicans: verify now, prosecute officials who defy",
+   "position": "The Justice Department, DHS and congressional Republicans argue that federal matching has identified more than 20,000 likely noncitizens on California's rolls who received mail ballots, that counting those ballots dilutes citizens' votes, and that officials who knowingly tabulate them risk prosecution themselves. They present the sequester-and-verify demands as routine enforcement of existing law, not as an attack on anyone's right to vote.",
+   "arguments": [
+    "Federal matching flagged more than 20,000 people as likely noncitizens who were mailed ballots for the 2026 election; DOJ calls 20,000 'the floor' and expects the list to grow.",
+    "It is a federal crime under 18 U.S.C. §611 for a noncitizen to vote in a federal election, and an official who knowingly processes such a ballot is 'opening themselves to legal jeopardy.'",
+    "California has not independently verified the flagged names and should sequester the ballots pending confirmation rather than refuse to look at the federal list at all."
+   ],
+   "share_basis": "Pew Research Center, fieldwork Sept. 28-Oct. 4, 2026: only 45% of voters backing Republican congressional candidates are confident noncitizens would be stopped if they tried to vote, versus 90% of Democratic-backing voters — a large bloc of Republican-aligned opinion receptive to stricter verification.",
+   "on_development": "The group's position widened rather than changed: DOJ extended the sequester-and-verify demand from Los Angeles County alone to at least 18 counties statewide (and by other accounts far more), and for the first time told local officials in writing that anyone who knowingly tabulates a flagged ballot risks becoming an 'aider and abettor to a federal crime.'",
+   "share_estimate": "significant",
+   "representatives": [
+    {
+     "url": "https://www.nbclosangeles.com/news/local/doj-presses-california-counties-to-verify-voter-eligibility-ahead-of-midterms/3960151/",
+     "quote": "California does not verify citizenship status. We did the work for them. We obtained the registered voter list and told them who we believe are noncitizens on their rolls.",
+     "author": "Bill Essayli, First Assistant U.S. Attorney, quoted by NBC4",
+     "outlet": "NBC Los Angeles",
+     "published_at": "2026-10-24T03:06:30Z"
+    },
+    {
+     "url": "https://www.foxnews.com/politics/doj-verified-20000-noncitizens-california-voter-rolls-federal-prosecutor-says",
+     "quote": "We believe it's at a minimum of 20,000. That's the floor.",
+     "author": "Bill Essayli, First Assistant U.S. Attorney",
+     "outlet": "Fox News",
+     "published_at": "2026-10-22T17:42:52Z"
+    }
+   ]
+  },
+  {
+   "id": "L2",
+   "label": "California election administrators: the federal list is unverified, sequestering ballots is unlawful",
+   "position": "California's Secretary of State and county registrars and clerks, across party lines, say DOJ has not shown reliable evidence that the flagged voters are actually noncitizens, that federal law restricts major list-maintenance changes this close to the election, and that officials have no legal authority to withhold or refuse to count validly cast ballots based on an unverified list.",
+   "arguments": [
+    "The federal government has repeatedly inflated and then sharply cut its own noncitizen estimates (from about 190,000 to 20,000 statewide) without sharing its methodology, and a similar federal sweep in Nevada narrowed from nearly 16,000 names to 185, which state officials said all appeared to be citizens.",
+    "Federal and state law set clear standards for removing a voter or withholding a ballot, and 'unconfirmed data matching' does not meet that standard.",
+    "48-hour deadlines and prosecution threats aimed at nonpartisan election staff in the final weeks before Election Day function as intimidation of administrators, not a verification process."
+   ],
+   "on_development": "Reaction hardened as the demand widened from Los Angeles County to at least 18 counties: Los Angeles County's registrar called the new letters a 'posture of intimidation' that 'misrepresents the facts,' and a Contra Costa County clerk's office said it would keep running the election under existing law rather than comply.",
+   "share_estimate": "unknown",
+   "representatives": [
+    {
+     "url": "https://www.yahoo.com/news/articles/doj-gives-local-california-registrars-232100608.html",
+     "quote": "We aren't doing anything wrong and are conducting this election in accordance with state and federal election law, as well as the Constitution of the U.S. and the Constitution of the State of California.",
+     "author": "Kristin Connelley, Contra Costa County Clerk-Recorder",
+     "outlet": "San Francisco Chronicle",
+     "published_at": "2026-10-23T23:21:00Z"
+    },
+    {
+     "url": "https://www.yahoo.com/news/articles/doj-gives-local-california-registrars-232100608.html",
+     "quote": "posture of intimidation",
+     "author": "Dean C. Logan, Los Angeles County Registrar-Recorder/County Clerk",
+     "outlet": "San Francisco Chronicle",
+     "published_at": "2026-10-23T23:21:00Z"
+    },
+    {
+     "url": "https://www.sos.ca.gov/administration/news-releases-and-advisories/2026-news-releases-and-advisories/california-secretary-state-shirley-n-weber-phd-issues-statement-response-us-department-justice-letter",
+     "quote": "The USDOJ's relentless efforts to unlawfully gain access to states' protected voter data and purge voter rolls serve only to cause chaos and fuel public distrust in our elections.",
+     "author": "Shirley N. Weber, California Secretary of State",
+     "outlet": "California Secretary of State (press release)",
+     "published_at": "2026-10-14"
+    }
+   ]
+  },
+  {
+   "id": "L3",
+   "label": "Congressional Democrats and allied groups: this is intimidation and suppression, not integrity enforcement",
+   "position": "Democratic members of Congress, national party committees and allied voting-rights advocates argue the DOJ's lists of 'likely noncitizens' have repeatedly fallen apart on inspection, and that threatening local election officials with prosecution while ballots are already being counted amounts to intimidation and suppression timed to the midterms rather than a legitimate fraud investigation.",
+   "arguments": [
+    "DSCC v. Trump, the federal suit filed by Senate and House Democratic leaders and party committees, calls the underlying lists 'shoddily compiled' and says they have 'crumbled upon the barest inspection,' citing a similar federal sweep in Nevada that narrowed from nearly 16,000 names to 185, all apparently citizens.",
+    "The complaint argues the Executive Branch has no authority to superintend state voter-list maintenance, and that threatening officials with criminal prosecution for processing lawfully cast ballots is itself unlawful.",
+    "The timing and format of the demands — 48-hour deadlines and prosecution warnings delivered while ballots are already being counted, days before the election — are themselves evidence the campaign is meant to intimidate officials and voters rather than catch fraud."
+   ],
+   "share_basis": "Pew Research Center, fieldwork Sept. 28-Oct. 4, 2026: 90% of voters backing Democratic congressional candidates say they are confident noncitizens would be stopped if they tried to vote, reflecting broad confidence among Democratic-aligned voters that existing safeguards already work and skepticism that a new federal campaign is needed.",
+   "on_development": "The group's suit, filed days earlier, gained a fresh local example to point to: a member of Congress whose district includes one of the newly targeted counties called the expanded round of letters part of 'the escalating weaponization of the Justice Department' to interfere with the election.",
+   "share_estimate": "significant",
+   "representatives": [
+    {
+     "url": "https://www.yahoo.com/news/articles/doj-gives-local-california-registrars-232100608.html",
+     "quote": "I am deeply concerned by the escalating weaponization of the Justice Department to interfere with the November 3rd election.",
+     "author": "Rep. Mark DeSaulnier (D-Antioch)",
+     "outlet": "San Francisco Chronicle",
+     "published_at": "2026-10-23T23:21:00Z"
+    },
+    {
+     "url": "https://www.washingtonexaminer.com/news/justice/4774650/democrats-sue-trump-administration-voter-roll-efforts/",
+     "quote": "shoddily compiled lists of supposed noncitizens — target lists that have crumbled upon the barest inspection.",
+     "author": "plaintiffs' complaint, DSCC v. Trump, No. 1:26-cv-03674 (D.D.C.)",
+     "outlet": "Washington Examiner",
+     "published_at": "2026-10-22T00:50:55Z"
+    }
+   ]
+  }
+ ],
+ "world_clusters": [
+  {
+   "id": "W1",
+   "label": "International press frames DOJ pressure on California as federal overreach built on shaky data",
+   "regions": [
+    "UK",
+    "Western Europe",
+    "Middle East",
+    "Canada and Oceania"
+   ],
+   "position": "Among outlets that engage with the story substantively rather than just running wire copy, coverage consistently foregrounds doubts about the DOJ's underlying data and frames the federal pressure campaign as intruding on ground the US Constitution assigns to the states. The Guardian reports Los Angeles officials' finding that the DOJ's noncitizen list includes a 'high percentage' of people actually born in the US. El País frames California as a 'laboratory' for federal election interference and quotes Governor Gavin Newsom calling the push a politically motivated attempt to suppress votes. Al Jazeera (state media; Qatari state-funded broadcaster)'s long-form reporting features a Berkeley election-law scholar describing DOJ letters warning election officials of criminal liability as a form of intimidation meant to discourage participation in democracy — a position that should be read as the view of a US legal scholar amplified by a state-funded outlet's editorial choices, not as evidence of the outlet's home government's own position. CBC News quotes a nonpartisan US election-research expert making a similar argument about sowing doubt ahead of a vote the administration might fear losing.",
+   "on_development": "No reaction found yet specifically to the Oct. 23 widening to 18+ counties and the criminal-liability warning to election officials; the pieces reviewed here (Oct. 17-22, plus one Aug. 27 longform) cover earlier phases of the same DOJ campaign with an already-established critical frame toward it.",
+   "representatives": [
+    {
+     "url": "https://www.theguardian.com/us-news/2026/oct/20/doj-non-citizens-la",
+     "quote": "\"high percentage\" of people born in the United States",
+     "author": "Los Angeles County election officials (court filing, via The Guardian)",
+     "outlet": "The Guardian",
+     "language": "en",
+     "published_at": "2026-10-20T19:46:38Z"
+    },
+    {
+     "url": "https://elpais.com/us/2026-10-20/la-casa-blanca-redobla-su-presion-a-california-como-laboratorio-para-sus-injerencias-de-cara-a-las-midterms.html",
+     "quote": "Se trata de un intento triste y desesperado de Trump por utilizar su politizado Departamento de Justicia para tratar de suprimir el voto de los californianos",
+     "author": "Gavin Newsom",
+     "outlet": "El País",
+     "language": "es",
+     "quote_en": "This is a sad and desperate attempt by Trump to use his politicized Department of Justice to try to suppress the vote of Californians",
+     "published_at": "2026-10-20T09:30:00Z"
+    },
+    {
+     "url": "https://www.aljazeera.com/news/longform/2026/8/27/how-california-is-preparing-to-fight-trumps-criticisms-of-the-midterm-vote",
+     "quote": "It's a type of intimidation that is demonstrably meritless and also works to discourage people from participating in the government, which is to discourage effective democracy",
+     "author": "Catherine Lhamon, director of the Edley Center on Law and Democracy, UC Berkeley School of Law",
+     "outlet": "Al Jazeera (state media)",
+     "language": "en",
+     "published_at": "2026-08-27T17:11:10Z"
+    },
+    {
+     "url": "https://www.cbc.ca/news/canada/canadians-caught-up-in-trump-crackdown-on-noncitizen-voting-midterms-9.7390326",
+     "quote": "This is likely an attempt to sow doubt about the elections in advance of an election in which the president and his administration might fear the voters might reject them",
+     "author": "David Becker, executive director, Center for Election Innovation and Research",
+     "outlet": "CBC News",
+     "language": "en",
+     "published_at": "2026-10-22T08:00:00Z"
+    }
+   ],
+   "contrast_with_local": "Domestically, this dispute splits along the lines captured in L1 (DOJ and allied Republicans, who treat the ~20,000-name list as a legitimate integrity concern) versus L2 (California election administrators) and L3 (Congressional Democrats and allied groups), both of which call the list unverified and the demands unlawful or intimidating. The international coverage reviewed here lines up with the L2/L3 skepticism: no outlet found articulates the election-integrity argument that anchors L1, and outlets engaging substantively with the story echo L2's data-reliability objections and L3's 'intimidation' framing without citing either group directly."
+  },
+  {
+   "id": "W2",
+   "label": "Canadian coverage links the noncitizen-voter crackdown to a separate US-Canada 'election interference' dispute",
+   "regions": [
+    "Canada and Oceania"
+   ],
+   "position": "CBC News ties the DOJ's national push against alleged noncitizen voting (of which the California dispute is the leading edge) to a separate, ongoing US-Canada diplomatic quarrel: the U.S. Embassy in Ottawa has accused Canadian politicians of trying to influence the midterms through trade policy and public remarks, and cites the prosecution of at least 11-15 Canadian nationals for alleged illegal voting as supporting evidence for that accusation. Prime Minister Mark Carney and other Canadian officials reject the 'interference' characterization, saying Canada's trade responses are about protecting Canadian jobs and companies, not the US election.",
+   "on_development": "no reaction found",
+   "representatives": [
+    {
+     "url": "https://www.cbc.ca/news/politics/canada-us-embassy-alleged-election-interference-9.7390549",
+     "quote": "All of our actions are in the interest of Canadian workers, Canadian families and the future of this economy.",
+     "author": "Mark Carney, Prime Minister of Canada",
+     "outlet": "CBC News",
+     "language": "en",
+     "published_at": "2026-10-21T21:03:27Z"
+    },
+    {
+     "url": "https://www.cbc.ca/news/politics/canada-us-embassy-alleged-election-interference-9.7390549",
+     "quote": "potential interference in U.S. elections",
+     "author": "U.S. Embassy in Ottawa (fact sheet, as reported by CBC News)",
+     "outlet": "CBC News",
+     "language": "en",
+     "published_at": "2026-10-21T21:03:27Z"
+    }
+   ],
+   "contrast_with_local": "The domestic debate captured in L1, L2 and L3 runs on a federalism/data-reliability axis — whether DOJ's list is accurate and who controls voter-roll decisions. The Canada-specific angle found here sits on an entirely different axis: a bilateral diplomatic dispute over alleged 'election interference,' in which the prosecution of Canadian citizens is used by the U.S. government as evidence against Canada's own government — a frame absent from L1, L2 and L3's domestic arguments."
+  }
+ ],
+ "_run_diagnostics": [
+  {
+   "code": "result_submitted",
+   "message": "результат сдан командой devteam-result: kind=research_dossier",
+   "severity": "info"
+  }
+ ]
+}

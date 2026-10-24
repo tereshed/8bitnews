@@ -1,0 +1,102 @@
+{
+  "channel_id": "8bitnews-us",
+  "language": "en-US",
+  "dossier": "research_dossier.json",
+  "template": "tbd",
+  "duration_s": 72,
+  "music": {
+    "mood": "tense",
+    "energy": 3,
+    "cue": "Enters under the hook, drops to half level under scenes S3-S5, swells slightly under S6, fades out under the outro."
+  },
+  "scenes": [
+    {
+      "id": "S1",
+      "duration_s": 6,
+      "narration": "The Justice Department just told California's election officials: count the wrong ballots, and you could be prosecuted.",
+      "on_screen_text": "DOJ → CA COUNTIES: \"LEGAL JEOPARDY\"",
+      "visual": "Pixel-art Justice Department building at night; a stack of letters flies out toward a map of California lighting up county by county.",
+      "real_people": [],
+      "fact_ids": ["F12", "F13"]
+    },
+    {
+      "id": "S2",
+      "duration_s": 12,
+      "narration": "On Friday, federal prosecutors sent letters to county registrars across California, at least 18 counties by one count, nearly every county by others, ordering them to set aside flagged mail ballots within 48 hours. First Assistant U.S. Attorney Bill Essayli warned that any official who knowingly processes a noncitizen's ballot is opening themselves to legal jeopardy.",
+      "on_screen_text": "Oct 23 · 18 to 57 of 58 counties (reports differ) · 48 hours",
+      "visual": "Pixel-art Bill Essayli standing at a podium, pointing at a row of county clerks behind their desks.",
+      "real_people": ["Bill Essayli"],
+      "fact_ids": ["F12", "F13", "F14"]
+    },
+    {
+      "id": "S3",
+      "duration_s": 12,
+      "narration": "It started in Los Angeles. The Justice Department says 20,000 noncitizens were sent mail ballots in California. It gave the county and Secretary of State Shirley Weber 48 hours to review its list, then sued to stop those ballots from being counted. A hearing is set for Tuesday.",
+      "on_screen_text": "Oct 13: 48-hour demand · Oct 15: lawsuit · Oct 27: hearing",
+      "visual": "Pixel-art timeline along a courthouse steps; a thumb drive with a sticky note on top of an LA County desk.",
+      "real_people": ["Shirley Weber"],
+      "fact_ids": ["F1", "F2", "F3", "F4", "F8"]
+    },
+    {
+      "id": "S4",
+      "duration_s": 12,
+      "narration": "California officials push back. Weber called it an emergency of the DOJ's creation and said the list lacks the detail to be useful. Los Angeles County checked a sample of 200 names and found nearly 40 percent were born in the United States.",
+      "on_screen_text": "LA County sample: nearly 40% U.S.-born",
+      "visual": "Pixel-art Shirley Weber at a desk signing a letter; a bar chart of the 200-name sample.",
+      "real_people": ["Shirley Weber"],
+      "fact_ids": ["F6", "F9", "F10", "F11"]
+    },
+    {
+      "id": "S5",
+      "duration_s": 12,
+      "narration": "Inside the U.S., the split is sharp. The administration and its Republican allies say federal records found likely noncitizens on the rolls and that officials must act now. California's election administrators call the list unverified and the letters intimidation. Congressional Democrats say it's an attempt to interfere with the November 3rd election.",
+      "on_screen_text": "Verify now · Unverified list · Election interference",
+      "visual": "Three pixel-art groups on a split screen, each under its own banner; no real faces.",
+      "real_people": [],
+      "fact_ids": ["F16", "F17"],
+      "group_ids": ["L1", "L2", "L3"]
+    },
+    {
+      "id": "S6",
+      "duration_s": 10,
+      "narration": "Abroad, outlets that covered it frame the push as federal overreach built on shaky data, while Canadian coverage ties it to a separate U.S.-Canada fight over election interference. And the administration has reportedly asked an appeals court to step in before Tuesday's hearing.",
+      "on_screen_text": "World: \"overreach on shaky data\" · Canada: a separate interference row",
+      "visual": "Pixel-art globe with speech bubbles from the UK, Europe, the Middle East and Canada.",
+      "real_people": [],
+      "fact_ids": ["F18"],
+      "cluster_ids": ["W1", "W2"]
+    },
+    {
+      "id": "S7",
+      "duration_s": 8,
+      "narration": "Still unknown: how many counties got the letters, what the judge will decide, and how the federal list was built. Sources are in the description.",
+      "on_screen_text": "Unknown: county count · court ruling · DHS method",
+      "visual": "Pixel-art question blocks; 8bitnews logo.",
+      "real_people": [],
+      "fact_ids": ["F12", "F8", "F6"]
+    }
+  ],
+  "metadata": {
+    "youtube": {
+      "title": "DOJ Threatens California Officials Over Noncitizen Ballots",
+      "summary": "The Justice Department widened its noncitizen-ballot demand to counties across California and warned officials of criminal liability, days before a court hearing and the Nov. 3 midterms.",
+      "tags": ["Justice Department", "California", "mail ballots", "noncitizen voting", "Shirley Weber", "Bill Essayli", "midterms 2026", "news analysis"],
+      "hashtags": ["#8BitNews", "#California", "#Midterms2026", "#VoterFraud"]
+    },
+    "tiktok": {
+      "title": "DOJ to California counties: set aside flagged ballots or face legal jeopardy",
+      "summary": "What's new, what's known, and how the fight splits at home and abroad.",
+      "hashtags": ["#8BitNews", "#California", "#Midterms2026", "#VoterFraud"]
+    },
+    "instagram": {
+      "title": "DOJ vs. California: the ballot fight goes statewide",
+      "summary": "What's new, what's known, and how the fight splits at home and abroad.",
+      "hashtags": ["#8BitNews", "#California", "#Midterms2026", "#VoterFraud"]
+    }
+  },
+  "cover": {
+    "frame": "custom",
+    "visual": "Pixel-art ballot box wrapped in chains and a padlock, California flag behind it.",
+    "text": "CALIFORNIA BALLOTS LOCKED?"
+  }
+}

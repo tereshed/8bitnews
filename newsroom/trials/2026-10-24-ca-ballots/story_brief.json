@@ -1,0 +1,23 @@
+{
+ "channel_id": "8bitnews-us",
+ "country": "US",
+ "language": "en-US",
+ "story": {
+  "title": "Justice Department vs. California over alleged noncitizen ballots before the midterms",
+  "summary": "The Justice Department says thousands of people it calls likely noncitizens were sent mail-in ballots in California. It demanded that Los Angeles County and the Secretary of State review a federal list within 48 hours, then sued them to block those votes from being counted; a court hearing is set for Tuesday. State officials say federal data is unreliable and that voter eligibility is the state's responsibility.",
+  "started_at": "mid-October 2026, approx.",
+  "hub_story_id": null
+ },
+ "development": {
+  "summary": "On Friday, Oct 23, the Justice Department widened the push: letters to at least 18 California counties demanding they set aside and verify mail-in ballots of alleged noncitizens within 48 hours and hand over voter data, warning that officials who knowingly tabulate such ballots could face federal charges.",
+  "reported_at": "2026-10-24T02:54:30Z"
+ },
+ "prior_coverage": [],
+ "why_now": "Escalation from one county to most of the state, with a criminal-liability warning to election officials, ten days before the Nov 3 midterms and days before the court hearing.",
+ "seed_sources": [],
+ "variant": {
+  "experiment_id": null,
+  "arm_id": "default",
+  "params": {}
+ }
+}
