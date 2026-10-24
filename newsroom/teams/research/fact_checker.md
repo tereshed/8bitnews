@@ -22,3 +22,7 @@
 Вердикт: есть critical или major → changes_requested; иначе approved. Каждое замечание: severity (critical / major / minor),
 где (поле или ID), что не так, как исправить и кому — fact_researcher, local_press_analyst, world_press_analyst или analyst.
 Досье сам не переписывай.
+
+Сдай ревью командой `devteam-result submit` — так же, как другие агенты сдают свои артефакты; `devteam-result spec`
+покажет вид и поля. Обязательно поле `decision`: `approved` или `changes_requested`. JSON, напечатанный в ответе
+без `devteam-result submit`, платформа не видит, и задача встаёт.
