@@ -72,42 +72,6 @@ tracks:
     listened_at: '2026-10-24'
     decision: keep
     notes: ''
-- id: oga-chiptune-medieval-the-old-tower-inn
-  status: approved
-  title: '[Chiptune] Medieval: The Old Tower Inn'
-  author: RandomMind
-  origin:
-    kind: free_library
-    provider: opengameart
-    page_url: https://opengameart.org/content/chiptune-medieval-the-old-tower-inn
-    uploaded_at: 2018-11-22
-    downloaded_at: '2026-10-24'
-    receipt: licenses/oga/chiptune-medieval-the-old-tower-inn.html
-    archive_url: https://web.archive.org/web/20261024131055/https://opengameart.org/content/chiptune-medieval-the-old-tower-inn
-  license:
-    name: CC0-1.0
-    url: http://creativecommons.org/publicdomain/zero/1.0/
-    commercial: true
-    platforms:
-    - youtube
-    - tiktok
-    - instagram
-    attribution: null
-    content_id: unknown
-  audio:
-    key: music/tracks/oga/oga-chiptune-medieval-the-old-tower-inn.wav
-    format: wav
-    sha256: 87acf6f6d0f8029ac13c9fef10aa4a0a0cdab9d1416ce13a2da339e2431ae765
-    duration_s: 33.3
-  tags:
-    mood:
-    - neutral
-    - hopeful
-    energy: 2
-  review:
-    listened_at: '2026-10-24'
-    decision: keep
-    notes: Автор выкладывает трек на YouTube — при claim в Content ID отключить и оспорить с архивом лицензии.
 - id: oga-c1-bgm
   status: approved
   title: C1 [bgm]
@@ -674,42 +638,6 @@ tracks:
     listened_at: '2026-10-24'
     decision: keep
     notes: ''
-- id: oga-ambient-the-beach-where-dreams-die
-  status: approved
-  title: Ambient - The Beach Where Dreams Die
-  author: Chloe Wolfe
-  origin:
-    kind: free_library
-    provider: opengameart
-    page_url: https://opengameart.org/content/ambient-the-beach-where-dreams-die
-    uploaded_at: 2016-08-18
-    downloaded_at: '2026-10-24'
-    receipt: licenses/oga/ambient-the-beach-where-dreams-die.html
-    archive_url: https://web.archive.org/web/20261024131601/https://opengameart.org/content/ambient-the-beach-where-dreams-die
-  license:
-    name: CC0-1.0
-    url: http://creativecommons.org/publicdomain/zero/1.0/
-    commercial: true
-    platforms:
-    - youtube
-    - tiktok
-    - instagram
-    attribution: null
-    content_id: unknown
-  audio:
-    key: music/tracks/oga/oga-ambient-the-beach-where-dreams-die.wav
-    format: wav
-    sha256: 361d60c6aa6b5f8bdc028eefba9464074b8ece65d51c8381f1f0b7f575b00edb
-    duration_s: 164.6
-  tags:
-    mood:
-    - somber
-    energy: 1
-  review:
-    listened_at: '2026-10-24'
-    decision: keep
-    notes: Не подтверждено, что загрузил сам автор (профиль SoundCloud под другим именем) — проверить до первой
-      публикации.
 - id: oga-chill-chiptunes-collection-7
   status: approved
   title: Chill Chiptunes (Collection) — ICE temple
@@ -1027,3 +955,75 @@ tracks:
     listened_at: '2026-10-24'
     decision: keep
     notes: ''
+- id: oga-chill-chiptunes-collection-4
+  status: approved
+  title: Chill Chiptunes (Collection) — Level 2
+  author: Holizna
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/chill-chiptunes-collection
+    uploaded_at: 2024-04-11
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/chill-chiptunes-collection.html
+    archive_url: https://web.archive.org/web/20261024125327/https://opengameart.org/content/chill-chiptunes-collection
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-chill-chiptunes-collection-4.ogg
+    format: ogg
+    sha256: 4377b7e43d33db70e3192c20dcc1b2a34392016ee283367b6a2e0dd5283a77bb
+    duration_s: 122.1
+  tags:
+    mood:
+    - neutral
+    energy: 2
+  review:
+    listened_at: null
+    decision: auto_safe_pick
+    notes: 'Добавлен вместо трека с оговоркой: на странице нет пометок о сходстве, каверах, перезаливах и Content
+      ID. Владелец не прослушивал.'
+- id: oga-chill-chiptunes-collection-6
+  status: approved
+  title: Chill Chiptunes (Collection) — Complications
+  author: Holizna
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/chill-chiptunes-collection
+    uploaded_at: 2024-04-11
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/chill-chiptunes-collection.html
+    archive_url: https://web.archive.org/web/20261024125327/https://opengameart.org/content/chill-chiptunes-collection
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-chill-chiptunes-collection-6.ogg
+    format: ogg
+    sha256: c25700fff62496682a392e4ee09c08b2c8ff92527ede3392facac6c636496e25
+    duration_s: 118.7
+  tags:
+    mood:
+    - curious
+    energy: 2
+  review:
+    listened_at: null
+    decision: auto_safe_pick
+    notes: 'Добавлен вместо трека с оговоркой: на странице нет пометок о сходстве, каверах, перезаливах и Content
+      ID. Владелец не прослушивал.'
