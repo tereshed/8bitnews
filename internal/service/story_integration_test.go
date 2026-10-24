@@ -18,7 +18,7 @@ func TestStoryRegisterAndFindSimilar(t *testing.T) {
 	media := newTestMedia(t)
 	seedChannel(t, st, "test-channel")
 
-	svc := service.New(st, media, nil, nil, slog.Default())
+	svc := service.New(service.Deps{Store: st, Media: media, Log: slog.Default()})
 	ctx := context.Background()
 
 	first, err := svc.StoryRegister(ctx, service.StoryRegisterRequest{
@@ -92,7 +92,7 @@ func TestExperimentAssign_DefaultArm(t *testing.T) {
 	media := newTestMedia(t)
 	seedChannel(t, st, "test-channel")
 
-	svc := service.New(st, media, nil, nil, slog.Default())
+	svc := service.New(service.Deps{Store: st, Media: media, Log: slog.Default()})
 	ctx := context.Background()
 
 	reg, err := svc.StoryRegister(ctx, service.StoryRegisterRequest{

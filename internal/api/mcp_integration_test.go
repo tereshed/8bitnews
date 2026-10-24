@@ -150,6 +150,18 @@ func newMCPFakeWaybackServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
+// newMCPFakeAvailabilityServer stands in for the Wayback Availability JSON
+// API, reporting no existing snapshot for every URL.
+func newMCPFakeAvailabilityServer(t *testing.T) *httptest.Server {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		target := r.URL.Query().Get("url")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"url":"` + target + `","archived_snapshots":{}}`))
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
 // bearerTransport injects the hub's API key on every request, the way a
 // real MCP client authenticates against internal/api's router.
 type bearerTransport struct {
@@ -169,7 +181,7 @@ func newMCPTestClientSession(t *testing.T, svc *service.Service, apiKey string) 
 
 	mcpHandler := mcpapi.NewHTTPHandler(svc)
 	metrics := observability.NewMetrics()
-	router := api.NewRouter(svc, mcpHandler, metrics, slog.Default(), map[string]bool{apiKey: true})
+	router := api.NewRouter(svc, mcpHandler, metrics, slog.Default(), map[string]bool{apiKey: true}, true)
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)
 
@@ -254,10 +266,12 @@ func TestMCP_ReleaseSubmitAndGet_HappyPath(t *testing.T) {
 
 	sourceSrv := newMCPFakeSourceServer(t)
 	waybackSrv := newMCPFakeWaybackServer(t)
-	checker := sources.NewChecker(5 * time.Second)
-	wayback := sources.NewWaybackClient(waybackSrv.URL, 5*time.Second)
+	availabilitySrv := newMCPFakeAvailabilityServer(t)
+	checker := sources.NewChecker(5*time.Second, true)
+	wayback := sources.NewWaybackClient(waybackSrv.URL, 5*time.Second, "", "", true)
+	availability := sources.NewAvailabilityClient(availabilitySrv.URL, 5*time.Second, true)
 
-	svc := service.New(st, media, checker, wayback, slog.Default())
+	svc := service.New(service.Deps{Store: st, Media: media, Checker: checker, Wayback: wayback, Availability: availability, Log: slog.Default()})
 	const apiKey = "test-key"
 	session := newMCPTestClientSession(t, svc, apiKey)
 
@@ -344,7 +358,10 @@ func TestMCP_ReleaseSubmitAndGet_HappyPath(t *testing.T) {
 	if len(submitOut.AllowedPlatforms) != 1 || submitOut.AllowedPlatforms[0] != "youtube" {
 		t.Errorf("AllowedPlatforms = %v, want [youtube]", submitOut.AllowedPlatforms)
 	}
-	if len(submitOut.Sources) != 1 || submitOut.Sources[0].CheckStatus != "ok" || submitOut.Sources[0].ArchiveURL == "" {
+	// An "ok" source's archive copy is made in the background after
+	// release_submit returns (task E1 revision point 4), so ArchiveURL is
+	// not required to be set yet here.
+	if len(submitOut.Sources) != 1 || submitOut.Sources[0].CheckStatus != "ok" {
 		t.Fatalf("Sources = %+v", submitOut.Sources)
 	}
 
@@ -353,7 +370,8 @@ func TestMCP_ReleaseSubmitAndGet_HappyPath(t *testing.T) {
 		LegalReview json.RawMessage `json:"legal_review"`
 		Script      json.RawMessage `json:"script"`
 		Sources     []struct {
-			URL string `json:"url"`
+			URL        string `json:"url"`
+			ArchiveURL string `json:"archive_url"`
 		} `json:"sources"`
 	}
 	mcpCallTool(t, session, "release_get", map[string]any{"release_id": submitOut.ReleaseID}, &getOut)
@@ -363,6 +381,8 @@ func TestMCP_ReleaseSubmitAndGet_HappyPath(t *testing.T) {
 	if len(getOut.Sources) != 1 {
 		t.Fatalf("release_get Sources = %+v", getOut.Sources)
 	}
+
+	waitForMCPArchiveURL(t, session, submitOut.ReleaseID)
 	var gotLegal map[string]any
 	if err := json.Unmarshal(getOut.LegalReview, &gotLegal); err != nil {
 		t.Fatalf("release_get legal_review is not valid JSON: %v (%s)", err, getOut.LegalReview)
@@ -370,4 +390,141 @@ func TestMCP_ReleaseSubmitAndGet_HappyPath(t *testing.T) {
 	if gotLegal["verdict"] != "pass" {
 		t.Errorf("release_get legal_review.verdict = %v, want pass", gotLegal["verdict"])
 	}
+}
+
+// waitForMCPArchiveURL polls release_get over MCP until every "ok" source
+// of releaseID has a non-empty archive_url, or fails the test after a
+// timeout. See waitForArchiveURL in internal/service for why this needs to
+// poll rather than check immediately.
+func waitForMCPArchiveURL(t *testing.T, session *mcp.ClientSession, releaseID string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var out struct {
+			Sources []struct {
+				CheckStatus string `json:"check_status"`
+				ArchiveURL  string `json:"archive_url"`
+			} `json:"sources"`
+		}
+		mcpCallTool(t, session, "release_get", map[string]any{"release_id": releaseID}, &out)
+		allArchived := true
+		for _, src := range out.Sources {
+			if src.CheckStatus == "ok" && src.ArchiveURL == "" {
+				allArchived = false
+			}
+		}
+		if allArchived {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("background archiving of release %s did not complete in time: %+v", releaseID, out.Sources)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// TestMCP_StoryRegisterAndFindSimilar drives task E1 AC2 end to end over
+// the real MCP transport (revision request point 10): registering a new
+// storyline, finding it by an almost-identical title with one development,
+// then registering a second development on the same story_id (the
+// continuation call this task's own fix in commit b828642 made possible:
+// story_register must accept a continuation with no title/summary) and
+// confirming story_find_similar now shows two developments. A previous
+// review had to catch the continuation bug by hand; this test exists so a
+// regression here fails CI instead.
+func TestMCP_StoryRegisterAndFindSimilar(t *testing.T) {
+	st := newMCPTestStore(t)
+	media := newMCPTestMedia(t)
+	seedMCPTestChannel(t, st, "test-channel")
+
+	svc := service.New(service.Deps{Store: st, Media: media, Log: slog.Default()})
+	const apiKey = "test-key"
+	session := newMCPTestClientSession(t, svc, apiKey)
+
+	var registerOut struct {
+		StoryID       string `json:"story_id"`
+		DevelopmentID string `json:"development_id"`
+	}
+	mcpCallTool(t, session, "story_register", map[string]any{
+		"channel_id":          "test-channel",
+		"story_id":            nil,
+		"title":               "City council votes on new transit budget",
+		"summary":             "The city council approved a new transit budget after months of debate.",
+		"development_summary": "The council voted 7-2 in favor of the new budget on Monday night.",
+		"reported_at":         time.Now().UTC().Format(time.RFC3339),
+		"seed_urls":           []string{"https://example.com/seed-1"},
+	}, &registerOut)
+	storyID := registerOut.StoryID
+	if storyID == "" {
+		t.Fatalf("story_register returned an empty story_id")
+	}
+
+	var findOut1 mcpFindSimilarResult
+	mcpCallTool(t, session, "story_find_similar", map[string]any{
+		"channel_id": "test-channel",
+		"title":      "City council votes on new transit budgets",
+		"summary":    "The city council approved a new transit budget after months of debate.",
+	}, &findOut1)
+	matched1 := findMCPStory(t, findOut1, storyID)
+	if len(matched1.Developments) != 1 {
+		t.Fatalf("after the first registration, story_find_similar shows %d developments, want 1", len(matched1.Developments))
+	}
+
+	// Continuation: an existing story_id with no title/summary, the exact
+	// shape that MCP's auto-inferred schema used to reject before this
+	// task's commit b828642.
+	var continuationOut struct {
+		StoryID       string `json:"story_id"`
+		DevelopmentID string `json:"development_id"`
+	}
+	mcpCallTool(t, session, "story_register", map[string]any{
+		"channel_id":          "test-channel",
+		"story_id":            storyID,
+		"development_summary": "The mayor signed the budget into law on Wednesday.",
+		"reported_at":         time.Now().UTC().Format(time.RFC3339),
+		"seed_urls":           []string{"https://example.com/seed-2"},
+	}, &continuationOut)
+	if continuationOut.StoryID != storyID {
+		t.Fatalf("continuation story_register returned story_id %q, want %q", continuationOut.StoryID, storyID)
+	}
+	if continuationOut.DevelopmentID == registerOut.DevelopmentID {
+		t.Fatalf("continuation story_register returned the same development_id as the first registration")
+	}
+
+	var findOut2 mcpFindSimilarResult
+	mcpCallTool(t, session, "story_find_similar", map[string]any{
+		"channel_id": "test-channel",
+		"title":      "City council votes on new transit budgets",
+		"summary":    "The city council approved a new transit budget after months of debate.",
+	}, &findOut2)
+	matched2 := findMCPStory(t, findOut2, storyID)
+	if len(matched2.Developments) != 2 {
+		t.Fatalf("after the continuation, story_find_similar shows %d developments, want 2", len(matched2.Developments))
+	}
+}
+
+// mcpSimilarStoryMatch is one story_find_similar match, with just enough
+// fields for these tests.
+type mcpSimilarStoryMatch struct {
+	StoryID      string `json:"story_id"`
+	Developments []struct {
+		DevelopmentID string `json:"development_id"`
+	} `json:"developments"`
+}
+
+// mcpFindSimilarResult is the subset of story_find_similar's output these
+// tests need.
+type mcpFindSimilarResult struct {
+	Stories []mcpSimilarStoryMatch `json:"stories"`
+}
+
+func findMCPStory(t *testing.T, result mcpFindSimilarResult, storyID string) mcpSimilarStoryMatch {
+	t.Helper()
+	for _, s := range result.Stories {
+		if s.StoryID == storyID {
+			return s
+		}
+	}
+	t.Fatalf("story_find_similar did not return story_id %q among %d matches", storyID, len(result.Stories))
+	panic("unreachable")
 }

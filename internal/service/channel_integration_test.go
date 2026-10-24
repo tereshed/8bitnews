@@ -22,7 +22,7 @@ func TestChannelGet_AfterSyncProfiles(t *testing.T) {
 		t.Fatalf("Sync: %v", err)
 	}
 
-	svc := service.New(st, media, nil, nil, slog.Default())
+	svc := service.New(service.Deps{Store: st, Media: media, Log: slog.Default()})
 	view, err := svc.ChannelGet(context.Background(), service.ChannelGetRequest{ChannelID: "8bitnews-us"})
 	if err != nil {
 		t.Fatalf("ChannelGet: %v", err)
@@ -40,7 +40,7 @@ func TestChannelGet_NotFound(t *testing.T) {
 	st := newTestStore(t)
 	media := newTestMedia(t)
 
-	svc := service.New(st, media, nil, nil, slog.Default())
+	svc := service.New(service.Deps{Store: st, Media: media, Log: slog.Default()})
 	_, err := svc.ChannelGet(context.Background(), service.ChannelGetRequest{ChannelID: "does-not-exist"})
 	if err == nil {
 		t.Fatalf("expected an error for an unknown channel")

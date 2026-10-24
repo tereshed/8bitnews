@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -59,6 +60,9 @@ func (s *Store) CreateRelease(ctx context.Context, p NewReleaseParams) (Release,
 		&r.AllowedPlatforms, &r.CreatedAt, &r.UpdatedAt,
 	)
 	if err != nil {
+		if conflictErr := mapConflict(err); errors.Is(conflictErr, ErrConflict) {
+			return Release{}, fmt.Errorf("creating release for development %s: %w", p.DevelopmentID, conflictErr)
+		}
 		return Release{}, fmt.Errorf("creating release: %w", err)
 	}
 	return r, nil
@@ -134,6 +138,21 @@ func (s *Store) InsertReleaseSources(ctx context.Context, sources []ReleaseSourc
 		if err != nil {
 			return fmt.Errorf("inserting release source %s: %w", src.URL, err)
 		}
+	}
+	return nil
+}
+
+// UpdateReleaseSourceArchiveURL records archiveURL for the release source
+// matching (releaseID, url). It is used by the background job that
+// archives "ok" sources via Save Page Now after a release has already been
+// created and returned to the caller (task E1 revision: archiving must not
+// block release_submit).
+func (s *Store) UpdateReleaseSourceArchiveURL(ctx context.Context, releaseID, url, archiveURL string) error {
+	_, err := s.pool.Exec(ctx, `
+		UPDATE release_sources SET archive_url = $1 WHERE release_id = $2 AND url = $3
+	`, archiveURL, releaseID, url)
+	if err != nil {
+		return fmt.Errorf("updating archive url for release %s source %s: %w", releaseID, url, err)
 	}
 	return nil
 }
