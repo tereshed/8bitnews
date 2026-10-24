@@ -143,6 +143,37 @@ prior = {
         "covered": {"type": "string", "minLength": 10, "description": "What that video already told, one or two sentences"},
     },
 }
+risk_issue = {
+    "type": "object",
+    "required": ["id", "family", "severity", "scope", "where", "excerpt", "rule", "scenario", "fix", "fix_owner"],
+    "properties": {
+        "id": {"type": "string", "pattern": "^[RPX][0-9]+$",
+               "description": "R* from law_report, P* from platform_report, X* added by legal_lead"},
+        "family": {"enum": ["defamation", "privacy", "minors", "criminal_case", "likeness", "election", "copyright",
+                            "music", "ai_disclosure", "regulatory", "platform_guidelines", "monetization", "reach",
+                            "metadata", "other"]},
+        "severity": {"enum": ["blocker", "high", "medium", "low"]},
+        "scope": {"type": "string", "minLength": 2, "description": "Jurisdiction (US, US-CA, ES, EU) or platform (youtube, tiktok, instagram)"},
+        "where": {"type": "string", "minLength": 1, "description": "Scene id, script or package field, or timecode"},
+        "excerpt": {"type": "string", "minLength": 1, "description": "Exact text, or a description of the visual or audio element"},
+        "rule": {"type": "object", "required": ["ref", "summary"], "properties": {
+            "ref": {"type": "string", "minLength": 3, "description": "Knowledge base section (countries/us/legal.md#defamation) or official URL"},
+            "summary": {"type": "string", "minLength": 10}}},
+        "scenario": {"type": "string", "minLength": 10, "description": "Who could do what: lawsuit, fine, strike, removal, demonetization, reach limit"},
+        "fix": {"type": "string", "minLength": 5, "description": "Concrete rewording or action; 'none' only for low severity"},
+        "fix_owner": {"enum": ["script", "video", "editor", "none"]},
+    },
+}
+disclosure = {
+    "type": "object",
+    "required": ["scope", "what"],
+    "properties": {
+        "scope": {"type": "string", "minLength": 2, "description": "Platform or jurisdiction that requires it"},
+        "what": {"type": "string", "minLength": 5, "description": "Flag, label or text, and where it goes"},
+        "ref": {"type": "string"},
+    },
+}
+review_mode = {"enum": ["script", "final"], "description": "script: before render; final: rendered video_package"}
 variant = {
     "type": "object",
     "required": ["arm_id", "params"],
@@ -226,6 +257,52 @@ schemas = {
    {"source": source, "fact": fact, "timeline_item": timeline_item, "group": group,
     "cluster": cluster, "rep": quote_rep, "poll": poll, "review": review}),
 }
+def risk_report(title, desc, prefix):
+    return schema(title, desc,
+        ["mode", "checked_against", "issues", "required_disclosures"],
+        {"mode": review_mode,
+         "checked_against": {"type": "array", "minItems": 1, "items": str1,
+                             "description": "Knowledge base files read, with their verified_at"},
+         "issues": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/risk_issue"},
+                    {"properties": {"id": {"pattern": f"^{prefix}[0-9]+$"}}}]}},
+         "required_disclosures": {"type": "array", "items": {"$ref": "#/$defs/disclosure"}},
+         "notes": {"type": "array", "items": str1}},
+        {"risk_issue": risk_issue, "disclosure": disclosure})
+
+schemas["law_report"] = risk_report("law_report",
+    "legal_counsel output: legal risks under the country's law and the channel's policy.", "R")
+schemas["platform_report"] = risk_report("platform_report",
+    "platform_reviewer output: risks of sanctions on each enabled platform.", "P")
+lr = schema("legal_review",
+    "legal_lead output and final result of the Legal team.",
+    ["mode", "channel_id", "country", "verdict", "platforms", "issues", "required_disclosures", "summary_ru", "checked_against"],
+    {"mode": review_mode,
+     "channel_id": str1,
+     "country": {"type": "string", "pattern": "^[A-Z]{2}$"},
+     "verdict": {"enum": ["pass", "fix_required", "kill"]},
+     "platforms": {"type": "object", "minProperties": 1, "additionalProperties": {
+         "type": "object", "required": ["verdict"], "properties": {
+             "verdict": {"enum": ["pass", "fix_required", "exclude"]},
+             "reason": {"type": "string"}}},
+         "description": "Per enabled platform; exclude = do not publish there"},
+     "issues": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/risk_issue"}, {"properties": {
+         "resolved_by_exclusion": {"type": "boolean",
+                                   "description": "The risk exists only on platforms marked exclude"}}}]}},
+     "required_disclosures": {"type": "array", "items": {"$ref": "#/$defs/disclosure"}},
+     "kill_reason": {"type": "string", "minLength": 10},
+     "summary_ru": {"type": "string", "minLength": 20, "description": "For the human moderator, Russian, <= 80 words"},
+     "checked_against": {"type": "array", "minItems": 1, "items": str1}},
+    {"risk_issue": risk_issue, "disclosure": disclosure})
+lr["allOf"] = [
+    {"if": {"properties": {"verdict": {"const": "kill"}}}, "then": {"required": ["kill_reason"]}},
+    {"if": {"required": ["issues"], "properties": {"issues": {"contains": {
+         "properties": {"severity": {"enum": ["blocker", "high"]}},
+         "not": {"required": ["resolved_by_exclusion"], "properties": {"resolved_by_exclusion": {"const": True}}}}}}},
+     "then": {"properties": {"verdict": {"enum": ["fix_required", "kill"]}}},
+     "description": "An open blocker or high issue forbids pass"},
+]
+schemas["legal_review"] = lr
+
 for name, sch in schemas.items():
     with open(out / f"{name}.schema.json", "w", encoding="utf-8") as f:
         json.dump(sch, f, ensure_ascii=False, indent=2)
