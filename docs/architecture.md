@@ -320,20 +320,28 @@ RU не делаем **[решено]**: независимая аналитик
   задач (Research, Script, Legal дважды, Video, QA) ≈ 20–30 прогонов агентов; дороже всех Research (в пробном прогоне
   24.10 — 9 прогонов). Стартуем с 1–3 роликов в день на канал и смотрим на расход.
 
-## 12. Структура репозитория [предложение]
+## 12. Структура репозитория
+
+Go-модуль `github.com/tereshed/8bitnews`. Каталоги создаются по мере эпиков — ниже то, что есть
+после E0, и (помечено **[план]**) то, что добавят следующие эпики.
 
 ```
-docs/                     архитектура, решения
-channels/<id>/            профили каналов (данные)
-countries/<cc>/           источники и политики стран (данные)
-newsroom/                 промпты агентов и JSON-схемы контрактов (синхронизируются в PolyMaths)
-studio/                   тулкит генерации ролика: TTS, ассеты, шаблоны, рендер, validate
+docs/                             архитектура, решения
+channels/<id>/                    профили каналов (данные)
+  channel.schema.json             JSON Schema (draft 2020-12) для channel.yaml
+countries/<cc>/                   источники и политики стран (данные)
+  sources.schema.json             JSON Schema (draft 2020-12) для sources.yaml
+newsroom/                         промпты агентов и JSON-схемы контрактов (синхронизируются в PolyMaths)
+cmd/profiles/                     CLI: `go run ./cmd/profiles validate [--strict]`
+internal/profile/                 загрузка и валидация профилей каналов и стран
+deploy/                           docker-compose.yml (Postgres для локальной разработки)
+.github/workflows/                CI: lint, test, validate-profiles
+studio/                           [план, E2] тулкит генерации ролика: TTS, ассеты, шаблоны, рендер, validate
   templates/<id>/
-cmd/hub/                  Go: точка входа hub
-internal/                 Go: api, mcp, moderation, publisher, collector, experiments, store
-migrations/               SQL-миграции
-analytics/datalens/       SQL-представления и описание дашбордов
-deploy/                   docker compose, конфиги
+cmd/hub/                          [план, E1] Go: точка входа hub
+internal/{api,mcp,moderation,…}   [план, E1] api, mcp, moderation, publisher, collector, experiments, store
+migrations/                       [план, E1] SQL-миграции
+analytics/datalens/               [план, E5] SQL-представления и описание дашбордов
 ```
 
 Движок рендера шаблонов — **[предложение]** Remotion (React-шаблоны → mp4, богатая анимация, удобно размножать

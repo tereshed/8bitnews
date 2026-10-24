@@ -1,0 +1,16 @@
+country: CA
+language: en-US
+
+local:
+  - { outlet: Demo Wire, domain: demowire.example, kind: wire, leaning: center }
+
+world:
+  - region: Demo Region
+    outlets:
+      - { outlet: Demo World News, domain: demoworld.example, language: en, ownership: private }
+
+primary:
+  - demo.gov
+
+pollsters:
+  - { name: Demo Pollsters, domain: demopoll.example }

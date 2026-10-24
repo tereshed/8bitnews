@@ -28,6 +28,9 @@ go.work.sum
 # env file
 .env
 
+# locally installed build tools (make lint)
+/bin/
+
 # Editor/IDE
 # .idea/
 # .vscode/

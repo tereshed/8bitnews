@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tereshed/8bitnews/channels/channel.schema.json",
+  "title": "8bitnews channel profile",
+  "description": "Schema for channels/<id>/channel.yaml. The literal string \"tbd\" is a valid placeholder for any free-text string field until the value is filled in (see --strict mode of cmd/profiles). country and language are structural identifiers used for cross-checks and are never \"tbd\"; they must match their regex from the start.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "country",
+    "language",
+    "timezone",
+    "platforms",
+    "schedule",
+    "moderation",
+    "editorial",
+    "format",
+    "sources",
+    "policy",
+    "experiments"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Must equal the channel's directory name under channels/."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "country": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$",
+      "description": "ISO 3166-1 alpha-2 country code; must correspond to a directory under countries/ (case-insensitive) and match the country of the sources.yaml referenced in /sources."
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+      "description": "BCP 47 language tag; must match the language of the sources.yaml referenced in /sources."
+    },
+    "timezone": {
+      "type": "string",
+      "minLength": 1
+    },
+    "platforms": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "enum": ["youtube", "tiktok", "instagram"] },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["enabled", "account"],
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "account": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runs", "publish_slots"],
+      "properties": {
+        "runs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "publish_slots": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "moderation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approval_required"],
+      "properties": {
+        "approval_required": { "type": "boolean" }
+      }
+    },
+    "editorial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tone", "topics_include", "topics_exclude"],
+      "properties": {
+        "tone": { "type": "string", "minLength": 1 },
+        "topics_include": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "topics_exclude": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "format": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "description",
+        "aspect",
+        "duration_s",
+        "templates",
+        "default_template",
+        "voice",
+        "subtitles"
+      ],
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "File name of the format document, relative to the channel directory."
+        },
+        "aspect": { "type": "string", "minLength": 1 },
+        "duration_s": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min", "max"],
+          "properties": {
+            "min": { "type": "integer", "minimum": 0 },
+            "max": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "templates": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "default_template": { "type": "string", "minLength": 1 },
+        "voice": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["provider", "voice_id"],
+          "properties": {
+            "provider": { "type": "string", "minLength": 1 },
+            "voice_id": { "type": "string", "minLength": 1 }
+          }
+        },
+        "subtitles": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sources": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Path to the country sources.yaml, relative to the repository root."
+    },
+    "policy": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Path to the country policy.md, relative to the repository root."
+    },
+    "experiments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    }
+  }
+}
