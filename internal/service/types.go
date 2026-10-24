@@ -68,8 +68,8 @@ type ReleaseBrief struct {
 type StoryRegisterRequest struct {
 	ChannelID          string    `json:"channel_id" jsonschema:"the channel registering this story"`
 	StoryID            *string   `json:"story_id" jsonschema:"existing storyline id, or null to start a new storyline"`
-	Title              string    `json:"title" jsonschema:"storyline title; used only when story_id is null"`
-	Summary            string    `json:"summary" jsonschema:"storyline summary; used only when story_id is null"`
+	Title              string    `json:"title,omitempty" jsonschema:"storyline title; used only when story_id is null"`
+	Summary            string    `json:"summary,omitempty" jsonschema:"storyline summary; used only when story_id is null"`
 	DevelopmentSummary string    `json:"development_summary" jsonschema:"what is new in this turn of the story"`
 	ReportedAt         time.Time `json:"reported_at" jsonschema:"when this development was first reported, UTC"`
 	PolymathsTaskID    string    `json:"polymaths_task_id,omitempty" jsonschema:"PolyMaths task that registered this development"`
