@@ -54,7 +54,7 @@ tracks:
       commercial: true
       platforms: [youtube, tiktok, instagram]
       attribution: null          # текст, если сервис требует атрибуцию в описании
-      content_id: none           # none | registered_whitelisted | registered
+      content_id: none           # none | unknown | registered_whitelisted | registered (CC0 из каталога — unknown)
     audio:
       key: music/tracks/chip-tense-01.wav    # ключ в S3
       sha256: …

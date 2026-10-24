@@ -1,0 +1,1029 @@
+# Каталог фоновой музыки (music/README.md). Только approved-треки идут в music_pick.
+# Собран 2026-10-24 из прослушивания CC0-кандидатов (music/candidates.yaml).
+# audio.key — будущий ключ в S3; пока файл лежит локально по тому же пути (папка в .gitignore).
+tracks:
+- id: oga-chill-chiptunes-collection-5
+  status: approved
+  title: Chill Chiptunes (Collection) — Scroller
+  author: Holizna
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/chill-chiptunes-collection
+    uploaded_at: 2024-04-11
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/chill-chiptunes-collection.html
+    archive_url: https://web.archive.org/web/20261024125327/https://opengameart.org/content/chill-chiptunes-collection
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-chill-chiptunes-collection-5.ogg
+    format: ogg
+    sha256: 832aa142b1800f2575d758cfb67a84a4509c724de7c1facb580c0ba55813868c
+    duration_s: 153.9
+  tags:
+    mood:
+    - neutral
+    energy: 2
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-free-nes-music-pack-6
+  status: approved
+  title: Free NES Music Pack — nes_07-jazz
+  author: pmiller (Phillip Miller)
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/free-nes-music-pack
+    uploaded_at: 2019-07-01
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/free-nes-music-pack.html
+    archive_url: https://web.archive.org/web/20261024125403/https://opengameart.org/content/free-nes-music-pack
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-free-nes-music-pack-6.wav
+    format: wav
+    sha256: 6a1fa62653a1149d369775fa42e2187632de0f4aeb195df784830163b01d209c
+    duration_s: 140.2
+  tags:
+    mood:
+    - neutral
+    energy: 2
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-chiptune-medieval-the-old-tower-inn
+  status: approved
+  title: '[Chiptune] Medieval: The Old Tower Inn'
+  author: RandomMind
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/chiptune-medieval-the-old-tower-inn
+    uploaded_at: 2018-11-22
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/chiptune-medieval-the-old-tower-inn.html
+    archive_url: https://web.archive.org/web/20261024131055/https://opengameart.org/content/chiptune-medieval-the-old-tower-inn
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-chiptune-medieval-the-old-tower-inn.wav
+    format: wav
+    sha256: 87acf6f6d0f8029ac13c9fef10aa4a0a0cdab9d1416ce13a2da339e2431ae765
+    duration_s: 33.3
+  tags:
+    mood:
+    - neutral
+    - hopeful
+    energy: 2
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: Автор выкладывает трек на YouTube — при claim в Content ID отключить и оспорить с архивом лицензии.
+- id: oga-c1-bgm
+  status: approved
+  title: C1 [bgm]
+  author: obscure music
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/c1-bgm
+    uploaded_at: 2016-10-14
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/c1-bgm.html
+    archive_url: https://web.archive.org/web/20261024131132/https://opengameart.org/content/c1-bgm
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-c1-bgm.flac
+    format: flac
+    sha256: 9d2570e896f5bf712269b2732342ffdfed7484a8b25427cf61324e022ce879d3
+    duration_s: 148.0
+  tags:
+    mood:
+    - neutral
+    - tense
+    energy: 3
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-title-x
+  status: approved
+  title: Title-X
+  author: poinl
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/title-x
+    uploaded_at: 2015-08-09
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/title-x.html
+    archive_url: https://web.archive.org/web/20261024131212/https://opengameart.org/content/title-x
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-title-x.mp3
+    format: mp3
+    sha256: 887a78fe0169ab3cda028bc250905019715356a5a68fc4597b9686566826c3fe
+    duration_s: 192.1
+  tags:
+    mood:
+    - neutral
+    energy: 3
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-8-bit-mechanical-complex
+  status: approved
+  title: 8-bit Mechanical Complex
+  author: HydroGene
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/8-bit-mechanical-complex
+    uploaded_at: 2023-06-18
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/8-bit-mechanical-complex.html
+    archive_url: https://web.archive.org/web/20261024130749/https://opengameart.org/content/8-bit-mechanical-complex
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-8-bit-mechanical-complex.mp3
+    format: mp3
+    sha256: ffe3eb080f49e6d848a1eb56c36501b7cf06bac18735f0123732b741fd8f7009
+    duration_s: 162.7
+  tags:
+    mood:
+    - neutral
+    - curious
+    energy: 3
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-5-chiptunes-action-4
+  status: approved
+  title: 5 Chiptunes (Action) — Level 3
+  author: SubspaceAudio (Juhani Junkala)
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/5-chiptunes-action
+    uploaded_at: 2016-04-17
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/5-chiptunes-action.html
+    archive_url: https://web.archive.org/web/20261024121035/https://opengameart.org/content/5-chiptunes-action
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-5-chiptunes-action-4.wav
+    format: wav
+    sha256: c30ae8521119deefd0e22224310e45c07ca726c20760dd93e64e02b9b59a8e6c
+    duration_s: 81.9
+  tags:
+    mood:
+    - tense
+    energy: 4
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-dark-music-vrc6-and-2a03-1
+  status: approved
+  title: Dark Music (VRC6 and 2A03) — DarkMusicFinal
+  author: celestialghost8
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/dark-music-vrc6-and-2a03
+    uploaded_at: 2016-07-19
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/dark-music-vrc6-and-2a03.html
+    archive_url: https://web.archive.org/web/20261024125659/https://opengameart.org/content/dark-music-vrc6-and-2a03
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-dark-music-vrc6-and-2a03-1.wav
+    format: wav
+    sha256: fb91db6bcaa94fc8b5a910e661e9c5465895f7a2ee1bd0c8cb616f634d929ac2
+    duration_s: 51.3
+  tags:
+    mood:
+    - tense
+    energy: 3
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-inevitable-doom
+  status: approved
+  title: Inevitable Doom
+  author: celestialghost8
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/inevitable-doom
+    uploaded_at: 2016-08-30
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/inevitable-doom.html
+    archive_url: https://web.archive.org/web/20261024125738/https://opengameart.org/content/inevitable-doom
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-inevitable-doom.wav
+    format: wav
+    sha256: cef9610f1a708fa039c6ef61f2851413f0d2d09b27cdca4943778a76d428be47
+    duration_s: 76.8
+  tags:
+    mood:
+    - tense
+    energy: 3
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-abandoned-hopes
+  status: approved
+  title: Abandoned Hopes
+  author: Jonathan So
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/abandoned-hopes
+    uploaded_at: 2017-04-20
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/abandoned-hopes.html
+    archive_url: https://web.archive.org/web/20261024130456/https://opengameart.org/content/abandoned-hopes
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-abandoned-hopes.wav
+    format: wav
+    sha256: 556a2178173bf62a44bcc0e3e5c640f1b9421f8f9c28c49a6fd8c3b17f032f7d
+    duration_s: 153.7
+  tags:
+    mood:
+    - tense
+    - somber
+    energy: 3
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-mecha-collection
+  status: approved
+  title: Mecha Collection
+  author: Jonathan So
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/mecha-collection
+    uploaded_at: 2017-04-20
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/mecha-collection.html
+    archive_url: https://web.archive.org/web/20261024130419/https://opengameart.org/content/mecha-collection
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-mecha-collection.wav
+    format: wav
+    sha256: d2d1e2b188c91a99efab0e5cb964861b5540095b0e1c2c646b83601a7874ecb5
+    duration_s: 138.8
+  tags:
+    mood:
+    - tense
+    - urgent
+    energy: 4
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-8-bit-haunted-house-theme
+  status: approved
+  title: 8-bit Haunted House Theme
+  author: Wolfgang_
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/8-bit-haunted-house-theme
+    uploaded_at: 2021-06-10
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/8-bit-haunted-house-theme.html
+    archive_url: https://web.archive.org/web/20261024130212/https://opengameart.org/content/8-bit-haunted-house-theme
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-8-bit-haunted-house-theme.wav
+    format: wav
+    sha256: 7cfc341aab55a79308001db99d3abb0c24130cdbfbc1825012b930dff9911952
+    duration_s: 44.8
+  tags:
+    mood:
+    - tense
+    - curious
+    energy: 2
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-5-chiptunes-action-2
+  status: approved
+  title: 5 Chiptunes (Action) — Level 1
+  author: SubspaceAudio (Juhani Junkala)
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/5-chiptunes-action
+    uploaded_at: 2016-04-17
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/5-chiptunes-action.html
+    archive_url: https://web.archive.org/web/20261024121035/https://opengameart.org/content/5-chiptunes-action
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-5-chiptunes-action-2.wav
+    format: wav
+    sha256: 6f79ae4c6f2b59baa62c46bcd264c9d157f5dca2c30845fabc3c5be4e2b64a43
+    duration_s: 74.3
+  tags:
+    mood:
+    - urgent
+    energy: 4
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-8-bit-battle-theme-famitracker
+  status: approved
+  title: 8 bit battle theme (famitracker)
+  author: celestialghost8
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/8-bit-battle-theme-famitracker
+    uploaded_at: 2016-05-12
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/8-bit-battle-theme-famitracker.html
+    archive_url: https://web.archive.org/web/20261024125855/https://opengameart.org/content/8-bit-battle-theme-famitracker
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-8-bit-battle-theme-famitracker.wav
+    format: wav
+    sha256: 73d4f61dd69a89edb7948cdc0bac14ce878c6ab46bc8ec4118867b5ab147772b
+    duration_s: 74.8
+  tags:
+    mood:
+    - urgent
+    energy: 4
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-fields-of-ice
+  status: approved
+  title: Fields of Ice
+  author: Jonathan So
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/fields-of-ice
+    uploaded_at: 2017-04-21
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/fields-of-ice.html
+    archive_url: https://web.archive.org/web/20261024130251/https://opengameart.org/content/fields-of-ice
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-fields-of-ice.wav
+    format: wav
+    sha256: 520c7e040e76af9e5767495a84064f990182c0f172de77d1efbf9ef6d152c468
+    duration_s: 121.8
+  tags:
+    mood:
+    - urgent
+    energy: 4
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-interstellar-fleet-1
+  status: approved
+  title: Interstellar Fleet 1
+  author: Zane Little Music
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/interstellar-fleet-1
+    uploaded_at: 2023-05-02
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/interstellar-fleet-1.html
+    archive_url: https://web.archive.org/web/20261024131444/https://opengameart.org/content/interstellar-fleet-1
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-interstellar-fleet-1.wav
+    format: wav
+    sha256: 23707c1a9c451681c15634638969635bc24acfdf2eabb5ab6448ea6003fb1c69
+    duration_s: 88.6
+  tags:
+    mood:
+    - urgent
+    energy: 4
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-6-genuinely-c64-soundtracks-released-as-public-domain-may-2017-2
+  status: approved
+  title: 6 genuinely C64 soundtracks released as public domain, May 2017 — Epics
+  author: skrjablin («Skrjablin»)
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/6-genuinely-c64-soundtracks-released-as-public-domain-may-2017
+    uploaded_at: 2017-05-18
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/6-genuinely-c64-soundtracks-released-as-public-domain-may-2017.html
+    archive_url: https://web.archive.org/web/20261024125544/https://opengameart.org/content/6-genuinely-c64-soundtracks-released-as-public-domain-may-2017
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-6-genuinely-c64-soundtracks-released-as-public-domain-may-2017-2.ogg
+    format: ogg
+    sha256: 5c1ed61c8989463397ecb8d1c4026026e18c0e501f86189cd26f09aebb268e83
+    duration_s: 129.7
+  tags:
+    mood:
+    - somber
+    energy: 1
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-slow-melancholic-theme-c64-style-1
+  status: approved
+  title: Slow Melancholic Theme C64 Style — short version
+  author: skrjablin («Skrjablin»)
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/slow-melancholic-theme-c64-style
+    uploaded_at: 2013-09-12
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/slow-melancholic-theme-c64-style.html
+    archive_url: https://web.archive.org/web/20261024125620/https://opengameart.org/content/slow-melancholic-theme-c64-style
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-slow-melancholic-theme-c64-style-1.ogg
+    format: ogg
+    sha256: 5e0ddcc03f15c4473861e66d3676185a5a1c0fa5fb8d4d157392bbf3866ebe03
+    duration_s: 68.9
+  tags:
+    mood:
+    - somber
+    energy: 1
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-dark-music-vrc6-and-2a03-2
+  status: approved
+  title: Dark Music (VRC6 and 2A03) — [SLOW] DarkMusic
+  author: celestialghost8
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/dark-music-vrc6-and-2a03
+    uploaded_at: 2016-07-19
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/dark-music-vrc6-and-2a03.html
+    archive_url: https://web.archive.org/web/20261024125659/https://opengameart.org/content/dark-music-vrc6-and-2a03
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-dark-music-vrc6-and-2a03-2.wav
+    format: wav
+    sha256: 5e2a06e8b0ae884994b02e165a1c7d94dd65a6a0d4d31c3d028a6dd63e503d21
+    duration_s: 76.8
+  tags:
+    mood:
+    - somber
+    - curious
+    energy: 2
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-ambient-the-beach-where-dreams-die
+  status: approved
+  title: Ambient - The Beach Where Dreams Die
+  author: Chloe Wolfe
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/ambient-the-beach-where-dreams-die
+    uploaded_at: 2016-08-18
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/ambient-the-beach-where-dreams-die.html
+    archive_url: https://web.archive.org/web/20261024131601/https://opengameart.org/content/ambient-the-beach-where-dreams-die
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-ambient-the-beach-where-dreams-die.wav
+    format: wav
+    sha256: 361d60c6aa6b5f8bdc028eefba9464074b8ece65d51c8381f1f0b7f575b00edb
+    duration_s: 164.6
+  tags:
+    mood:
+    - somber
+    energy: 1
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: Не подтверждено, что загрузил сам автор (профиль SoundCloud под другим именем) — проверить до первой
+      публикации.
+- id: oga-chill-chiptunes-collection-7
+  status: approved
+  title: Chill Chiptunes (Collection) — ICE temple
+  author: Holizna
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/chill-chiptunes-collection
+    uploaded_at: 2024-04-11
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/chill-chiptunes-collection.html
+    archive_url: https://web.archive.org/web/20261024125327/https://opengameart.org/content/chill-chiptunes-collection
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-chill-chiptunes-collection-7.ogg
+    format: ogg
+    sha256: 7b98a32de479102254e1b88d5856f56b0e5febb70a6cc9cb89bfea3822c2f49d
+    duration_s: 104.9
+  tags:
+    mood:
+    - somber
+    - curious
+    energy: 1
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-4-chiptunes-adventure-1
+  status: approved
+  title: 4 Chiptunes (Adventure) — Stage 1
+  author: SubspaceAudio (Juhani Junkala)
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/4-chiptunes-adventure
+    uploaded_at: 2017-05-26
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/4-chiptunes-adventure.html
+    archive_url: https://web.archive.org/web/20261024125120/https://opengameart.org/content/4-chiptunes-adventure
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-4-chiptunes-adventure-1.wav
+    format: wav
+    sha256: f7e4bb2b4311aa5790c6b37b54fe8db8081bf0d17cdef01f4d95cf2ec7d33749
+    duration_s: 41.1
+  tags:
+    mood:
+    - hopeful
+    energy: 3
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-4-chiptunes-adventure-2
+  status: approved
+  title: 4 Chiptunes (Adventure) — Stage 2
+  author: SubspaceAudio (Juhani Junkala)
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/4-chiptunes-adventure
+    uploaded_at: 2017-05-26
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/4-chiptunes-adventure.html
+    archive_url: https://web.archive.org/web/20261024125120/https://opengameart.org/content/4-chiptunes-adventure
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-4-chiptunes-adventure-2.wav
+    format: wav
+    sha256: 777f8d5e3c80a120ee71058048420d99a587ae9db11b446fc698b969010ec34e
+    duration_s: 56.1
+  tags:
+    mood:
+    - hopeful
+    energy: 3
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-my-street
+  status: approved
+  title: My Street
+  author: congusbongus
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/my-street
+    uploaded_at: 2021-01-22
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/my-street.html
+    archive_url: https://web.archive.org/web/20261024131640/https://opengameart.org/content/my-street
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-my-street.ogg
+    format: ogg
+    sha256: 5560f25dc0075045c21359dfbc6757a5b921c8ca1e7684ceddcb1431b9fc2c55
+    duration_s: 213.0
+  tags:
+    mood:
+    - hopeful
+    energy: 3
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-pushing-ahead
+  status: approved
+  title: Pushing ahead
+  author: Centurion_of_war
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/pushing-ahead
+    uploaded_at: 2021-02-23
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/pushing-ahead.html
+    archive_url: https://web.archive.org/web/20261024131817/https://opengameart.org/content/pushing-ahead
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-pushing-ahead.ogg
+    format: ogg
+    sha256: dcd7fa1f6365c3b8113bb72c8f7c43eee9f253c726f99d223e9d0f860ae12d91
+    duration_s: 106.7
+  tags:
+    mood:
+    - hopeful
+    energy: 3
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-sunny-day-day-6
+  status: approved
+  title: Sunny Day - Day 6
+  author: Zane Little Music
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/sunny-day-day-6
+    uploaded_at: 2022-07-16
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/sunny-day-day-6.html
+    archive_url: https://web.archive.org/web/20261024131930/https://opengameart.org/content/sunny-day-day-6
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-sunny-day-day-6.wav
+    format: wav
+    sha256: 83b61051a5c6b6d4de68fb4259cde2ea06a740b47af235d58567c6016c5f623e
+    duration_s: 64.1
+  tags:
+    mood:
+    - hopeful
+    energy: 3
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-free-nes-music-pack-3
+  status: approved
+  title: Free NES Music Pack — nes_03-blues
+  author: pmiller (Phillip Miller)
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/free-nes-music-pack
+    uploaded_at: 2019-07-01
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/free-nes-music-pack.html
+    archive_url: https://web.archive.org/web/20261024125403/https://opengameart.org/content/free-nes-music-pack
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-free-nes-music-pack-3.wav
+    format: wav
+    sha256: daa2740da8108846103825317b8c88196f47d50d386fe0822a7591b5be1abf1c
+    duration_s: 77.0
+  tags:
+    mood:
+    - curious
+    - neutral
+    energy: 2
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-8-bit-forest-theme
+  status: approved
+  title: 8-bit Forest Theme
+  author: Wolfgang_
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/8-bit-forest-theme
+    uploaded_at: 2017-08-04
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/8-bit-forest-theme.html
+    archive_url: https://web.archive.org/web/20261024130057/https://opengameart.org/content/8-bit-forest-theme
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-8-bit-forest-theme.wav
+    format: wav
+    sha256: 153832c278e7afa6849487a36e341e0363f318386403297f76b3a0590dd2fb28
+    duration_s: 170.8
+  tags:
+    mood:
+    - curious
+    energy: 2
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
+- id: oga-delayed-chiptune
+  status: approved
+  title: Delayed Chiptune
+  author: Centurion_of_war
+  origin:
+    kind: free_library
+    provider: opengameart
+    page_url: https://opengameart.org/content/delayed-chiptune
+    uploaded_at: 2024-04-24
+    downloaded_at: '2026-10-24'
+    receipt: licenses/oga/delayed-chiptune.html
+    archive_url: https://web.archive.org/web/20261024132156/https://opengameart.org/content/delayed-chiptune
+  license:
+    name: CC0-1.0
+    url: http://creativecommons.org/publicdomain/zero/1.0/
+    commercial: true
+    platforms:
+    - youtube
+    - tiktok
+    - instagram
+    attribution: null
+    content_id: unknown
+  audio:
+    key: music/tracks/oga/oga-delayed-chiptune.ogg
+    format: ogg
+    sha256: 2cebadd22e45de697b2ef38579dc44d7dd913c700a93b6183dd01a8beb9a405d
+    duration_s: 45.4
+  tags:
+    mood:
+    - curious
+    energy: 2
+  review:
+    listened_at: '2026-10-24'
+    decision: keep
+    notes: ''
