@@ -327,11 +327,15 @@ Go-модуль `github.com/tereshed/8bitnews`. Каталоги создают�
 
 ```
 docs/                             архитектура, решения
-channels/<id>/                    профили каналов (данные)
+channels/<id>/                    профили каналов (данные): channel.yaml, format.md, metadata.md
   channel.schema.json             JSON Schema (draft 2020-12) для channel.yaml
-countries/<cc>/                   источники и политики стран (данные)
+countries/<cc>/                   страны (данные): sources.yaml, policy.md, legal.md
   sources.schema.json             JSON Schema (draft 2020-12) для sources.yaml
-newsroom/                         промпты агентов и JSON-схемы контрактов (синхронизируются в PolyMaths)
+platforms/<platform>/rules.md     правила площадок для Legal
+operator/legal.md                 право страны оператора (Испания, ЕС) для Legal
+music/                            каталог фоновой музыки и задания на генерацию (аудио — в S3)
+newsroom/                         промпты агентов и JSON-схемы контрактов (синхронизируются в PolyMaths);
+                                  gen_contracts.py генерирует схемы, sync.py настраивает команды
 cmd/profiles/                     CLI: `go run ./cmd/profiles validate [--strict]`
 internal/profile/                 загрузка и валидация профилей каналов и стран
 deploy/                           docker-compose.yml (Postgres для локальной разработки)
