@@ -1,0 +1,41 @@
+# Задания на генерацию пула фоновой музыки (см. music/README.md).
+# Общий стиль канала 8BitNewsUS: chiptune в духе 8-битных консолей, инструментал без вокала, под голос диктора —
+# без резких соло и пиков в диапазоне речи. Длина 60–90 с, зацикливаемый финал.
+# count — сколько треков нужно в пул; генерируем вдвое больше на отбор.
+
+style: >-
+  8-bit chiptune, NES-style sound chip: pulse and triangle waves, noise-channel percussion.
+  Instrumental, no vocals. Background music under a news narrator: steady, uncluttered mid-range,
+  no lead solos, no sudden drops or risers. Seamless loop at the end.
+
+briefs:
+  - mood: neutral
+    energy: 2
+    bpm: [96, 110]
+    count: 6
+    prompt: "calm, steady explainer groove, light arpeggios, unobtrusive"
+  - mood: tense
+    energy: 3
+    bpm: [110, 125]
+    count: 5
+    prompt: "minor key, pulsing bass, suspenseful, restrained"
+  - mood: urgent
+    energy: 4
+    bpm: [125, 140]
+    count: 4
+    prompt: "driving rhythm, breaking-news urgency, minor key, controlled intensity"
+  - mood: somber
+    energy: 1
+    bpm: [60, 80]
+    count: 4
+    prompt: "slow, quiet ambient pads made from soft triangle waves, no percussion, respectful"
+  - mood: hopeful
+    energy: 3
+    bpm: [100, 118]
+    count: 4
+    prompt: "major key, warm, gently uplifting, not triumphant"
+  - mood: curious
+    energy: 2
+    bpm: [90, 105]
+    count: 4
+    prompt: "investigative, mysterious, plucky staccato melody, light percussion"

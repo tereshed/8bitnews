@@ -24,6 +24,7 @@
 **Вход** — в постановке или во входе от роутера: `mode`, `story_brief`, `research_dossier`, `script`, в режиме final ещё
 `video_package`, при повторном челлендже — прошлый `legal_review`. В репозитории:
 - `channels/<channel_id>/channel.yaml` — страна, язык, включённые площадки (`platforms.*.enabled`);
+- `channels/<channel_id>/metadata.md` — правила заголовков, описаний, тегов и хэштегов, шаблоны описания;
 - `countries/<cc>/legal.md` — право страны, `countries/<cc>/policy.md` — редакционные правила канала (`cc` — страна
   в нижнем регистре);
 - `platforms/<platform>/rules.md` — правила каждой включённой площадки;
