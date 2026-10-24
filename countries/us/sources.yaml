@@ -1,0 +1,121 @@
+# Источники для каналов страны US. Стартовый список — расширяется по ходу работы.
+# leaning — ориентировочная позиция редакции в американском спектре (по открытым рейтингам медиа-предвзятости),
+# а не истина: агенты используют её, чтобы покрыть весь спектр, а не чтобы оценивать материалы.
+# ownership: private | public_broadcaster | state_funded | state_controlled
+
+country: US
+language: en-US
+
+local:
+  # агентства и деловые
+  - { outlet: Associated Press, domain: apnews.com, kind: wire, leaning: center }
+  - { outlet: Reuters, domain: reuters.com, kind: wire, leaning: center }
+  - { outlet: Bloomberg, domain: bloomberg.com, kind: press, leaning: center }
+  - { outlet: The Wall Street Journal, domain: wsj.com, kind: press, leaning: center, note: "редакция новостей — центр, редакционная полоса — правее" }
+  - { outlet: Axios, domain: axios.com, kind: press, leaning: center }
+  - { outlet: The Hill, domain: thehill.com, kind: press, leaning: center }
+  # левее центра
+  - { outlet: The New York Times, domain: nytimes.com, kind: press, leaning: lean_left }
+  - { outlet: The Washington Post, domain: washingtonpost.com, kind: press, leaning: lean_left }
+  - { outlet: CNN, domain: cnn.com, kind: press, leaning: lean_left }
+  - { outlet: NPR, domain: npr.org, kind: press, leaning: lean_left }
+  - { outlet: NBC News, domain: nbcnews.com, kind: press, leaning: lean_left }
+  - { outlet: Politico, domain: politico.com, kind: press, leaning: lean_left }
+  - { outlet: MSNBC, domain: msnbc.com, kind: press, leaning: left }
+  - { outlet: Vox, domain: vox.com, kind: press, leaning: left }
+  - { outlet: HuffPost, domain: huffpost.com, kind: press, leaning: left }
+  # правее центра
+  - { outlet: New York Post, domain: nypost.com, kind: press, leaning: lean_right }
+  - { outlet: Washington Examiner, domain: washingtonexaminer.com, kind: press, leaning: lean_right }
+  - { outlet: The Free Press, domain: thefp.com, kind: press, leaning: lean_right }
+  - { outlet: The Dispatch, domain: thedispatch.com, kind: press, leaning: lean_right }
+  - { outlet: Reason, domain: reason.com, kind: press, leaning: lean_right, note: "либертарианская позиция" }
+  - { outlet: Fox News, domain: foxnews.com, kind: press, leaning: right }
+  - { outlet: National Review, domain: nationalreview.com, kind: press, leaning: right }
+  - { outlet: The Daily Wire, domain: dailywire.com, kind: press, leaning: right }
+  - { outlet: The Federalist, domain: thefederalist.com, kind: press, leaning: right }
+
+world:
+  - region: UK
+    outlets:
+      - { outlet: BBC News, domain: bbc.com, language: en, ownership: public_broadcaster }
+      - { outlet: The Guardian, domain: theguardian.com, language: en, ownership: private }
+      - { outlet: Financial Times, domain: ft.com, language: en, ownership: private }
+      - { outlet: The Telegraph, domain: telegraph.co.uk, language: en, ownership: private }
+      - { outlet: The Economist, domain: economist.com, language: en, ownership: private }
+  - region: Western Europe
+    outlets:
+      - { outlet: Le Monde, domain: lemonde.fr, language: fr, ownership: private }
+      - { outlet: Le Figaro, domain: lefigaro.fr, language: fr, ownership: private }
+      - { outlet: Der Spiegel, domain: spiegel.de, language: de, ownership: private }
+      - { outlet: Frankfurter Allgemeine Zeitung, domain: faz.net, language: de, ownership: private }
+      - { outlet: El País, domain: elpais.com, language: es, ownership: private }
+      - { outlet: Corriere della Sera, domain: corriere.it, language: it, ownership: private }
+      - { outlet: AFP, domain: afp.com, language: fr, ownership: private, note: "агентство" }
+  - region: Eastern Europe
+    outlets:
+      - { outlet: The Kyiv Independent, domain: kyivindependent.com, language: en, ownership: private }
+      - { outlet: Gazeta Wyborcza, domain: wyborcza.pl, language: pl, ownership: private }
+      - { outlet: TASS, domain: tass.com, language: en, ownership: state_controlled }
+      - { outlet: RT, domain: rt.com, language: en, ownership: state_controlled }
+  - region: China and East Asia
+    outlets:
+      - { outlet: Xinhua, domain: news.cn, language: en, ownership: state_controlled }
+      - { outlet: Global Times, domain: globaltimes.cn, language: en, ownership: state_controlled }
+      - { outlet: South China Morning Post, domain: scmp.com, language: en, ownership: private }
+      - { outlet: NHK World, domain: nhk.or.jp, language: en, ownership: public_broadcaster }
+      - { outlet: Nikkei Asia, domain: asia.nikkei.com, language: en, ownership: private }
+      - { outlet: Yonhap, domain: en.yna.co.kr, language: en, ownership: state_funded }
+  - region: Middle East
+    outlets:
+      - { outlet: Al Jazeera, domain: aljazeera.com, language: en, ownership: state_funded }
+      - { outlet: Haaretz, domain: haaretz.com, language: en, ownership: private }
+      - { outlet: The Times of Israel, domain: timesofisrael.com, language: en, ownership: private }
+      - { outlet: Arab News, domain: arabnews.com, language: en, ownership: private, note: "близок к официальной позиции Саудовской Аравии" }
+      - { outlet: Tehran Times, domain: tehrantimes.com, language: en, ownership: state_controlled }
+  - region: South Asia
+    outlets:
+      - { outlet: The Hindu, domain: thehindu.com, language: en, ownership: private }
+      - { outlet: The Times of India, domain: timesofindia.indiatimes.com, language: en, ownership: private }
+      - { outlet: Dawn, domain: dawn.com, language: en, ownership: private }
+  - region: Latin America
+    outlets:
+      - { outlet: Folha de S.Paulo, domain: folha.uol.com.br, language: pt, ownership: private }
+      - { outlet: Clarín, domain: clarin.com, language: es, ownership: private }
+      - { outlet: El Universal, domain: eluniversal.com.mx, language: es, ownership: private }
+  - region: Africa
+    outlets:
+      - { outlet: Daily Maverick, domain: dailymaverick.co.za, language: en, ownership: private }
+      - { outlet: Nation, domain: nation.africa, language: en, ownership: private }
+      - { outlet: Premium Times, domain: premiumtimesng.com, language: en, ownership: private }
+  - region: Canada and Oceania
+    outlets:
+      - { outlet: CBC News, domain: cbc.ca, language: en, ownership: public_broadcaster }
+      - { outlet: The Globe and Mail, domain: theglobeandmail.com, language: en, ownership: private }
+      - { outlet: ABC News Australia, domain: abc.net.au, language: en, ownership: public_broadcaster }
+
+primary:
+  - whitehouse.gov
+  - congress.gov
+  - supremecourt.gov
+  - uscourts.gov
+  - justice.gov
+  - state.gov
+  - defense.gov
+  - treasury.gov
+  - federalreserve.gov
+  - bls.gov
+  - bea.gov
+  - census.gov
+  - cdc.gov
+  - fec.gov
+  - sec.gov
+
+pollsters:
+  - { name: Pew Research Center, domain: pewresearch.org }
+  - { name: Gallup, domain: news.gallup.com }
+  - { name: AP-NORC, domain: apnorc.org }
+  - { name: YouGov / The Economist, domain: today.yougov.com }
+  - { name: Reuters/Ipsos, domain: ipsos.com }
+  - { name: Quinnipiac University Poll, domain: poll.qu.edu }
+  - { name: Marist Poll, domain: maristpoll.marist.edu }

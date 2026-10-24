@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "story_brief",
+  "description": "Newsroom editor output: one story for one channel run. Input for Research, Script and Video.",
+  "type": "object",
+  "required": [
+    "channel_id",
+    "country",
+    "language",
+    "story",
+    "why_now",
+    "seed_sources",
+    "variant"
+  ],
+  "properties": {
+    "channel_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "country": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "language": {
+      "type": "string",
+      "minLength": 1
+    },
+    "story": {
+      "type": "object",
+      "required": [
+        "title",
+        "summary",
+        "event_time"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 5
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 20
+        },
+        "event_time": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hub_story_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "why_now": {
+      "type": "string",
+      "minLength": 10
+    },
+    "seed_sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "variant": {
+      "$ref": "#/$defs/variant"
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "required": [
+        "url",
+        "outlet",
+        "published_at"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "outlet": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "published_at": {
+          "type": "string",
+          "description": "ISO 8601, UTC if known; 'unknown' if the page has no date"
+        },
+        "kind": {
+          "enum": [
+            "primary",
+            "wire",
+            "press",
+            "other"
+          ]
+        }
+      }
+    },
+    "variant": {
+      "type": "object",
+      "required": [
+        "arm_id",
+        "params"
+      ],
+      "properties": {
+        "experiment_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "arm_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "params": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

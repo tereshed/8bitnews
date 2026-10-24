@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "local_press_report",
+  "description": "local_press_analyst output: how opinions split inside the country.",
+  "type": "object",
+  "required": [
+    "outlets_reviewed",
+    "groups"
+  ],
+  "properties": {
+    "outlets_reviewed": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "$ref": "#/$defs/outlet"
+      }
+    },
+    "groups": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/group"
+      }
+    },
+    "polls": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/poll"
+      }
+    }
+  },
+  "$defs": {
+    "outlet": {
+      "type": "object",
+      "required": [
+        "outlet",
+        "leaning",
+        "url"
+      ],
+      "properties": {
+        "outlet": {
+          "type": "string",
+          "minLength": 1
+        },
+        "leaning": {
+          "enum": [
+            "left",
+            "lean_left",
+            "center",
+            "lean_right",
+            "right",
+            "unknown"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https?://"
+        }
+      }
+    },
+    "group": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "position",
+        "arguments",
+        "share_estimate",
+        "representatives"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^L[0-9]+$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 3,
+          "description": "Neutral, descriptive"
+        },
+        "position": {
+          "type": "string",
+          "minLength": 20
+        },
+        "arguments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "share_estimate": {
+          "enum": [
+            "dominant",
+            "significant",
+            "marginal",
+            "unknown"
+          ]
+        },
+        "share_basis": {
+          "type": "string",
+          "description": "Poll or other evidence behind share_estimate"
+        },
+        "representatives": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/rep"
+          }
+        }
+      }
+    },
+    "rep": {
+      "type": "object",
+      "required": [
+        "outlet",
+        "url"
+      ],
+      "properties": {
+        "outlet": {
+          "type": "string",
+          "minLength": 1
+        },
+        "author": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "published_at": {
+          "type": "string"
+        },
+        "quote": {
+          "type": "string",
+          "description": "Verbatim, <= 40 words"
+        },
+        "quote_en": {
+          "type": "string",
+          "description": "English translation if the quote is not in English"
+        },
+        "language": {
+          "type": "string"
+        }
+      }
+    },
+    "poll": {
+      "type": "object",
+      "required": [
+        "pollster",
+        "url",
+        "fieldwork",
+        "finding"
+      ],
+      "properties": {
+        "pollster": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "fieldwork": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sample": {
+          "type": "string"
+        },
+        "finding": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

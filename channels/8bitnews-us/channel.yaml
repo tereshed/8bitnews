@@ -1,0 +1,43 @@
+# Профиль канала. Черновик: значения tbd заполняются в эпиках E2–E4.
+# Схема описана в docs/architecture.md §10; валидатор появится в E0.
+
+id: 8bitnews-us
+name: 8BitNewsUS
+country: US
+language: en-US
+timezone: America/New_York
+
+platforms:
+  youtube:   { enabled: true, account: tbd }
+  tiktok:    { enabled: true, account: tbd }
+  instagram: { enabled: true, account: tbd }
+
+schedule:
+  # Запуски конвейера в PolyMaths (cron в timezone канала). Один запуск = один ролик.
+  runs: ["0 7 * * *"]
+  # Слоты публикации после одобрения (локальное время канала).
+  publish_slots: ["09:00"]
+
+moderation:
+  approval_required: true
+
+editorial:
+  tone: tbd
+  topics_include: []
+  topics_exclude: []
+
+format:
+  description: format.md
+  aspect: "9:16"
+  duration_s: { min: 45, max: 90 }
+  # Несколько шаблонов (например, в стилистике разных ретро-игр); рука эксперимента может выбрать любой.
+  templates: []
+  default_template: tbd
+  voice: { provider: tbd, voice_id: tbd }
+  subtitles: burned_in
+
+sources: countries/us/sources.yaml
+policy: countries/us/policy.md
+
+experiments:
+  enabled: false

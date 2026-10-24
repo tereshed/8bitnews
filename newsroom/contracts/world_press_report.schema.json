@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "world_press_report",
+  "description": "world_press_analyst output: clusters of opinion in the world press.",
+  "type": "object",
+  "required": [
+    "outlets_reviewed",
+    "clusters"
+  ],
+  "properties": {
+    "outlets_reviewed": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "$ref": "#/$defs/outlet"
+      }
+    },
+    "clusters": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/cluster"
+      }
+    }
+  },
+  "$defs": {
+    "outlet": {
+      "type": "object",
+      "required": [
+        "outlet",
+        "region",
+        "ownership",
+        "url"
+      ],
+      "properties": {
+        "outlet": {
+          "type": "string",
+          "minLength": 1
+        },
+        "region": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ownership": {
+          "enum": [
+            "private",
+            "public_broadcaster",
+            "state_funded",
+            "state_controlled"
+          ]
+        },
+        "language": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https?://"
+        }
+      }
+    },
+    "cluster": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "regions",
+        "position",
+        "contrast_with_local",
+        "representatives"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^W[0-9]+$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 3
+        },
+        "regions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "position": {
+          "type": "string",
+          "minLength": 20
+        },
+        "contrast_with_local": {
+          "type": "string",
+          "minLength": 10
+        },
+        "representatives": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/rep"
+          }
+        }
+      }
+    },
+    "rep": {
+      "type": "object",
+      "required": [
+        "outlet",
+        "url"
+      ],
+      "properties": {
+        "outlet": {
+          "type": "string",
+          "minLength": 1
+        },
+        "author": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "published_at": {
+          "type": "string"
+        },
+        "quote": {
+          "type": "string",
+          "description": "Verbatim, <= 40 words"
+        },
+        "quote_en": {
+          "type": "string",
+          "description": "English translation if the quote is not in English"
+        },
+        "language": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

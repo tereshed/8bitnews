@@ -1,0 +1,418 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "research_dossier",
+  "description": "analyst output and final result of the Research team.",
+  "type": "object",
+  "required": [
+    "channel_id",
+    "language",
+    "as_of",
+    "story",
+    "facts",
+    "local_groups",
+    "world_clusters",
+    "unknowns",
+    "review",
+    "risks"
+  ],
+  "properties": {
+    "channel_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "language": {
+      "type": "string",
+      "minLength": 1
+    },
+    "as_of": {
+      "type": "string",
+      "description": "UTC ISO 8601"
+    },
+    "story": {
+      "type": "object",
+      "required": [
+        "title",
+        "summary"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 5
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 20
+        }
+      }
+    },
+    "facts": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "$ref": "#/$defs/fact"
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/timeline_item"
+      }
+    },
+    "local_groups": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "$ref": "#/$defs/group"
+      }
+    },
+    "polls": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/poll"
+      }
+    },
+    "world_clusters": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "$ref": "#/$defs/cluster"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "review": {
+      "$ref": "#/$defs/review"
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Legal and editorial risks; empty array if none"
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "required": [
+        "url",
+        "outlet",
+        "published_at"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "outlet": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "published_at": {
+          "type": "string",
+          "description": "ISO 8601, UTC if known; 'unknown' if the page has no date"
+        },
+        "kind": {
+          "enum": [
+            "primary",
+            "wire",
+            "press",
+            "other"
+          ]
+        }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "required": [
+        "id",
+        "claim",
+        "status",
+        "sources"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^F[0-9]+$"
+        },
+        "claim": {
+          "type": "string",
+          "minLength": 10,
+          "description": "One verifiable statement, English"
+        },
+        "status": {
+          "enum": [
+            "confirmed",
+            "disputed",
+            "unverified",
+            "false"
+          ]
+        },
+        "primary_source": {
+          "$ref": "#/$defs/source"
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "confirmed"
+          }
+        }
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": [
+              "primary_source"
+            ]
+          },
+          {
+            "properties": {
+              "sources": {
+                "minItems": 2
+              }
+            }
+          }
+        ]
+      }
+    },
+    "timeline_item": {
+      "type": "object",
+      "required": [
+        "time",
+        "event",
+        "fact_ids"
+      ],
+      "properties": {
+        "time": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fact_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^F[0-9]+$"
+          }
+        }
+      }
+    },
+    "group": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "position",
+        "arguments",
+        "share_estimate",
+        "representatives"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^L[0-9]+$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 3,
+          "description": "Neutral, descriptive"
+        },
+        "position": {
+          "type": "string",
+          "minLength": 20
+        },
+        "arguments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "share_estimate": {
+          "enum": [
+            "dominant",
+            "significant",
+            "marginal",
+            "unknown"
+          ]
+        },
+        "share_basis": {
+          "type": "string",
+          "description": "Poll or other evidence behind share_estimate"
+        },
+        "representatives": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/rep"
+          }
+        }
+      }
+    },
+    "cluster": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "regions",
+        "position",
+        "contrast_with_local",
+        "representatives"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^W[0-9]+$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 3
+        },
+        "regions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "position": {
+          "type": "string",
+          "minLength": 20
+        },
+        "contrast_with_local": {
+          "type": "string",
+          "minLength": 10
+        },
+        "representatives": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/rep"
+          }
+        }
+      }
+    },
+    "rep": {
+      "type": "object",
+      "required": [
+        "outlet",
+        "url"
+      ],
+      "properties": {
+        "outlet": {
+          "type": "string",
+          "minLength": 1
+        },
+        "author": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "published_at": {
+          "type": "string"
+        },
+        "quote": {
+          "type": "string",
+          "description": "Verbatim, <= 40 words"
+        },
+        "quote_en": {
+          "type": "string",
+          "description": "English translation if the quote is not in English"
+        },
+        "language": {
+          "type": "string"
+        }
+      }
+    },
+    "poll": {
+      "type": "object",
+      "required": [
+        "pollster",
+        "url",
+        "fieldwork",
+        "finding"
+      ],
+      "properties": {
+        "pollster": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "fieldwork": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sample": {
+          "type": "string"
+        },
+        "finding": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "required": [
+        "language",
+        "known",
+        "local_opinions",
+        "world_opinions",
+        "unknown"
+      ],
+      "properties": {
+        "language": {
+          "type": "string",
+          "description": "BCP 47, equals channel language"
+        },
+        "known": {
+          "type": "string",
+          "minLength": 40
+        },
+        "local_opinions": {
+          "type": "string",
+          "minLength": 40
+        },
+        "world_opinions": {
+          "type": "string",
+          "minLength": 40
+        },
+        "unknown": {
+          "type": "string",
+          "minLength": 10
+        }
+      },
+      "description": "Written in the channel language. Every sentence ends with refs like [F1], [L2], [W1]."
+    }
+  }
+}

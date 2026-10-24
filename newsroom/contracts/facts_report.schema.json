@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "facts_report",
+  "description": "fact_researcher output: what is known as of now, with sources.",
+  "type": "object",
+  "required": [
+    "as_of",
+    "facts",
+    "timeline",
+    "unknowns"
+  ],
+  "properties": {
+    "as_of": {
+      "type": "string",
+      "description": "UTC ISO 8601"
+    },
+    "facts": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "$ref": "#/$defs/fact"
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/timeline_item"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "required": [
+        "url",
+        "outlet",
+        "published_at"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https?://"
+        },
+        "outlet": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "published_at": {
+          "type": "string",
+          "description": "ISO 8601, UTC if known; 'unknown' if the page has no date"
+        },
+        "kind": {
+          "enum": [
+            "primary",
+            "wire",
+            "press",
+            "other"
+          ]
+        }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "required": [
+        "id",
+        "claim",
+        "status",
+        "sources"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^F[0-9]+$"
+        },
+        "claim": {
+          "type": "string",
+          "minLength": 10,
+          "description": "One verifiable statement, English"
+        },
+        "status": {
+          "enum": [
+            "confirmed",
+            "disputed",
+            "unverified",
+            "false"
+          ]
+        },
+        "primary_source": {
+          "$ref": "#/$defs/source"
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "if": {
+        "properties": {
+          "status": {
+            "const": "confirmed"
+          }
+        }
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": [
+              "primary_source"
+            ]
+          },
+          {
+            "properties": {
+              "sources": {
+                "minItems": 2
+              }
+            }
+          }
+        ]
+      }
+    },
+    "timeline_item": {
+      "type": "object",
+      "required": [
+        "time",
+        "event",
+        "fact_ids"
+      ],
+      "properties": {
+        "time": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fact_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^F[0-9]+$"
+          }
+        }
+      }
+    }
+  }
+}
