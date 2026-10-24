@@ -15,7 +15,9 @@
    канала и оценочной лексики — иначе major.
 5. **Мир.** Кластеры из разных регионов, госСМИ атрибутированы как госСМИ — иначе major.
 6. **Риски.** Всё из `policy.md`, что относится к сюжету, учтено в `risks` и в формулировках `review` — иначе major.
-7. **Язык.** `review` на языке канала, носительский уровень; лимиты длины — minor.
+7. **Новое.** `whats_new` описывает именно поворот из `development` и держится на фактах с `is_new: true`;
+   факт предыстории, помеченный как новый (событие раньше `development.reported_at` или уже в `prior_coverage`), — major.
+8. **Язык.** `review` на языке канала, носительский уровень; лимиты длины — minor.
 
 Вердикт: есть critical или major → changes_requested; иначе approved. Каждое замечание: severity (critical / major / minor),
 где (поле или ID), что не так, как исправить и кому — fact_researcher, local_press_analyst, world_press_analyst или analyst.

@@ -19,7 +19,18 @@
       "minItems": 3,
       "items": {
         "$ref": "#/$defs/fact"
-      }
+      },
+      "contains": {
+        "required": [
+          "is_new"
+        ],
+        "properties": {
+          "is_new": {
+            "const": true
+          }
+        }
+      },
+      "description": "At least one fact has is_new: true"
     },
     "timeline": {
       "type": "array",
@@ -104,6 +115,10 @@
           "items": {
             "$ref": "#/$defs/source"
           }
+        },
+        "is_new": {
+          "type": "boolean",
+          "description": "True if the fact is part of the latest development (story_brief.development), false for background"
         },
         "note": {
           "type": "string"

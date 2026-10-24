@@ -7,8 +7,9 @@
 - `teams/<team>/team.json` — манифест команды: `team_id`, описание для делегирования, агенты, контракты.
 - `teams/<team>/<agent>.md` — промпт агента. Итоговый `system_prompt` = файл агента + `teams/<team>/_common.md`
   (кроме `router.md`, он берётся как есть).
-- `contracts/<kind>.schema.json` — JSON Schema (draft 2020-12) контракта артефакта. Определения общих частей
-  (источник, факт, группа мнений) повторяются в каждой схеме и должны совпадать.
+- `contracts/<kind>.schema.json` — JSON Schema (draft 2020-12) контракта артефакта. Общие части (источник, факт,
+  группа мнений) повторяются в нескольких схемах, поэтому JSON генерируется: правь `gen_contracts.py` и запускай
+  `python3 newsroom/gen_contracts.py`, затем `sync.py`.
 
 ## Команды
 

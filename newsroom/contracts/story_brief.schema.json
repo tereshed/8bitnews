@@ -8,6 +8,7 @@
     "country",
     "language",
     "story",
+    "development",
     "why_now",
     "seed_sources",
     "variant"
@@ -29,9 +30,9 @@
       "type": "object",
       "required": [
         "title",
-        "summary",
-        "event_time"
+        "summary"
       ],
+      "description": "The developing story as a whole",
       "properties": {
         "title": {
           "type": "string",
@@ -41,9 +42,9 @@
           "type": "string",
           "minLength": 20
         },
-        "event_time": {
+        "started_at": {
           "type": "string",
-          "minLength": 1
+          "description": "When the story began, approximate"
         },
         "hub_story_id": {
           "type": [
@@ -52,6 +53,31 @@
           ]
         }
       }
+    },
+    "development": {
+      "type": "object",
+      "required": [
+        "summary",
+        "reported_at"
+      ],
+      "description": "What is new: the turn of the story this video is about",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 20
+        },
+        "reported_at": {
+          "type": "string",
+          "description": "When the development was first reported, UTC ISO 8601"
+        }
+      }
+    },
+    "prior_coverage": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/prior"
+      },
+      "description": "Earlier videos of this channel on the same story"
     },
     "why_now": {
       "type": "string",
@@ -99,6 +125,30 @@
             "press",
             "other"
           ]
+        }
+      }
+    },
+    "prior": {
+      "type": "object",
+      "required": [
+        "published_at",
+        "covered"
+      ],
+      "properties": {
+        "release_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "published_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "covered": {
+          "type": "string",
+          "minLength": 10,
+          "description": "What that video already told, one or two sentences"
         }
       }
     },

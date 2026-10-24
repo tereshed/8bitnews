@@ -102,6 +102,10 @@
           "type": "string",
           "minLength": 10
         },
+        "on_development": {
+          "type": "string",
+          "description": "How this group reacted to the latest development, or 'no reaction found'"
+        },
         "representatives": {
           "type": "array",
           "minItems": 1,
