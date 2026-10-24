@@ -174,11 +174,12 @@ RU не делаем **[решено]**: независимая аналитик
 
 ## 6. hub (Go)
 
-Один бинарник, несколько ролей (`hub serve`, `hub worker`), Postgres, S3, docker compose для локальной разработки.
+Один бинарник, несколько подкоманд (`hub migrate up|down`, `hub sync-profiles`, `hub serve`; роль `hub worker` для фоновых
+задач — следующие эпики), Postgres, S3, docker compose для локальной разработки.
 
 | Компонент | Что делает |
 |---|---|
-| `api` | REST и MCP (streamable HTTP) для агентов: `channel_get`, `story_find_similar` (сюжетные линии с их поворотами и роликами), `story_register` (новая линия или новый поворот существующей), `experiment_assign`, `music_pick`, `release_submit`, `release_get`, `releases_recent` (последние ролики канала — для проверки на однотипность) |
+| `api` | REST (`/api/v1`) и MCP (streamable HTTP, `/mcp`) для агентов, с одинаковым контрактом на обоих транспортах (E1): `channel_get`, `story_find_similar` (сюжетные линии с их поворотами и роликами), `story_register` (новая линия или новый поворот существующей), `experiment_assign`, `media_upload_url` (presigned PUT в S3), `release_submit`, `release_get`, `releases_recent` (последние ролики канала — для проверки на однотипность). `music_pick` (E2) добавится туда же, когда появится каталог треков |
 | `moderation` | Telegram-бот: превью ролика, сводка, отчёт валидации и юридический отчёт, кнопки «Опубликовать» / «Отклонить» / «Доработать»; «Снять с публикации» — удалить или скрыть ролик на всех площадках сразу (претензия, требование опровержения) |
 | `publisher` | Адаптеры YouTube / TikTok / Instagram; слоты публикации в часовом поясе канала; идемпотентность, ретраи; флаги раскрытия AI-контента |
 | `collector` | Снимки метрик каждой публикации на возрастах 1ч, 3ч, 6ч, 24ч, 48ч, 7д, 30д и далее ежедневно; сигналы санкций площадок там, где API их отдаёт |
@@ -323,7 +324,7 @@ RU не делаем **[решено]**: независимая аналитик
 ## 12. Структура репозитория
 
 Go-модуль `github.com/tereshed/8bitnews`. Каталоги создаются по мере эпиков — ниже то, что есть
-после E0, и (помечено **[план]**) то, что добавят следующие эпики.
+после E0 и E1, и (помечено **[план]**) то, что добавят следующие эпики.
 
 ```
 docs/                             архитектура, решения
@@ -338,13 +339,22 @@ newsroom/                         промпты агентов и JSON-схем
                                   gen_contracts.py генерирует схемы, sync.py настраивает команды
 cmd/profiles/                     CLI: `go run ./cmd/profiles validate [--strict]`
 internal/profile/                 загрузка и валидация профилей каналов и стран
-deploy/                           docker-compose.yml (Postgres для локальной разработки)
+deploy/                           docker-compose.yml (Postgres, S3-совместимое хранилище для локальной разработки)
 .github/workflows/                CI: lint, test, validate-profiles
 studio/                           [план, E2] тулкит генерации ролика: TTS, ассеты, шаблоны, рендер, validate
   templates/<id>/
-cmd/hub/                          [план, E1] Go: точка входа hub
-internal/{api,mcp,moderation,…}   [план, E1] api, mcp, moderation, publisher, collector, experiments, store
-migrations/                       [план, E1] SQL-миграции
+cmd/hub/                          Go: точка входа hub — `migrate up|down`, `sync-profiles`, `serve` (REST + MCP)
+internal/api/                     REST-транспорт (/api/v1) над internal/service
+internal/mcpapi/                  MCP-транспорт (streamable HTTP, /mcp) над internal/service — тот же контракт
+internal/service/                 8 операций hub для агентов (channel_get … releases_recent), общие для REST и MCP
+internal/store/                   репозиторий Postgres (pgx), embedded-миграции через internal/store + migrations/
+internal/profilesync/             sync-profiles: зеркалирует channels/ и countries/ в БД через internal/profile
+internal/storage/                 S3-совместимый клиент: presigned PUT, проверка object key
+internal/sources/                 проверка и архивация ссылок источников ролика (release_submit)
+internal/observability/           slog JSON-логи с request id, метрики Prometheus
+internal/config/                  переменные окружения hub
+migrations/                       embedded SQL-миграции (goose)
+internal/{moderation,publisher,collector,experiments}   [план, E4–E6]
 analytics/datalens/               [план, E5] SQL-представления и описание дашбордов
 ```
 
