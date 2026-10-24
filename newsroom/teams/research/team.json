@@ -40,30 +40,40 @@
       "role_description": "Ревьюер команды Research: проверяет research_dossier — опору каждого утверждения обзора, реальность источников и цитат, статусы фактов, баланс мнений, риски. Возвращает approved или changes_requested с замечаниями и адресатом."
     }
   ],
-  "deactivate": ["researcher"],
+  "deactivate": [
+    "researcher"
+  ],
   "contracts": [
     {
       "kind": "facts_report",
       "schema": "facts_report.schema.json",
-      "audience": ["fact_researcher"],
+      "audience": [
+        "fact_researcher"
+      ],
       "description": "Что известно по сюжету на текущий момент: факты с источниками и статусами, хронология, открытые вопросы."
     },
     {
       "kind": "local_press_report",
       "schema": "local_press_report.schema.json",
-      "audience": ["local_press_analyst"],
+      "audience": [
+        "local_press_analyst"
+      ],
       "description": "Группы мнений внутри страны канала с представителями, цитатами и опросами."
     },
     {
       "kind": "world_press_report",
       "schema": "world_press_report.schema.json",
-      "audience": ["world_press_analyst"],
+      "audience": [
+        "world_press_analyst"
+      ],
       "description": "Кластеры мнений в мировой прессе и их отличие от спора внутри страны."
     },
     {
       "kind": "research_dossier",
       "schema": "research_dossier.schema.json",
-      "audience": ["analyst", "fact_checker"],
+      "audience": [
+        "analyst"
+      ],
       "description": "Итог команды Research: факты, группы мнений, мировые кластеры и аналитический обзор на языке канала."
     }
   ]

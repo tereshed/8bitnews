@@ -22,6 +22,14 @@
       "items": {
         "$ref": "#/$defs/cluster"
       }
+    },
+    "coverage_notes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Findings that are not clusters: silent regions or outlets, wire-only coverage, no reactions yet"
     }
   },
   "$defs": {
