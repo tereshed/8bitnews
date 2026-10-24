@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/tereshed/8bitnews/countries/sources.schema.json",
   "title": "8bitnews country sources profile",
-  "description": "Schema for countries/<cc>/sources.yaml. The literal string \"tbd\" is a valid placeholder for any string field until the value is filled in (see --strict mode of cmd/profiles).",
+  "description": "Schema for countries/<cc>/sources.yaml. The literal string \"tbd\" is a valid placeholder for any free-text string field until the value is filled in (see --strict mode of cmd/profiles). country and language are structural identifiers used for cross-checks against channel.yaml and are never \"tbd\"; they must match their regex from the start.",
   "type": "object",
   "additionalProperties": false,
   "required": ["country", "language", "local", "world", "primary", "pollsters"],
@@ -14,10 +14,19 @@
       "properties": {
         "outlet": { "type": "string", "minLength": 1 },
         "domain": { "type": "string", "minLength": 1 },
-        "kind": { "type": "string", "minLength": 1 },
-        "leaning": { "type": "string", "minLength": 1 },
-        "language": { "type": "string", "minLength": 1 },
-        "ownership": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": ["press", "wire"],
+          "description": "Outlet type. Keep in sync with the actual values used in countries/*/sources.yaml."
+        },
+        "leaning": {
+          "enum": ["left", "lean_left", "center", "lean_right", "right"],
+          "description": "Editorial leaning on the local political spectrum; matches newsroom/contracts/local_press_report.schema.json minus \"unknown\", which only agents may emit when they cannot determine it."
+        },
+        "language": { "type": "string", "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$" },
+        "ownership": {
+          "enum": ["private", "public_broadcaster", "state_funded", "state_controlled"],
+          "description": "Matches newsroom/contracts/world_press_report.schema.json."
+        },
         "note": { "type": "string", "minLength": 1 }
       }
     }
@@ -25,12 +34,13 @@
   "properties": {
     "country": {
       "type": "string",
-      "minLength": 1,
-      "description": "Country code; must correspond to the directory under countries/ (case-insensitive)."
+      "pattern": "^[A-Z]{2}$",
+      "description": "ISO 3166-1 alpha-2 country code; must correspond to the directory under countries/ (case-insensitive) and match the country of every channel.yaml referencing this file."
     },
     "language": {
       "type": "string",
-      "minLength": 1
+      "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+      "description": "BCP 47 language tag; must match the language of every channel.yaml referencing this file."
     },
     "local": {
       "type": "array",

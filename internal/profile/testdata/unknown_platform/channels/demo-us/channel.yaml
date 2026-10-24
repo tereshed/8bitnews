@@ -1,0 +1,35 @@
+id: demo-us
+name: DemoUS
+country: US
+language: en-US
+timezone: America/New_York
+
+platforms:
+  facebook: { enabled: true, account: demo }
+
+schedule:
+  runs: ["0 7 * * *"]
+  publish_slots: ["09:00"]
+
+moderation:
+  approval_required: true
+
+editorial:
+  tone: neutral
+  topics_include: []
+  topics_exclude: []
+
+format:
+  description: format.md
+  aspect: "9:16"
+  duration_s: { min: 45, max: 90 }
+  templates: []
+  default_template: demo
+  voice: { provider: demo, voice_id: demo }
+  subtitles: burned_in
+
+sources: countries/us/sources.yaml
+policy: countries/us/policy.md
+
+experiments:
+  enabled: false

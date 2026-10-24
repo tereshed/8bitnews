@@ -12,18 +12,18 @@ import (
 // directly to jsonschema.Schema.Validate. On any I/O or syntax error it
 // returns a single Issue instead of an error, so callers can keep validating
 // the remaining profiles.
-func loadYAML(absFile, relFile string) (data any, raw []byte, issues []Issue) {
+func loadYAML(absFile, relFile string) (data any, issues []Issue) {
 	raw, err := os.ReadFile(absFile)
 	if err != nil {
-		return nil, nil, []Issue{{File: relFile, Path: "/", Message: fmt.Sprintf("cannot read file: %s", err)}}
+		return nil, []Issue{{File: relFile, Path: "/", Message: fmt.Sprintf("cannot read file: %s", err)}}
 	}
 
 	var decoded any
 	if err := yaml.Unmarshal(raw, &decoded); err != nil {
-		return nil, raw, []Issue{{File: relFile, Path: "/", Message: fmt.Sprintf("invalid YAML: %s", err)}}
+		return nil, []Issue{{File: relFile, Path: "/", Message: fmt.Sprintf("invalid YAML: %s", err)}}
 	}
 
-	return normalize(decoded), raw, nil
+	return normalize(decoded), nil
 }
 
 // normalize converts values produced by yaml.v3 into the subset of Go types

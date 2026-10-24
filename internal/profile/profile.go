@@ -97,7 +97,7 @@ func Validate(root string, strict bool) (Result, error) {
 		result.Issues = append(result.Issues, validateCountry(root, d.Name(), sourcesSchema, strict)...)
 	}
 
-	sort.Slice(result.Issues, func(i, j int) bool {
+	sort.SliceStable(result.Issues, func(i, j int) bool {
 		a, b := result.Issues[i], result.Issues[j]
 		if a.File != b.File {
 			return a.File < b.File
@@ -128,7 +128,7 @@ func validateChannel(root, dirName string, schema *jsonschema.Schema, countryDir
 	relFile := path.Join("channels", dirName, "channel.yaml")
 	absFile := filepath.Join(root, "channels", dirName, "channel.yaml")
 
-	data, raw, issues := loadYAML(absFile, relFile)
+	data, issues := loadYAML(absFile, relFile)
 	if issues != nil {
 		return issues
 	}
@@ -151,16 +151,18 @@ func validateChannel(root, dirName string, schema *jsonschema.Schema, countryDir
 		})
 	}
 
-	if country, ok := obj["country"].(string); ok && country != tbdValue {
-		cc := strings.ToLower(country)
+	channelCountry, _ := obj["country"].(string)
+	if channelCountry != "" && channelCountry != tbdValue {
+		cc := strings.ToLower(channelCountry)
 		if !countryDirNames[cc] {
 			issues = append(issues, Issue{
 				File:    relFile,
 				Path:    "/country",
-				Message: fmt.Sprintf("no countries/%s directory for country %q", cc, country),
+				Message: fmt.Sprintf("no countries/%s directory for country %q", cc, channelCountry),
 			})
 		}
 	}
+	channelLanguage, _ := obj["language"].(string)
 
 	if format, ok := obj["format"].(map[string]any); ok {
 		if desc, ok := format["description"].(string); ok && desc != tbdValue {
@@ -173,15 +175,46 @@ func validateChannel(root, dirName string, schema *jsonschema.Schema, countryDir
 				})
 			}
 		}
+
+		if durationS, ok := format["duration_s"].(map[string]any); ok {
+			min, minOK := numericValue(durationS["min"])
+			max, maxOK := numericValue(durationS["max"])
+			if minOK && maxOK && min > max {
+				issues = append(issues, Issue{
+					File:    relFile,
+					Path:    "/format/duration_s",
+					Message: fmt.Sprintf("min (%v) must be <= max (%v)", durationS["min"], durationS["max"]),
+				})
+			}
+		}
 	}
 
 	if sources, ok := obj["sources"].(string); ok && sources != tbdValue {
-		if !fileExists(filepath.Join(root, sources)) {
+		sourcesAbs := filepath.Join(root, sources)
+		if !fileExists(sourcesAbs) {
 			issues = append(issues, Issue{
 				File:    relFile,
 				Path:    "/sources",
 				Message: fmt.Sprintf("referenced file %q does not exist", sources),
 			})
+		} else if sourcesData, sourcesIssues := loadYAML(sourcesAbs, sources); sourcesIssues == nil {
+			sourcesObj, _ := sourcesData.(map[string]any)
+
+			if srcCountry, ok := sourcesObj["country"].(string); ok && channelCountry != "" && channelCountry != tbdValue && srcCountry != tbdValue && !strings.EqualFold(channelCountry, srcCountry) {
+				issues = append(issues, Issue{
+					File:    relFile,
+					Path:    "/country",
+					Message: fmt.Sprintf("country %q does not match country %q of referenced %s", channelCountry, srcCountry, sources),
+				})
+			}
+
+			if srcLanguage, ok := sourcesObj["language"].(string); ok && channelLanguage != "" && channelLanguage != tbdValue && srcLanguage != tbdValue && channelLanguage != srcLanguage {
+				issues = append(issues, Issue{
+					File:    relFile,
+					Path:    "/language",
+					Message: fmt.Sprintf("language %q does not match language %q of referenced %s", channelLanguage, srcLanguage, sources),
+				})
+			}
 		}
 	}
 
@@ -195,15 +228,30 @@ func validateChannel(root, dirName string, schema *jsonschema.Schema, countryDir
 		}
 	}
 
-	_ = raw
 	return issues
+}
+
+// numericValue extracts a float64 from the handful of numeric types
+// yaml.v3 produces (int, int64, float64) so duration bounds can be compared
+// regardless of how the YAML decoder represented them.
+func numericValue(v any) (float64, bool) {
+	switch n := v.(type) {
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case float64:
+		return float64(n), true
+	default:
+		return 0, false
+	}
 }
 
 func validateCountry(root, dirName string, schema *jsonschema.Schema, strict bool) []Issue {
 	relFile := path.Join("countries", dirName, "sources.yaml")
 	absFile := filepath.Join(root, "countries", dirName, "sources.yaml")
 
-	data, _, issues := loadYAML(absFile, relFile)
+	data, issues := loadYAML(absFile, relFile)
 	if issues != nil {
 		return issues
 	}
