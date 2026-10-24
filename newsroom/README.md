@@ -1,8 +1,10 @@
 # newsroom — конфигурация контент-команд PolyMaths
 
 Источник правды для промптов агентов и контрактов артефактов контент-команд (см. `docs/architecture.md` §5).
-Настройки в PolyMaths синхронизируются отсюда: пока вручную, позже — скриптом.
+Настройки в PolyMaths синхронизируются отсюда: `python3 newsroom/sync.py <team> [--dry-run]`
+(ключ — env `POLYMATHS_API_KEY` или `.mcp.json`). Правки в интерфейсе PolyMaths следующий запуск перезапишет.
 
+- `teams/<team>/team.json` — манифест команды: `team_id`, описание для делегирования, агенты, контракты.
 - `teams/<team>/<agent>.md` — промпт агента. Итоговый `system_prompt` = файл агента + `teams/<team>/_common.md`
   (кроме `router.md`, он берётся как есть).
 - `contracts/<kind>.schema.json` — JSON Schema (draft 2020-12) контракта артефакта. Определения общих частей

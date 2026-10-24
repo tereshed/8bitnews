@@ -1,0 +1,70 @@
+{
+  "team_id": "21bb7e83-4530-49a2-9df9-731d1f58b837",
+  "description": "Ресерч новостного сюжета для 8bitnews: по story_brief собирает факты с источниками, группы мнений в прессе страны и кластеры мнений в мировой прессе, пишет аналитический обзор на языке канала. Результат — research_dossier. Кода не пишет.",
+  "accepts_delegation": true,
+  "agents": [
+    {
+      "name": "router",
+      "role": "router",
+      "prompt": "router.md",
+      "common": false
+    },
+    {
+      "name": "fact_researcher",
+      "role": "fact_researcher",
+      "prompt": "fact_researcher.md",
+      "role_description": "Устанавливает, что известно по сюжету на текущий момент: атомарные факты F1..Fn со статусом (confirmed/disputed/unverified/false) и источниками, хронология, открытые вопросы. Сдаёт facts_report. Мнений не собирает."
+    },
+    {
+      "name": "local_press_analyst",
+      "role": "local_press_analyst",
+      "prompt": "local_press_analyst.md",
+      "role_description": "Анализирует прессу страны канала по всему политическому спектру и группирует мнения внутри страны в 2–5 групп L1..Ln с представителями, цитатами и опросами. Сдаёт local_press_report."
+    },
+    {
+      "name": "world_press_analyst",
+      "role": "world_press_analyst",
+      "prompt": "world_press_analyst.md",
+      "role_description": "Анализирует мировую прессу (4+ региона) и группирует взгляды на сюжет в 2–5 кластеров W1..Wn с отличием от спора внутри страны канала. Сдаёт world_press_report."
+    },
+    {
+      "name": "analyst",
+      "role": "analyst",
+      "prompt": "analyst.md",
+      "role_description": "Сводит facts_report, local_press_report и world_press_report в research_dossier и пишет аналитический обзор на языке канала (известно / мнения в стране / мнения в мире / неизвестно) со ссылками на F/L/W. Сдаёт research_dossier — итог команды."
+    },
+    {
+      "name": "fact_checker",
+      "role": "reviewer",
+      "prompt": "fact_checker.md",
+      "role_description": "Ревьюер команды Research: проверяет research_dossier — опору каждого утверждения обзора, реальность источников и цитат, статусы фактов, баланс мнений, риски. Возвращает approved или changes_requested с замечаниями и адресатом."
+    }
+  ],
+  "deactivate": ["researcher"],
+  "contracts": [
+    {
+      "kind": "facts_report",
+      "schema": "facts_report.schema.json",
+      "audience": ["fact_researcher"],
+      "description": "Что известно по сюжету на текущий момент: факты с источниками и статусами, хронология, открытые вопросы."
+    },
+    {
+      "kind": "local_press_report",
+      "schema": "local_press_report.schema.json",
+      "audience": ["local_press_analyst"],
+      "description": "Группы мнений внутри страны канала с представителями, цитатами и опросами."
+    },
+    {
+      "kind": "world_press_report",
+      "schema": "world_press_report.schema.json",
+      "audience": ["world_press_analyst"],
+      "description": "Кластеры мнений в мировой прессе и их отличие от спора внутри страны."
+    },
+    {
+      "kind": "research_dossier",
+      "schema": "research_dossier.schema.json",
+      "audience": ["analyst", "fact_checker"],
+      "description": "Итог команды Research: факты, группы мнений, мировые кластеры и аналитический обзор на языке канала."
+    }
+  ]
+}
