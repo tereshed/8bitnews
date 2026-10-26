@@ -34,8 +34,9 @@ format:
   # Первый шаблон — nes-desk: палитра NES, студия с ведущей (format.md); делается в E2.
   templates: [nes-desk]
   default_template: nes-desk
-  # Спокойный женский голос, около 165 слов в минуту; провайдер и голос выбираются на слух в E2.
-  voice: { provider: tbd, voice_id: tbd }
+  # Спокойный женский голос. Kokoro af_sarah — выбор владельца 26.10 из прослушивания Kokoro (около 144 слов
+  # в минуту на скорости 1.1); платных провайдеров ещё не слушали, бюджет слов format.md откалибруем по итогу.
+  voice: { provider: kokoro, voice_id: af_sarah }
   subtitles: burned_in
 
 sources: countries/us/sources.yaml
