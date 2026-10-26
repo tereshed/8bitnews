@@ -1,0 +1,417 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "video_package",
+  "description": "video_producer output and final result of the Video team: the rendered video and everything QA and Legal need without rewatching it in full.",
+  "type": "object",
+  "required": [
+    "channel_id",
+    "script",
+    "template",
+    "duration_s",
+    "files",
+    "render",
+    "voice",
+    "transcript",
+    "scenes",
+    "music",
+    "disclosures",
+    "validate"
+  ],
+  "properties": {
+    "channel_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "script": {
+      "type": "string",
+      "minLength": 1,
+      "description": "script artifact id or repository path"
+    },
+    "template": {
+      "type": "string",
+      "minLength": 1
+    },
+    "duration_s": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Measured length of the rendered video"
+    },
+    "files": {
+      "type": "object",
+      "required": [
+        "video",
+        "subtitles",
+        "cover"
+      ],
+      "properties": {
+        "video": {
+          "$ref": "#/$defs/media"
+        },
+        "video_no_music": {
+          "$ref": "#/$defs/media",
+          "description": "Same video without music, for YouTube"
+        },
+        "subtitles": {
+          "$ref": "#/$defs/media",
+          "description": "SRT with the burned-in subtitle text and timings"
+        },
+        "cover": {
+          "$ref": "#/$defs/media"
+        }
+      }
+    },
+    "render": {
+      "type": "object",
+      "required": [
+        "width",
+        "height",
+        "fps",
+        "video_codec",
+        "audio_codec",
+        "loudness_lufs"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "fps": {
+          "type": "number"
+        },
+        "video_codec": {
+          "type": "string",
+          "minLength": 1
+        },
+        "audio_codec": {
+          "type": "string",
+          "minLength": 1
+        },
+        "loudness_lufs": {
+          "type": "number",
+          "description": "Integrated loudness, target about -14"
+        },
+        "true_peak_dbtp": {
+          "type": "number"
+        },
+        "engine": {
+          "type": "string",
+          "description": "Render engine and version"
+        }
+      }
+    },
+    "voice": {
+      "type": "object",
+      "required": [
+        "provider",
+        "voice_id"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "voice_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string"
+        },
+        "speed": {
+          "type": "number"
+        },
+        "wpm": {
+          "type": "number",
+          "description": "Measured words per minute of the narration"
+        }
+      }
+    },
+    "transcript": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Full narration as voiced, scenes joined in order"
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/vscene"
+      }
+    },
+    "music": {
+      "$ref": "#/$defs/vmusic"
+    },
+    "disclosures": {
+      "type": "object",
+      "required": [
+        "ai_voice",
+        "ai_visuals",
+        "platforms"
+      ],
+      "properties": {
+        "ai_voice": {
+          "type": "boolean"
+        },
+        "ai_visuals": {
+          "type": "boolean"
+        },
+        "platforms": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "enum": [
+              "youtube",
+              "tiktok",
+              "instagram"
+            ]
+          },
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "ai_label"
+            ],
+            "properties": {
+              "ai_label": {
+                "type": "boolean",
+                "description": "The platform's AI-content flag set on upload"
+              }
+            }
+          },
+          "description": "Per enabled platform of the channel"
+        }
+      }
+    },
+    "validate": {
+      "type": "object",
+      "required": [
+        "passed",
+        "checks"
+      ],
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "checks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "ok"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "value": {},
+              "expected": {},
+              "note": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "description": "Result of studio validate on this package"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "media": {
+      "type": "object",
+      "required": [
+        "sha256",
+        "bytes"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "description": "S3 object key from hub media_upload_url"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Local path, for studio runs without hub"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_type": {
+          "type": "string"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "key"
+          ]
+        },
+        {
+          "required": [
+            "path"
+          ]
+        }
+      ]
+    },
+    "vscene": {
+      "type": "object",
+      "required": [
+        "id",
+        "start_s",
+        "end_s",
+        "narration",
+        "on_screen_text",
+        "keyframes",
+        "real_people",
+        "ai_label_shown"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^S[0-9]+$",
+          "description": "Scene id from the script"
+        },
+        "start_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "end_s": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "narration": {
+          "type": "string",
+          "description": "Text as voiced; differs from the script only by pronunciations"
+        },
+        "on_screen_text": {
+          "type": "string"
+        },
+        "keyframes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/media"
+          },
+          "description": "PNG frames for QA and Legal: at least the scene's first frame"
+        },
+        "real_people": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "ai_label_shown": {
+          "type": "boolean",
+          "description": "The 'AI illustration' plate is on screen in this scene"
+        }
+      },
+      "if": {
+        "properties": {
+          "real_people": {
+            "minItems": 1
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "ai_label_shown": {
+            "const": true
+          }
+        }
+      }
+    },
+    "vmusic": {
+      "type": "object",
+      "required": [
+        "enabled"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "track_id": {
+          "type": "string",
+          "description": "Track id from music/catalog.yaml"
+        },
+        "license": {
+          "type": "string",
+          "description": "License as in the catalog, e.g. CC0-1.0"
+        },
+        "attribution": {
+          "type": "string",
+          "description": "Required credit line, if the license asks for one"
+        },
+        "duck_db": {
+          "type": "number",
+          "maximum": 0,
+          "description": "Music gain under the voice"
+        }
+      },
+      "if": {
+        "properties": {
+          "enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "track_id",
+          "license"
+        ]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "duration_s",
+          "music"
+        ],
+        "properties": {
+          "duration_s": {
+            "exclusiveMinimum": 60
+          },
+          "music": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "files": {
+            "required": [
+              "video_no_music"
+            ]
+          }
+        }
+      },
+      "description": "Longer than 60 s with music: a YouTube version without music is required"
+    }
+  ]
+}
