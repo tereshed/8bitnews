@@ -2,7 +2,7 @@ name: 8bitnews
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.6-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-8bitnews}
@@ -18,5 +18,66 @@ services:
       timeout: 5s
       retries: 10
 
+  # S3-compatible object store for release media (task E1 §5). The task
+  # suggests MinIO; this uses Zenko CloudServer instead because the
+  # docker.io/ghcr.io/quay.io minio/minio image was not pullable from this
+  # project's sandboxes (pull access denied/not found on every registry
+  # tried) at the time this was written — see docs/architecture.md §6
+  # "hub" / the E1 task notes. hub itself only depends on the S3 API
+  # (HUB_S3_* env vars), so swap this service for real MinIO wherever its
+  # image is reachable; no application code changes needed.
+  #
+  # Pinned to zenko/cloudserver:latest-7.10.19 rather than the older
+  # scality/s3server image this started on: scality/s3server has never
+  # published anything but a "latest" tag (its last update was in 2018),
+  # so it cannot be pinned at all. zenko/cloudserver is the same project
+  # under its current name and has real (if oddly named) version tags;
+  # this one is confirmed pullable and functional. Same env vars, same
+  # port, same S3 API.
+  s3:
+    image: zenko/cloudserver:latest-7.10.19
+    restart: unless-stopped
+    environment:
+      SCALITY_ACCESS_KEY_ID: ${HUB_S3_ACCESS_KEY:-8bitnews}
+      SCALITY_SECRET_ACCESS_KEY: ${HUB_S3_SECRET_KEY:-8bitnews-secret}
+      # Adds "s3" (this service's Docker network name) to the server's
+      # accepted Host headers, alongside its built-in "localhost" default,
+      # so both containers (s3-init, hub when containerized) and the host
+      # machine (hub run locally against 127.0.0.1:${HUB_S3_PORT}) can
+      # reach it.
+      ENDPOINT: s3
+    ports:
+      - "127.0.0.1:${HUB_S3_PORT:-9000}:8000"
+    volumes:
+      - s3_data:/usr/src/app/localData
+      - s3_metadata:/usr/src/app/localMetadata
+    healthcheck:
+      # zenko/cloudserver has wget but not curl. Its S3 API answers
+      # unauthenticated GET / with an HTTP error status (access denied),
+      # which wget treats as failure (exit 8) even though it proves the
+      # server is up — only reject an actual connection failure (exit 4).
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8000/; [ $? -ne 4 ]"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  s3-init:
+    image: amazon/aws-cli:2.27.49
+    restart: "no"
+    depends_on:
+      s3:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: ${HUB_S3_ACCESS_KEY:-8bitnews}
+      AWS_SECRET_ACCESS_KEY: ${HUB_S3_SECRET_KEY:-8bitnews-secret}
+      AWS_DEFAULT_REGION: ${HUB_S3_REGION:-us-east-1}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        aws --endpoint-url http://s3:8000 s3 mb s3://${HUB_S3_BUCKET:-8bitnews-media} || true
+
 volumes:
   postgres_data:
+  s3_data:
+  s3_metadata:
