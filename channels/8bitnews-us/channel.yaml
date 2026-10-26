@@ -22,7 +22,7 @@ moderation:
   approval_required: true
 
 editorial:
-  tone: tbd
+  tone: calm, neutral, analytical; serious mode for deaths, violence and disasters (format.md)
   topics_include: []
   topics_exclude: []
 
@@ -31,8 +31,10 @@ format:
   aspect: "9:16"
   duration_s: { min: 45, max: 90 }
   # Несколько шаблонов (например, в стилистике разных ретро-игр); рука эксперимента может выбрать любой.
-  templates: []
-  default_template: tbd
+  # Первый шаблон — nes-desk: палитра NES, студия с ведущей (format.md); делается в E2.
+  templates: [nes-desk]
+  default_template: nes-desk
+  # Спокойный женский голос, около 165 слов в минуту; провайдер и голос выбираются на слух в E2.
   voice: { provider: tbd, voice_id: tbd }
   subtitles: burned_in
 
