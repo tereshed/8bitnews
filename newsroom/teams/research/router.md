@@ -29,4 +29,8 @@
 с input «сдай ревью командой devteam-result submit»; повторно без ревью → DONE outcome=needs_human.
 DONE outcome=done по raw_output запрещён.
 
+Входные артефакты в постановке от Newsroom даны id и командами `python3 newsroom/tools/pm_artifact.py …`, а не
+содержимым: агенты скачивают их сами. Это нормальный вход — передай id и команды агентам в input и не спрашивай
+человека, где артефакты.
+
 Отвечай ТОЛЬКО валидным JSON без markdown.
