@@ -7,7 +7,8 @@
     python3 newsroom/tools/pm_artifact.py <artifact_id> > /tmp/research_dossier.json
 
 В stdout — content артефакта (JSON), в stderr — вид и summary. Крупный content дочитывается кусками.
-Ключ: env PM_READ_KEY, иначе строка PM_READ_KEY=... из /home/sandbox/files/polymaths.env (файл песочницы проекта).
+Ключ: env PM_READ_KEY, иначе строка PM_READ_KEY=... из файла polymaths.env skill'а проекта `polymaths-artifacts`
+(секрет `${secret:PM_READ_KEY}` PolyMaths подставляет только в файлы skills и конфиги MCP, не в файлы песочницы).
 Это ключ отдельного участника проекта с ролью viewer: он только читает.
 """
 import json
@@ -24,18 +25,25 @@ except ImportError:
     SSL_CONTEXT = ssl.create_default_context()
 
 URL = os.environ.get("POLYMATHS_MCP_URL", "https://mcp.polymaths.work/mcp")
-ENV_FILE = pathlib.Path("/home/sandbox/files/polymaths.env")
+SKILL_ENV = "skills/polymaths-artifacts/polymaths.env"
+
+
+def env_files():
+    for root in {pathlib.Path.home(), pathlib.Path("/home/sandbox"), pathlib.Path("/root")}:
+        yield from root.glob(f".*/{SKILL_ENV}")
+        yield from root.glob(SKILL_ENV)
 
 
 def api_key():
     if os.environ.get("PM_READ_KEY"):
         return os.environ["PM_READ_KEY"]
-    if ENV_FILE.exists():
-        for line in ENV_FILE.read_text().splitlines():
+    for path in env_files():
+        for line in path.read_text().splitlines():
             name, _, value = line.partition("=")
-            if name.strip() == "PM_READ_KEY" and value.strip():
-                return value.strip()
-    sys.exit(f"нет ключа: задайте PM_READ_KEY или положите его в {ENV_FILE}")
+            value = value.strip()
+            if name.strip() == "PM_READ_KEY" and value and not value.startswith("${"):
+                return value
+    sys.exit(f"нет ключа: задайте PM_READ_KEY или подключите агенту skill polymaths-artifacts (~/.claude/{SKILL_ENV})")
 
 
 class Session:

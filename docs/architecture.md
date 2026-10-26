@@ -81,7 +81,8 @@ RU не делаем **[решено]**: независимая аналитик
 а не артефакты задачи-заказчика. Поэтому роутер Newsroom передаёт командам id артефактов (`story_brief`,
 `research_dossier`, `script`, `legal_review`), а агенты скачивают их скриптом `newsroom/tools/pm_artifact.py`
 через MCP PolyMaths. Скрипт работает с ключом отдельного участника проекта с ролью viewer: секрет проекта
-`PM_READ_KEY` → файл песочницы `/home/sandbox/files/polymaths.env`. Ключ владельца в песочницы не попадает:
+`PM_READ_KEY` → файл `polymaths.env` skill'а проекта `polymaths-artifacts` (выдан всем агентам; PolyMaths
+подставляет секреты только в файлы skills и конфиги MCP, не в файлы песочницы). Ключ владельца в песочницы не попадает:
 агенты читают веб, и ключ с правом запускать задачи стал бы целью prompt injection.
 
 ### Newsroom (тип `other`) — точка входа
