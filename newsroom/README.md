@@ -4,7 +4,8 @@
 Настройки в PolyMaths синхронизируются отсюда: `python3 newsroom/sync.py <team> [--dry-run]`
 (ключ — env `POLYMATHS_API_KEY` или `.mcp.json`). Правки в интерфейсе PolyMaths следующий запуск перезапишет.
 
-- `teams/<team>/team.json` — манифест команды: `team_id`, описание для делегирования, агенты, контракты.
+- `teams/<team>/team.json` — манифест команды: `team_id`, описание для делегирования, агенты (`model` — если модель
+  агента задаём сами, иначе остаётся модель PolyMaths), контракты.
 - `teams/<team>/<agent>.md` — промпт агента. Итоговый `system_prompt` = файл агента + `teams/<team>/_common.md`
   (кроме `router.md`, он берётся как есть).
 - `tools/pm_artifact.py` — агенты скачивают по id артефакты, которые Newsroom передаёт командам

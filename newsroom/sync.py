@@ -85,6 +85,8 @@ def main():
         body = {"system_prompt": prompt_text(team_dir, agent)}
         if agent.get("role_description"):
             body["role_description"] = agent["role_description"]
+        if agent.get("model"):  # без поля модель агента не трогаем: остаётся та, что задана в PolyMaths
+            body["model"] = agent["model"]
         if agent["name"] in existing:
             print(f"  update {agent['name']}")
             call("PATCH", f"/projects/{PROJECT_ID}/team/agents/{existing[agent['name']]['id']}",
