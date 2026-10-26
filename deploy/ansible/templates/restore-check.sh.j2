@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Managed by deploy/ansible/hub_backup.yml. Do not edit by hand.
+#
+# Proves the latest backup actually restores: pulls it out of the restic
+# repository, loads it into a throwaway Postgres container that has no
+# network at all (so this can never touch the live database), and checks
+# that at least one table came back. Run manually after a backup, or wire
+# into your own monitoring — it is not on the daily timer itself.
+set -euo pipefail
+
+CONTAINER="{{ hub_restore_check_container }}"
+WORKDIR="$(mktemp -d)"
+
+cleanup() {
+	docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
+	rm -rf "${WORKDIR}"
+}
+trap cleanup EXIT
+
+set -a
+# shellcheck disable=SC1091
+source "{{ hub_backup_env_file }}"
+set +a
+
+echo "restoring the latest restic snapshot to ${WORKDIR} ..."
+restic restore latest --tag 8bitnews-hub --target "${WORKDIR}"
+
+DUMP_FILE="$(find "${WORKDIR}" -name '8bitnews-*.pgdump' | sort | tail -n1)"
+if [ -z "${DUMP_FILE}" ]; then
+	echo "no 8bitnews-*.pgdump found in the latest snapshot" >&2
+	exit 1
+fi
+echo "restoring ${DUMP_FILE} into an isolated, network-disabled Postgres container ..."
+
+docker run -d --name "${CONTAINER}" --network none \
+	-e POSTGRES_PASSWORD=restore-check -e POSTGRES_DB=restorecheck \
+	postgres:16-alpine >/dev/null
+
+for _ in $(seq 1 30); do
+	if docker exec "${CONTAINER}" pg_isready -U postgres >/dev/null 2>&1; then
+		break
+	fi
+	sleep 2
+done
+
+docker cp "${DUMP_FILE}" "${CONTAINER}:/tmp/restore.pgdump"
+docker exec "${CONTAINER}" pg_restore -U postgres -d restorecheck --no-owner /tmp/restore.pgdump
+
+TABLE_COUNT="$(docker exec "${CONTAINER}" psql -U postgres -d restorecheck -At -c \
+	"select count(*) from information_schema.tables where table_schema = 'public';")"
+
+if [ "${TABLE_COUNT}" -lt 1 ]; then
+	echo "restore produced zero tables in public schema — backup is not usable" >&2
+	exit 1
+fi
+
+echo "restore check OK: ${TABLE_COUNT} table(s) restored from ${DUMP_FILE}"

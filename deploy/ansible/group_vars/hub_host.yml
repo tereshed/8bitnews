@@ -1,0 +1,49 @@
+---
+# hub_host: the shared Hetzner server. Only this file's VM/network/Caddy
+# settings are applied there — nothing here ever touches the neighbor's
+# Docker projects, Caddyfile, UFW rules or nft tables.
+
+hub_vm_name: 8bitnews-hub
+hub_vm_user: 8bitnews-vm
+hub_vm_group: kvm
+hub_vm_dir: /var/lib/8bitnews-vm
+hub_vm_runtime_dir: /run/8bitnews-hub-vm
+
+hub_vm_vcpus: 2
+hub_vm_mem_mb: 4096
+hub_vm_disk_gb: 60
+
+# Both forwards land on the host loopback only (task E1d AC3): SSH for
+# Ansible/operator access, HTTP for Caddy's reverse_proxy.
+hub_vm_ssh_port: 2223
+hub_vm_http_port: 9201
+
+# systemd resource limits for the qemu unit. MemoryMax leaves ~512MiB of
+# headroom over -m for QEMU/virtio-net overhead so a runaway guest is OOM
+# killed before it pressures the host's other tenant.
+hub_vm_cpu_quota: "150%"
+hub_vm_mem_max: "{{ (hub_vm_mem_mb | int + 512) }}M"
+hub_vm_nice: 5
+
+hub_admin_user: bitnews
+# Public key only — cloud-init disables password auth and root login
+# entirely (ssh_pwauth: false, disable_root: true).
+hub_admin_ssh_public_key: "{{ lookup('env', 'HUB_ADMIN_SSH_PUBLIC_KEY') }}"
+
+ubuntu_cloud_image_url: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img"
+# Verified against the signed SHA256SUMS published next to the image
+# itself (hub_vm.yml downloads it and extracts the matching line) rather
+# than a hash pinned here, which would silently go stale across point
+# releases of the same image.
+ubuntu_cloud_image_checksums_url: "https://cloud-images.ubuntu.com/releases/24.04/release/SHA256SUMS"
+
+hub_caddy_sites_dir: /etc/caddy/sites
+hub_caddy_site_file: "{{ hub_caddy_sites_dir }}/8bitnews.caddy"
+hub_caddy_main_file: /etc/caddy/Caddyfile
+hub_caddy_max_body_size: "20MB"
+
+hub_nft_table: bitnews_hub
+
+# Overridable in case the host's default route doesn't point at its
+# public-facing interface; defaults to the fact Ansible already gathers.
+hub_host_public_ip: "{{ lookup('env', 'HUB_SERVER_PUBLIC_IP') | default(ansible_default_ipv4.address, true) }}"

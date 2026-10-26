@@ -1,0 +1,8 @@
+# Managed by deploy/ansible/hub_backup.yml. root-only. Restic + R2
+# backups-bucket credentials, kept separate from the media bucket's
+# credentials in {{ hub_env_file }} so a leaked media key can't reach
+# backups.
+RESTIC_REPOSITORY={{ restic_repository }}
+RESTIC_PASSWORD={{ restic_password }}
+AWS_ACCESS_KEY_ID={{ hub_backup_s3_access_key }}
+AWS_SECRET_ACCESS_KEY={{ hub_backup_s3_secret_key }}

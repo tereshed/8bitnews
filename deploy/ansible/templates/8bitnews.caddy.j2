@@ -1,0 +1,20 @@
+## Managed by deploy/ansible/hub_vm.yml (8bitnews hub E1d) — do not edit by
+## hand under /etc/caddy/sites/, it is overwritten on every deploy.
+## Imported by the neighbor's /etc/caddy/Caddyfile via
+## `import /etc/caddy/sites/*.caddy`; that file, UFW and anything else of
+## the neighbor's is never touched here.
+{{ hub_domain }} {
+	encode zstd gzip
+
+	request_body {
+		max_size {{ hub_caddy_max_body_size }}
+	}
+
+	# PolyMaths talks to hub over MCP streamable HTTP, which holds a
+	# long-lived SSE stream open; flush_interval -1 disables Caddy's
+	# response buffering so events reach the agent as soon as hub writes
+	# them instead of being held back for a batch.
+	reverse_proxy 127.0.0.1:{{ hub_vm_http_port }} {
+		flush_interval -1
+	}
+}

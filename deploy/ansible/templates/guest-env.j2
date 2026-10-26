@@ -1,0 +1,25 @@
+# Managed by deploy/ansible/hub_guest.yml.
+#
+# POSTGRES_PASSWORD and HUB_API_KEYS are generated once, on the first run
+# that finds no existing file, and then carried forward unchanged on every
+# later run (hub_guest.yml reads them back out of this same file before
+# re-rendering it). Everything else is refreshed from the Ansible
+# controller's environment on every run.
+POSTGRES_USER=8bitnews
+POSTGRES_PASSWORD={{ hub_generated_postgres_password }}
+POSTGRES_DB=8bitnews
+HUB_POSTGRES_IMAGE={{ hub_postgres_image }}
+HUB_POSTGRES_MEM_LIMIT={{ hub_postgres_mem_limit }}
+HUB_POSTGRES_CPUS={{ hub_postgres_cpus }}
+
+HUB_REPO_DIR={{ hub_repo_dir }}
+HUB_API_KEYS={{ hub_generated_api_key }}
+
+# Cloudflare R2 (region is always "auto"); from the controller's
+# environment, never hardcoded or committed.
+HUB_S3_ENDPOINT={{ hub_s3_endpoint }}
+HUB_S3_REGION={{ hub_s3_region }}
+HUB_S3_BUCKET={{ hub_s3_bucket }}
+HUB_S3_ACCESS_KEY={{ hub_s3_access_key }}
+HUB_S3_SECRET_KEY={{ hub_s3_secret_key }}
+HUB_S3_USE_PATH_STYLE=true

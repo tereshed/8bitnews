@@ -1,0 +1,27 @@
+---
+# Shared vars. Anything with no safe default is read from the Ansible
+# controller's environment and must never be hardcoded or committed — see
+# deploy/ansible/deploy.env.example for the full list a human needs to
+# export before running `make deploy-*`.
+hub_server_host: "{{ lookup('env', 'HUB_SERVER_HOST') | default('135.181.4.110', true) }}"
+
+# Domain the hub is published under (Caddy site + Cloudflare DNS record);
+# supplied by the operator, never guessed.
+hub_domain: "{{ lookup('env', 'HUB_DOMAIN') }}"
+
+# Git ref of github.com/tereshed/8bitnews checked out on the guest.
+# `make deploy-hub REF=<ref>` overrides HUB_REF for one run.
+hub_ref: "{{ lookup('env', 'HUB_REF') | default('main', true) }}"
+hub_repo_url: "https://github.com/tereshed/8bitnews.git"
+
+# Cloudflare R2 for release media (internal/storage). Region is always
+# "auto" for R2; HUB_S3_REGION lets a non-R2 provider override it.
+hub_s3_endpoint: "{{ lookup('env', 'HUB_S3_ENDPOINT') }}"
+hub_s3_bucket: "{{ lookup('env', 'HUB_S3_BUCKET') }}"
+hub_s3_access_key: "{{ lookup('env', 'HUB_S3_ACCESS_KEY') }}"
+hub_s3_secret_key: "{{ lookup('env', 'HUB_S3_SECRET_KEY') }}"
+hub_s3_region: "{{ lookup('env', 'HUB_S3_REGION') | default('auto', true) }}"
+
+# hub's own listen port inside the guest; shared between the host's
+# qemu hostfwd target and the guest's compose/healthz tasks.
+hub_guest_http_port: 8080

@@ -1,0 +1,10 @@
+# Managed by deploy/ansible/hub_backup.yml. Do not edit by hand.
+[Unit]
+Description=8bitnews hub daily backup (pg_dump + restic to R2)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart={{ hub_backup_scripts_dir }}/pg-backup.sh

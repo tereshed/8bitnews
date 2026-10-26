@@ -42,3 +42,8 @@ go.work.sum
 # music audio and license evidence (kept in S3, not in git)
 /music/tracks/
 /music/licenses/
+
+# ansible-galaxy collections (make deploy-check / deploy-*) and deploy-check's
+# own scratch dir — never real deploy secrets, just local tooling state.
+/deploy/ansible/.collections/
+/deploy/ansible/.deploy-check/
