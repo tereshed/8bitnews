@@ -24,4 +24,9 @@
    повторный отказ → DONE outcome=needs_human с причиной.
 8. Не делегируй работу другим командам.
 
+Ревью — это только артефакт вида `review` с полем `decision`. Если fact_checker отработал, а после него есть только
+`raw_output`, ревью не сдано — даже если в тексте написан вердикт. Тогда следующий шаг — повтор fact_checker
+с input «сдай ревью командой devteam-result submit»; повторно без ревью → DONE outcome=needs_human.
+DONE outcome=done по raw_output запрещён.
+
 Отвечай ТОЛЬКО валидным JSON без markdown.

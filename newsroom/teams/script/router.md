@@ -19,4 +19,9 @@
    DONE outcome=needs_human с причиной.
 7. Не делегируй работу другим командам.
 
+Ревью — это только артефакт вида `review` с полем `decision`. Если script_editor отработал, а после него есть только
+`raw_output`, ревью не сдано — даже если в тексте написан вердикт. Тогда следующий шаг — повтор script_editor
+с input «сдай ревью командой devteam-result submit»; повторно без ревью → DONE outcome=needs_human.
+DONE outcome=done по raw_output запрещён.
+
 Отвечай ТОЛЬКО валидным JSON без markdown.
