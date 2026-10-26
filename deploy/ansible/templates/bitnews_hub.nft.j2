@@ -9,6 +9,14 @@
 # 127.0.0.1 or onto the host's other network tenants. DNS to
 # systemd-resolved's stub listener is the one loopback exception the guest
 # needs for hostfwd-independent outbound DNS.
+#
+# The qemu process itself is also the far end of both hostfwd listeners
+# (127.0.0.1:{ssh,http port} -> guest). Caddy connecting in to the http
+# forward, or Ansible/an operator connecting in to the ssh forward, makes
+# qemu's *replies* on that same loopback socket look like a new outbound
+# packet to this chain unless established/related connections are let
+# through first — without that exception this table blocks the hub's own
+# traffic (and SSH to the guest) along with everything it's meant to stop.
 table inet {{ hub_nft_table }} {
 	set host_v4 {
 		type ipv4_addr
@@ -35,6 +43,7 @@ table inet {{ hub_nft_table }} {
 
 	chain output {
 		type filter hook output priority filter; policy accept;
+		meta skuid "{{ hub_vm_user }}" ct state established,related accept
 		meta skuid "{{ hub_vm_user }}" ip daddr 127.0.0.53 udp dport 53 accept
 		meta skuid "{{ hub_vm_user }}" ip daddr 127.0.0.53 tcp dport 53 accept
 		meta skuid "{{ hub_vm_user }}" ip daddr @host_v4 drop

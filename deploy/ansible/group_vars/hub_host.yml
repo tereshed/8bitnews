@@ -5,7 +5,13 @@
 
 hub_vm_name: 8bitnews-hub
 hub_vm_user: 8bitnews-vm
-hub_vm_group: kvm
+# Dedicated primary group, *not* the neighbor's shared kvm group: the
+# neighbor's own CI-runner VM user is also in kvm (needed for /dev/kvm), so
+# using kvm here as the file-ownership group would let that runner read our
+# disk image and cloud-init seed. kvm is only ever granted as a
+# supplementary group (see the user/group tasks below and
+# SupplementaryGroups= in hub-vm.service.j2), purely for /dev/kvm access.
+hub_vm_group: 8bitnews-vm
 hub_vm_dir: /var/lib/8bitnews-vm
 hub_vm_runtime_dir: /run/8bitnews-hub-vm
 
@@ -26,9 +32,11 @@ hub_vm_mem_max: "{{ (hub_vm_mem_mb | int + 512) }}M"
 hub_vm_nice: 5
 
 hub_admin_user: bitnews
-# Public key only — cloud-init disables password auth and root login
-# entirely (ssh_pwauth: false, disable_root: true).
-hub_admin_ssh_public_key: "{{ lookup('env', 'HUB_ADMIN_SSH_PUBLIC_KEY') }}"
+# The guest admin's own key pair (not the operator's / not the host's root
+# key): hub_vm.yml derives the public half from HUB_ADMIN_SSH_KEY on the
+# controller (ssh-keygen -y) and injects it via cloud-init. cloud-init
+# disables password auth and root login entirely (ssh_pwauth: false,
+# disable_root: true), so this key is the only way into the guest.
 
 ubuntu_cloud_image_url: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img"
 # Verified against the signed SHA256SUMS published next to the image

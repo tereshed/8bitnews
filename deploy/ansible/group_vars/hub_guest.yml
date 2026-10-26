@@ -2,8 +2,8 @@
 # hub_guest: inside the VM. Reached only by jumping through hub_host —
 # the guest itself listens on no externally reachable port (task E1d).
 hub_guest_ssh_proxy_args: >-
-  -o ProxyCommand="ssh -W %h:%p -o StrictHostKeyChecking=accept-new
-  -p 22 root@{{ hostvars['server'].ansible_host }}"
+  -o ProxyCommand="ssh -i {{ hub_server_ssh_key }} -o IdentitiesOnly=yes
+  -W %h:%p -p 22 root@{{ hostvars['server'].ansible_host }}"
 
 hub_install_dir: /opt/8bitnews
 hub_repo_dir: "{{ hub_install_dir }}/repo"

@@ -5,6 +5,16 @@
 # export before running `make deploy-*`.
 hub_server_host: "{{ lookup('env', 'HUB_SERVER_HOST') | default('135.181.4.110', true) }}"
 
+# Private keys from the controller's environment — never hardcoded or
+# committed. HUB_SERVER_SSH_KEY authenticates root@hub_server_host (both
+# directly, for the hub_host group, and as the -i key of the ProxyCommand
+# hop used to reach the guest — see group_vars/hub_guest.yml).
+# HUB_ADMIN_SSH_KEY authenticates the guest's own admin user; its *public*
+# half is derived on the fly in hub_vm.yml (ssh-keygen -y) and injected via
+# cloud-init, so only one key needs to be kept in a secret store.
+hub_server_ssh_key: "{{ lookup('env', 'HUB_SERVER_SSH_KEY') }}"
+hub_admin_ssh_key: "{{ lookup('env', 'HUB_ADMIN_SSH_KEY') }}"
+
 # Domain the hub is published under (Caddy site + Cloudflare DNS record).
 # hub_domain already points at 135.181.4.110 in Cloudflare ("DNS only") as
 # hub.8bitlang.org — that's the default; HUB_DOMAIN only needs to be set

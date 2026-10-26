@@ -9,9 +9,13 @@ Requires=8bitnews-hub-network.service
 Type=simple
 User={{ hub_vm_user }}
 Group={{ hub_vm_group }}
+# kvm is only ever granted here, as a supplementary group for /dev/kvm
+# access — the process's owning group stays the dedicated hub_vm_group, so
+# the neighbor's own kvm-group CI-runner user gets no extra access.
+SupplementaryGroups=kvm
 UMask=0077
 RuntimeDirectory=8bitnews-hub-vm
-RuntimeDirectoryMode=0750
+RuntimeDirectoryMode=0700
 ExecStart=/usr/bin/qemu-system-x86_64 \
 	-name {{ hub_vm_name }},process=8bitnews-hub \
 	-machine q35,accel=kvm \
@@ -24,7 +28,11 @@ ExecStart=/usr/bin/qemu-system-x86_64 \
 	-device virtio-net-pci,netdev=net0 \
 	-qmp unix:{{ hub_vm_runtime_dir }}/qmp.sock,server,nowait \
 	-pidfile {{ hub_vm_runtime_dir }}/vm.pid \
-	-nographic -no-reboot
+	-nographic
+# No -no-reboot: a guest-initiated reboot (kernel update, `reboot`) should
+# restart the VM inside the same qemu process, not exit it — with
+# -no-reboot, qemu exits cleanly (code 0) on guest reboot and systemd has
+# nothing to restart, leaving the hub down until someone notices.
 # QMP-driven clean shutdown rather than SIGTERM, so the guest OS (and
 # Postgres inside it) gets to shut down gracefully.
 ExecStop=/usr/bin/python3 {{ hub_vm_dir }}/qmp-shutdown.py {{ hub_vm_runtime_dir }}/qmp.sock

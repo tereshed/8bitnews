@@ -28,7 +28,7 @@ run_ansible_image sh -c '
 '
 
 echo "==> ansible-lint"
-run_ansible_image ansible-lint hub_vm.yml hub_guest.yml hub_backup.yml
+run_ansible_image ansible-lint hub_vm.yml hub_guest.yml hub_backup.yml tasks/caddy_site.yml caddy_site_test.yml
 
 echo "==> rendering bitnews_hub.nft and 8bitnews.caddy with representative sample values"
 run_ansible_image ansible localhost -i "localhost," -c local -m template \
@@ -47,6 +47,20 @@ docker run --rm --cap-add=NET_ADMIN \
 		adduser -D -H 8bitnews-vm
 		nft -c -f /tmp/bitnews_hub.nft
 	'
+
+echo "==> extracting a real caddy binary from the caddy:2 image (functional test below needs more than --syntax-check)"
+CADDY_BIN_CID="$(docker create caddy:2)"
+docker cp "${CADDY_BIN_CID}:/usr/bin/caddy" "${CHECK_DIR}/bin.caddy"
+docker rm "${CADDY_BIN_CID}" >/dev/null
+mkdir -p "${CHECK_DIR}/bin"
+mv "${CHECK_DIR}/bin.caddy" "${CHECK_DIR}/bin/caddy"
+chmod +x "${CHECK_DIR}/bin/caddy"
+
+echo "==> running caddy_site_test.yml (executes the real render/validate/install task logic end to end)"
+run_ansible_image sh -c '
+	export PATH=/work/.deploy-check/bin:$PATH
+	ansible-playbook -i "localhost," -c local caddy_site_test.yml
+'
 
 echo "==> caddy validate (rendered 8bitnews.caddy, imported by a minimal Caddyfile)"
 cat >"${CHECK_DIR}/caddy/Caddyfile" <<'CADDYFILE'

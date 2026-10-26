@@ -1,0 +1,104 @@
+---
+# Included by hub_vm.yml (and exercised directly by tests/caddy_site_test.yml
+# in `make deploy-check`). Renders the 8bitnews Caddy site file to a staging
+# path, validates the *full* Caddyfile — the neighbor's other sites plus our
+# new one — against a disposable scratch copy, and only installs it over the
+# live file once that validation has passed. The live file is therefore
+# never, even transiently, something `caddy validate` hasn't already
+# approved. Sets hub_caddy_site_changed for the caller to decide whether a
+# reload is needed.
+
+- name: Render the 8bitnews Caddy site file to a staging path
+  ansible.builtin.template:
+    src: 8bitnews.caddy.j2
+    dest: "{{ hub_caddy_site_file }}.new"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create a scratch directory to validate the new site file in
+  ansible.builtin.tempfile:
+    state: directory
+    prefix: 8bitnews-caddy-check.
+  register: hub_caddy_check_dir
+  changed_when: false
+
+- name: Mirror the live sites directory into the scratch directory
+  ansible.builtin.copy:
+    src: "{{ hub_caddy_sites_dir }}/"
+    dest: "{{ hub_caddy_check_dir.path }}/sites/"
+    remote_src: true
+    mode: preserve
+  changed_when: false
+
+- name: Swap the staged file into the scratch sites directory under its real name
+  ansible.builtin.copy:
+    src: "{{ hub_caddy_site_file }}.new"
+    dest: "{{ hub_caddy_check_dir.path }}/sites/{{ hub_caddy_site_file | basename }}"
+    remote_src: true
+    mode: "0644"
+  changed_when: false
+
+- name: Read the live Caddyfile (owned by the neighbor's Ansible)
+  ansible.builtin.slurp:
+    src: "{{ hub_caddy_main_file }}"
+  register: hub_caddy_main_raw
+
+- name: Point a scratch Caddyfile at the scratch sites directory
+  ansible.builtin.copy:
+    content: >-
+      {{ (hub_caddy_main_raw.content | b64decode)
+         | replace(hub_caddy_sites_dir, hub_caddy_check_dir.path ~ '/sites') }}
+    dest: "{{ hub_caddy_check_dir.path }}/Caddyfile"
+    mode: "0644"
+  changed_when: false
+
+- name: Validate the full Caddy config with our new site file substituted in
+  ansible.builtin.command:
+    cmd: caddy validate --config {{ hub_caddy_check_dir.path }}/Caddyfile --adapter caddyfile
+  register: hub_caddy_validate
+  changed_when: false
+  failed_when: false
+
+- name: Discard the scratch directory
+  ansible.builtin.file:
+    path: "{{ hub_caddy_check_dir.path }}"
+    state: absent
+  changed_when: false
+
+- name: Discard the staged file and fail loudly if validation failed
+  when: hub_caddy_validate.rc != 0
+  block:
+    - name: Remove the rejected staged file
+      ansible.builtin.file:
+        path: "{{ hub_caddy_site_file }}.new"
+        state: absent
+
+    - name: Fail — the previous site file (if any) was left untouched
+      ansible.builtin.fail:
+        msg: >-
+          caddy validate rejected the rendered 8bitnews.caddy:
+          {{ hub_caddy_validate.stdout }} {{ hub_caddy_validate.stderr }}
+          The previous site file (if any) was left untouched and Caddy was
+          not reloaded.
+
+- name: Install the validated site file atomically
+  ansible.builtin.copy:
+    src: "{{ hub_caddy_site_file }}.new"
+    dest: "{{ hub_caddy_site_file }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0644"
+  register: hub_caddy_site_installed
+  when: hub_caddy_validate.rc == 0
+
+- name: Remove the staged file now that it's installed
+  ansible.builtin.file:
+    path: "{{ hub_caddy_site_file }}.new"
+    state: absent
+  when: hub_caddy_validate.rc == 0
+
+- name: Record whether the live site file actually changed
+  ansible.builtin.set_fact:
+    hub_caddy_site_changed: "{{ hub_caddy_site_installed.changed | default(false) }}"

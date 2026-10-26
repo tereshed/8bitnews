@@ -1,7 +1,7 @@
 #cloud-config
 # Managed by deploy/ansible/hub_vm.yml. The admin user is key-only: no
 # password auth, no root login, so the only way into the guest is the SSH
-# key supplied via HUB_ADMIN_SSH_PUBLIC_KEY (task E1d).
+# key derived from HUB_ADMIN_SSH_KEY on the controller (task E1d).
 hostname: {{ hub_vm_name }}
 manage_etc_hosts: true
 ssh_pwauth: false
