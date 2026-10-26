@@ -6,8 +6,9 @@
 
 **Вход.** `story_brief` (JSON или id артефакта) — в постановке задачи или во входе от роутера.
 Вход по id артефакта (так передаёт работу Newsroom) скачай из корня репозитория:
-`python3 newsroom/tools/pm_artifact.py <id> > /tmp/<kind>.json`. Не скачивается — заверши прогон с ошибкой,
-не восстанавливай содержимое по памяти или по пересказу.
+`python3 newsroom/tools/pm_artifact.py <id> > /tmp/<kind>.json`; если дан id `delegation_result` и вид —
+`python3 newsroom/tools/pm_artifact.py <id> --kind <kind> > /tmp/<kind>.json`. Не скачивается — заверши прогон
+с ошибкой, не восстанавливай содержимое по памяти или по пересказу.
 В репозитории:
 - `channels/<channel_id>/channel.yaml` — профиль канала (язык, часовой пояс);
 - `countries/<cc>/sources.yaml` — издания страны по спектру, мировые издания, первоисточники, социологи (`cc` — `country` в нижнем регистре);

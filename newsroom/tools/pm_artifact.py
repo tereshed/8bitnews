@@ -5,6 +5,11 @@
 передаёт командам id артефактов (досье, сценарий, юридический отчёт), а агенты скачивают их этим скриптом:
 
     python3 newsroom/tools/pm_artifact.py <artifact_id> > /tmp/research_dossier.json
+    python3 newsroom/tools/pm_artifact.py <delegation_result_id> --kind research_dossier > /tmp/research_dossier.json
+
+Роутер Newsroom видит у результата другой команды (`delegation_result`) только summary, а не id её артефактов,
+поэтому передаёт id результата и нужный вид: с `--kind` скрипт берёт из списка `artifacts` результата последний
+артефакт этого вида и печатает его content целиком.
 
 В stdout — content артефакта (JSON), в stderr — вид и summary. Крупный content дочитывается кусками.
 Ключ: env PM_READ_KEY, иначе строка PM_READ_KEY=... из файла polymaths.env skill'а проекта `polymaths-artifacts`
@@ -82,11 +87,8 @@ class Session:
         return data.get("data", data) if isinstance(data, dict) else data
 
 
-def main():
-    if len(sys.argv) != 2:
-        sys.exit("использование: pm_artifact.py <artifact_id>")
-    artifact_id = sys.argv[1]
-    s = Session(api_key())
+def fetch(s, artifact_id):
+    """Артефакт с content целиком: крупный content дочитывается кусками, JSON-строка разбирается."""
     art = s.tool("artifact_get", {"artifact_id": artifact_id})
     content = art.get("content")
     if art.get("content_truncated"):
@@ -102,11 +104,30 @@ def main():
         try:
             content = json.loads(content)
         except json.JSONDecodeError:
-            print(content)
-            content = None
-    if content is not None:
-        print(json.dumps(content, ensure_ascii=False, indent=1))
-    print(f"{art.get('kind')}: {art.get('summary', '')}", file=sys.stderr)
+            pass
+    art["content"] = content
+    return art
+
+
+def main():
+    args = sys.argv[1:]
+    kind = None
+    if len(args) == 3 and args[1] == "--kind":
+        kind = args[2]
+    elif len(args) != 1:
+        sys.exit("использование: pm_artifact.py <artifact_id> [--kind <kind>]")
+    s = Session(api_key())
+    art = fetch(s, args[0])
+    if kind and art.get("kind") != kind:
+        if art.get("kind") != "delegation_result":
+            sys.exit(f"артефакт {args[0]} вида {art.get('kind')}, а не {kind} и не delegation_result")
+        found = [a for a in (art["content"] or {}).get("artifacts", []) if a.get("kind") == kind]
+        if not found:
+            sys.exit(f"в delegation_result {args[0]} нет артефакта вида {kind}")
+        art = fetch(s, found[-1]["id"])
+    content = art["content"]
+    print(content if isinstance(content, str) else json.dumps(content, ensure_ascii=False, indent=1))
+    print(f"{art.get('kind')} {art.get('id')}: {art.get('summary', '')}", file=sys.stderr)
 
 
 if __name__ == "__main__":

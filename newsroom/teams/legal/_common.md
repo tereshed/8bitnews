@@ -24,8 +24,9 @@
 **Вход** — в постановке или во входе от роутера: `mode`, `story_brief`, `research_dossier`, `script`, в режиме final ещё
 `video_package`, при повторном челлендже — прошлый `legal_review`.
 Вход по id артефакта (так передаёт работу Newsroom) скачай из корня репозитория:
-`python3 newsroom/tools/pm_artifact.py <id> > /tmp/<kind>.json`. Не скачивается — заверши прогон с ошибкой,
-не восстанавливай содержимое по памяти или по пересказу.
+`python3 newsroom/tools/pm_artifact.py <id> > /tmp/<kind>.json`; если дан id `delegation_result` и вид —
+`python3 newsroom/tools/pm_artifact.py <id> --kind <kind> > /tmp/<kind>.json`. Не скачивается — заверши прогон
+с ошибкой, не восстанавливай содержимое по памяти или по пересказу.
 В репозитории:
 - `channels/<channel_id>/channel.yaml` — страна, язык, включённые площадки (`platforms.*.enabled`);
 - `channels/<channel_id>/metadata.md` — правила заголовков, описаний, тегов и хэштегов, шаблоны описания;
