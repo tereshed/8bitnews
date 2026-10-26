@@ -16,12 +16,12 @@
     - name: Require the R2 settings this playbook cannot guess
       ansible.builtin.assert:
         that:
-          - hub_s3_endpoint | length > 0
-          - hub_s3_bucket | length > 0
-          - hub_s3_access_key | length > 0
-          - hub_s3_secret_key | length > 0
+          - r2_endpoint | length > 0
+          - r2_media_bucket | length > 0
+          - r2_access_key_id | length > 0
+          - r2_secret_access_key | length > 0
         fail_msg: >-
-          HUB_S3_ENDPOINT/HUB_S3_BUCKET/HUB_S3_ACCESS_KEY/HUB_S3_SECRET_KEY
+          R2_ENDPOINT/R2_MEDIA_BUCKET/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY
           must be set in the controller's environment (see
           deploy/ansible/deploy.env.example).
         quiet: true
@@ -140,16 +140,19 @@
           ansible.builtin.command: openssl rand -hex 24
           register: hub_pg_password_gen
           changed_when: false
+          no_log: true
 
         - name: Generate the HUB_API_KEYS value
           ansible.builtin.command: openssl rand -hex 32
           register: hub_api_key_gen
           changed_when: false
+          no_log: true
 
         - name: Keep the freshly generated secrets for this run
           ansible.builtin.set_fact:
             hub_generated_postgres_password: "{{ hub_pg_password_gen.stdout }}"
             hub_generated_api_key: "{{ hub_api_key_gen.stdout }}"
+          no_log: true
 
     - name: Read back the existing secrets (reruns reuse them unchanged)
       when: hub_env_stat.stat.exists
@@ -158,6 +161,7 @@
           ansible.builtin.slurp:
             src: "{{ hub_env_file }}"
           register: hub_env_existing
+          no_log: true
 
         - name: Extract the existing secrets
           ansible.builtin.set_fact:
@@ -165,6 +169,7 @@
               {{ (hub_env_existing.content | b64decode | regex_findall('(?m)^POSTGRES_PASSWORD=(.*)$'))[0] }}
             hub_generated_api_key: >-
               {{ (hub_env_existing.content | b64decode | regex_findall('(?m)^HUB_API_KEYS=(.*)$'))[0] }}
+          no_log: true
 
     - name: Render the guest .env (secrets preserved; R2/etc. refreshed from the controller)
       ansible.builtin.template:

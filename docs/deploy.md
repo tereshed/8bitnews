@@ -10,32 +10,38 @@ Playbooks и Make-цели: `deploy/ansible/`, см. также `deploy/ansible/
 
 ## 0. Что нужно сделать руками один раз, до первого запуска
 
-1. **Домен.** Выберите поддомен для hub (например, `hub.8bitnews.example`) и добавьте A-запись
-   на `135.181.4.110` в Cloudflare DNS **в режиме «DNS only»** (серое облако, не оранжевое) —
-   proxy Cloudflare перед Caddy не нужен и сломает TLS-рукопожатие Caddy с letsencrypt/ZeroSSL.
+1. **Домен.** `hub.8bitlang.org` уже заведён: A-запись на `135.181.4.110` в Cloudflare DNS
+   существует и уже в режиме **«DNS only»** (серое облако, не оранжевое) — это важно: proxy
+   Cloudflare перед Caddy сломает TLS-рукопожатие Caddy с letsencrypt/ZeroSSL. Этот домен —
+   соседский (hub отдаёт только API для агентов, отдельный поддомен ему не нужен), ничего заводить
+   не требуется — только убедитесь, что режим прокси остался «DNS only», и используйте
+   `HUB_DOMAIN=hub.8bitlang.org` (это уже значение по умолчанию в плейбуках, см. п.7).
 2. **Два бакета Cloudflare R2**, оба с юрисдикцией **EU**:
-   - бакет для медиа релизов (например, `8bitnews-media`);
-   - бакет для бэкапов Postgres (например, `8bitnews-backups`), отдельный от медиа.
-3. **R2 API-токен**, выданный только на эти два бакета (Object Read & Write), не на весь аккаунт.
-   Cloudflare даёт отдельные Access Key ID/Secret Access Key для S3-совместимого API — это и есть
-   `HUB_S3_ACCESS_KEY`/`HUB_S3_SECRET_KEY` (для медиа-бакета) и `HUB_BACKUP_S3_ACCESS_KEY`/
-   `HUB_BACKUP_S3_SECRET_KEY` (для бэкап-бакета). Эндпоинт — `https://<account-id>.r2.cloudflarestorage.com`,
-   регион для R2 всегда `auto`.
+   - бакет для медиа релизов — `8bitnews-media`;
+   - бакет для бэкапов Postgres — `8bitnews-backups`, отдельный от медиа.
+   У бакетов с юрисдикцией EU S3-эндпоинт содержит сегмент `.eu.`:
+   `https://<account_id>.eu.r2.cloudflarestorage.com` (без `.eu.` — это не тот же бакет).
+3. **Один R2 API-токен**, выданный только на эти два бакета (Object Read & Write), не на весь
+   аккаунт. Cloudflare даёт единую пару Access Key ID/Secret Access Key для S3-совместимого API —
+   это `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`, общие для обоих бакетов (не два разных токена).
+   Регион для R2 всегда `auto`.
 4. **Пароль restic** — сгенерируйте случайную строку (например, `openssl rand -base64 32`) и
    положите в менеджер паролей. Без него бэкапы в R2 невосстановимы — это не секрет для git и не
    секрет для сервера в обычном смысле, это единственный ключ к шифрованию бэкапов.
-5. **Repository URL для restic**: `s3:https://<account-id>.r2.cloudflarestorage.com/<бакет-бэкапов>`.
-6. **SSH-ключ оператора** (публичный) — тот, которым вы будете заходить в гостевую VM.
-7. Заполните `~/.config/8bitnews/deploy.env` (0600) по образцу `deploy/ansible/deploy.env.example`:
-   `HUB_DOMAIN`, `HUB_ADMIN_SSH_PUBLIC_KEY`, `HUB_S3_*`, `RESTIC_REPOSITORY`, `RESTIC_PASSWORD`,
-   `HUB_BACKUP_S3_*`. Этот файл не попадает в git.
-8. На машине-контроллере должны быть: `ansible-core` (`pip install ansible-core` или системный
+5. **SSH-ключ оператора** (публичный) — тот, которым вы будете заходить в гостевую VM.
+6. Заполните `~/.config/8bitnews/deploy.env` (0600) по образцу `deploy/ansible/deploy.env.example`:
+   `HUB_ADMIN_SSH_PUBLIC_KEY`, `R2_ENDPOINT` (с `.eu.`), `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`,
+   `R2_MEDIA_BUCKET`, `R2_BACKUP_BUCKET`, `RESTIC_PASSWORD`. `HUB_DOMAIN` можно не трогать — по
+   умолчанию уже `hub.8bitlang.org`. Repository URL для restic (`s3:<R2_ENDPOINT>/<R2_BACKUP_BUCKET>`)
+   плейбук собирает сам — отдельно его задавать не нужно. Этот файл не попадает в git.
+7. На машине-контроллере должны быть: `ansible-core` (`pip install ansible-core` или системный
    пакет) и коллекции из `deploy/ansible/requirements.yml`:
    ```sh
    ansible-galaxy collection install -r deploy/ansible/requirements.yml
    ```
-9. SSH-доступ root на `135.181.4.110` должен уже работать (ключ оператора в `/root/.ssh/authorized_keys`
-   на хосте — это делает инфраструктура соседа, не этот плейбук).
+8. SSH-доступ root на `135.181.4.110` должен уже работать (ключ оператора в `/root/.ssh/authorized_keys`
+   на хосте — это делает инфраструктура соседа, не этот плейбук). Каталог `/etc/caddy/sites/` и
+   строка `import /etc/caddy/sites/*.caddy` в `/etc/caddy/Caddyfile` соседа уже на месте.
 
 ## 1. Первый деплой
 

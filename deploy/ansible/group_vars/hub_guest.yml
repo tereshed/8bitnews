@@ -20,11 +20,9 @@ hub_backup_local_retention_days: 14
 hub_backup_env_file: /etc/8bitnews-backup.env
 hub_restore_check_container: 8bitnews-restore-check
 
-# Restic repository (a full "s3:https://<endpoint>/<bucket>" URL) + its
-# own R2 bucket/keys, kept separate from the media bucket/keys above
-# (hub_s3_*) so a leaked media credential can't reach backups. All from
-# the controller's environment, never in git.
-restic_repository: "{{ lookup('env', 'RESTIC_REPOSITORY') }}"
+# Restic repository: the backups bucket (r2_backup_bucket, group_vars/all.yml)
+# on the same R2 endpoint/credential pair as the media bucket (the owner's
+# R2 token is scoped to both buckets, not a separate pair per bucket).
+# Only the restic encryption password is backup-specific.
+restic_repository: "s3:{{ r2_endpoint }}/{{ r2_backup_bucket }}"
 restic_password: "{{ lookup('env', 'RESTIC_PASSWORD') }}"
-hub_backup_s3_access_key: "{{ lookup('env', 'HUB_BACKUP_S3_ACCESS_KEY') }}"
-hub_backup_s3_secret_key: "{{ lookup('env', 'HUB_BACKUP_S3_SECRET_KEY') }}"

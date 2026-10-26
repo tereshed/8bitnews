@@ -14,17 +14,18 @@
         daemon_reload: true
 
   tasks:
-    - name: Require the restic/backup-bucket settings this playbook cannot guess
+    - name: Require the restic/R2 settings this playbook cannot guess
       ansible.builtin.assert:
         that:
-          - restic_repository | length > 0
+          - r2_endpoint | length > 0
+          - r2_backup_bucket | length > 0
+          - r2_access_key_id | length > 0
+          - r2_secret_access_key | length > 0
           - restic_password | length > 0
-          - hub_backup_s3_access_key | length > 0
-          - hub_backup_s3_secret_key | length > 0
         fail_msg: >-
-          RESTIC_REPOSITORY/RESTIC_PASSWORD/HUB_BACKUP_S3_ACCESS_KEY/
-          HUB_BACKUP_S3_SECRET_KEY must be set in the controller's
-          environment (see deploy/ansible/deploy.env.example).
+          R2_ENDPOINT/R2_BACKUP_BUCKET/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/
+          RESTIC_PASSWORD must be set in the controller's environment (see
+          deploy/ansible/deploy.env.example).
         quiet: true
 
     - name: Install restic
@@ -58,8 +59,8 @@
       environment:
         RESTIC_REPOSITORY: "{{ restic_repository }}"
         RESTIC_PASSWORD: "{{ restic_password }}"
-        AWS_ACCESS_KEY_ID: "{{ hub_backup_s3_access_key }}"
-        AWS_SECRET_ACCESS_KEY: "{{ hub_backup_s3_secret_key }}"
+        AWS_ACCESS_KEY_ID: "{{ r2_access_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ r2_secret_access_key }}"
       register: hub_restic_snapshots
       failed_when: false
       changed_when: false
@@ -70,8 +71,8 @@
       environment:
         RESTIC_REPOSITORY: "{{ restic_repository }}"
         RESTIC_PASSWORD: "{{ restic_password }}"
-        AWS_ACCESS_KEY_ID: "{{ hub_backup_s3_access_key }}"
-        AWS_SECRET_ACCESS_KEY: "{{ hub_backup_s3_secret_key }}"
+        AWS_ACCESS_KEY_ID: "{{ r2_access_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ r2_secret_access_key }}"
       when: hub_restic_snapshots.rc != 0
       changed_when: true
       no_log: true
