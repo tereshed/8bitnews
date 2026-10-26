@@ -487,6 +487,28 @@ vp["allOf"] = [
 ]
 schemas["video_package"] = vp
 
+uuid = {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"}
+schemas["stage_report"] = schema("stage_report",
+    "Newsroom producer output: what another team returned in a delegation_result, so the router can choose the next "
+    "stage. The router sees only artifact summaries, so the summary of this artifact carries the verdict and the ids.",
+    ["team", "state", "delegation_result_id", "artifacts", "verdict"],
+    {"team": {"enum": ["Research", "Script", "Legal", "Video", "QA"]},
+     "state": {"enum": ["done", "failed", "needs_human", "expired", "cancelled"],
+               "description": "State of the delegation as reported in delegation_result"},
+     "delegation_result_id": uuid,
+     "artifacts": {"type": "object", "propertyNames": {"pattern": "^[a-z_]+$"}, "additionalProperties": uuid,
+                   "description": "Latest artifact id per kind returned by the team, e.g. {\"research_dossier\": \"…\"}"},
+     "verdict": {"enum": ["approved", "not_approved", "pass", "fix_required", "kill", "missing"],
+                 "description": "Research/Script: approved by the team's reviewer or not; Legal: legal_review.verdict; "
+                                "missing: the expected artifact is absent"},
+     "fix_owners": {"type": "object", "propertyNames": {"enum": ["script", "video", "editor", "none"]},
+                    "additionalProperties": {"type": "array", "items": str1},
+                    "description": "Legal only: open issue ids grouped by fix_owner"},
+     "platforms": {"type": "object", "additionalProperties": {"enum": ["pass", "fix_required", "exclude"]},
+                   "description": "Legal only: verdict per platform"},
+     "notes": {"type": "array", "items": str1}},
+    {})
+
 for name, sch in schemas.items():
     with open(out / f"{name}.schema.json", "w", encoding="utf-8") as f:
         json.dump(sch, f, ensure_ascii=False, indent=2)

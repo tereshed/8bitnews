@@ -18,7 +18,7 @@
 | Команда | Статус | Агенты → артефакт |
 |---|---|---|
 | Research | настроена | fact_researcher → `facts_report`, local_press_analyst → `local_press_report`, world_press_analyst → `world_press_report`, analyst → `research_dossier`, fact_checker (reviewer) |
-| Newsroom | настроена (стадии 1–5) | editor → `story_brief`; `release_receipt` — в E4 |
+| Newsroom | настроена (стадии 1–5) | editor → `story_brief`, producer → `stage_report`; `release_receipt` — в E4 |
 | Legal | настроена | legal_counsel → `law_report`, platform_reviewer → `platform_report`, legal_lead → `legal_review` |
 | Script | настроена | scriptwriter → `script`, script_editor (reviewer) |
 | Video | E3 | video_producer → `video_package` |
