@@ -6,7 +6,6 @@
   "required": [
     "channel_id",
     "language",
-    "template",
     "duration_s",
     "word_count",
     "serious_mode",
@@ -32,7 +31,7 @@
     "template": {
       "type": "string",
       "minLength": 1,
-      "description": "Template id from format.templates in channel.yaml"
+      "description": "Only when the experiment variant pins a template; otherwise omitted and Video takes the template from hub template_pick (docs/architecture.md, Templates)"
     },
     "duration_s": {
       "type": "integer",

@@ -358,12 +358,14 @@ music = {
 }
 sc = schema("script",
     "scriptwriter output and final result of the Script team: the video script for Video, QA and Legal.",
-    ["channel_id", "language", "template", "duration_s", "word_count", "serious_mode", "hook_type", "music",
+    ["channel_id", "language", "duration_s", "word_count", "serious_mode", "hook_type", "music",
      "scenes", "metadata", "cover"],
     {"channel_id": str1,
      "language": str1,
      "dossier": {"type": "string", "description": "research_dossier artifact id or repository path"},
-     "template": {"type": "string", "minLength": 1, "description": "Template id from format.templates in channel.yaml"},
+     "template": {"type": "string", "minLength": 1,
+                  "description": "Only when the experiment variant pins a template; otherwise omitted and Video takes "
+                                 "the template from hub template_pick (docs/architecture.md, Templates)"},
      "duration_s": {"type": "integer", "minimum": 15, "maximum": 180,
                     "description": "Planned length; the channel range is in channel.yaml"},
      "word_count": {"type": "integer", "minimum": 1, "description": "Sum of scene word_count"},
