@@ -1,0 +1,117 @@
+{
+ "mode": "script",
+ "issues": [
+  {
+   "id": "P3",
+   "fix": "Before final render, when video/editor pick the actual track from music/catalog.yaml, verify there is no live Content ID claim on it (prior successful upload/claim-check, or a track already confirmed clean in a past 8bitnews episode) — or trim to <=60s if no clean track is confirmed in time.",
+   "rule": {
+    "ref": "platforms/youtube/rules.md#6-копирайт-и-музыка",
+    "summary": "Vertical videos 1-3 minutes count as Shorts; a Short longer than 1 minute with any active Content ID claim on its embedded audio is blocked outright regardless of the underlying license, and the block does not depend on upload method."
+   },
+   "scope": "youtube",
+   "where": "script.music.cue (mood: tense, energy: 3); script.duration_s: 90",
+   "family": "copyright",
+   "excerpt": "Track enters low under S2, swells slightly under S5's three-way dispute, fades out during S8's closing line; no specific track_id chosen yet at script stage.",
+   "scenario": "duration_s is 90, in the 'Shorts longer than 1 minute' bracket where a single Content ID claim blocks the whole video. Every CC0 track in music/catalog.yaml tagged mood=tense/energy=3 has content_id: unknown. If the eventual track pick has an active claim, the finished 90s Short gets blocked after render even though the CC0 license itself is valid for commercial YouTube use.",
+   "severity": "medium",
+   "fix_owner": "video"
+  },
+  {
+   "id": "P4",
+   "fix": "No script change needed; confirm at upload/hub config that status.selfDeclaredMadeForKids=false is always set for this template, and that titles/tags/hashtags stay free of kid-coded signals.",
+   "rule": {
+    "ref": "platforms/youtube/rules.md#2-правила-сообщества-для-новостного-контента",
+    "summary": "Animated/cartoon-style visuals are one of the signals YouTube's 'made for kids' classifier weighs; rules.md recommends always setting selfDeclaredMadeForKids=false and avoiding kid-coded signals."
+   },
+   "scope": "youtube",
+   "where": "video_package settings (not a script field)",
+   "family": "platform_guidelines",
+   "excerpt": "Script uses the nes-desk template: pixel-art NES-style news desk, retro visual style throughout all scenes.",
+   "scenario": "If upload defaults or a future automation step leave selfDeclaredMadeForKids unset or true, YouTube could misclassify this adult news analysis as made-for-kids, disabling comments, personalized ads, and some monetization features.",
+   "severity": "low",
+   "fix_owner": "none"
+  },
+  {
+   "id": "P5",
+   "fix": "No fix available within this script revision. Flag to the channel/hub owner: add a second template (per channel.yaml's own E2 roadmap comment) and rotate music track selection across episodes from the approved catalog; re-check once hub/releases_recent data is available.",
+   "rule": {
+    "ref": "platforms/youtube/rules.md#4-монетизация-и-право-на-рекомендации",
+    "summary": "YPP 'Generic or Repetitive Content' / Spam policy 'Automated or synthetic mass-production' flags channels that reuse the same background music and repetitive AI-generated imagery across many videos; sanctions range from ads-disabled to warning/strike/termination. TikTok and Instagram carry a parallel reach/FYF risk for unoriginal or superficially-edited material."
+   },
+   "scope": "youtube",
+   "where": "channels/8bitnews-us/channel.yaml format.templates; script.template",
+   "family": "monetization",
+   "excerpt": "channel.yaml currently defines a single template (templates: [nes-desk], default_template: nes-desk); this script and every other 8bitnews-us episode necessarily render with the same anchor desk, same pixel-art style and a pool of CC0 chiptune cues reused across episodes.",
+   "scenario": "A YPP reviewer or TikTok/Instagram automated originality check comparing this channel's videos could read the single fixed template plus a narrow reused music pool as mass-produced, templated content and limit ads, FYF eligibility, or recommendations channel-wide. hub/releases_recent were unavailable this run, so the pattern could not be confirmed against actual recent uploads — a structural exposure flag, not a confirmed violation.",
+   "severity": "low",
+   "fix_owner": "none"
+  }
+ ],
+ "country": "US",
+ "verdict": "pass",
+ "platforms": {
+  "tiktok": {
+   "reason": "P1 (high: S4/S5 pairing Secretary Weber's labeled likeness with the Siegel/Waxman courtroom-argument line) closed — Weber is removed from the scene's real_people and the line now runs under an unlabeled attorneys podium. No open blocker/high remains.",
+   "verdict": "pass"
+  },
+  "youtube": {
+   "reason": "No open blocker/high. R1 (unhedged 'noncitizen' framing in title/summary) closed: title/summary now read 'DOJ's California Ballot List' / 'doubting DOJ's authority and its list', matching the already-compliant TikTok/Instagram phrasing. Open advisories: P3 (medium, Content ID risk once a track is picked), P4 (low, made-for-kids classifier), P5 (low, single-template mass-production exposure) — none block release.",
+   "verdict": "pass"
+  },
+  "instagram": {
+   "reason": "P2 (medium: same Weber-misattribution pattern under Meta's Manipulated Media guidance) closed by the same S5 fix. No open blocker/high remains.",
+   "verdict": "pass"
+  }
+ },
+ "channel_id": "8bitnews-us",
+ "summary_ru": "Вердикт: pass. Переработанный сценарий закрыл все серьёзные замечания прошлого ревью: R1 (заголовок/описание YouTube больше не выдают спорный список DOJ за факт о негражданах), R2 (пустые речевые пузыри у Ньюсома и Карни), P1/P2 (сцену с Вебер больше не путают с цитатой адвокатов штата), X1 (сцена с USB-накопителем и обвинением 28 резидентов разделена на две). Открыты только мелкие площадочные риски: музыка без проверки Content ID (P3), настройка 'not for kids' (P4) и структурный риск однотипности канала (P5, требует второго шаблона/ротации музыки) — ни один не блокирует публикацию.",
+ "checked_against": [
+  "countries/us/legal.md (verified_at: 2026-10-24)",
+  "countries/us/policy.md (read 2026-10-26)",
+  "operator/legal.md (verified_at: 2026-10-24)",
+  "channels/8bitnews-us/channel.yaml (read 2026-10-26)",
+  "channels/8bitnews-us/metadata.md (read 2026-10-26)",
+  "platforms/youtube/rules.md (verified_at 2026-10-24)",
+  "platforms/tiktok/rules.md (verified_at 2026-10-24)",
+  "platforms/instagram/rules.md (verified_at 2026-10-24)",
+  "music/catalog.yaml (read 2026-10-26)",
+  "story_brief 657868f4-8bae-4323-b0ac-22eea51ccdfc (read 2026-10-26)",
+  "research_dossier 0f464b7d-e3b0-439b-96c4-c7b3fb01cf11 (read 2026-10-26)",
+  "script e9ed0054-92d2-4452-aa1d-2b22743e08fc (read 2026-10-26)",
+  "legal_review bdd59b42-03e7-4331-b915-82ee4b81d432 (previous challenge, read 2026-10-26)",
+  "law_report eaaf622a-88b2-435b-8d15-8782f263a942 (read 2026-10-26)",
+  "platform_report 8a357a09-1b76-406d-ba7b-045dd60e0a9e (read 2026-10-26)"
+ ],
+ "required_disclosures": [
+  {
+   "ref": "countries/us/policy.md#визуал-и-звук; channels/8bitnews-us/format.md",
+   "what": "'AI illustration' plate visible on screen for the full duration real people appear — S2 (Judges Bennett/Bumatay/Sanchez), S5 (Essayli, Clarke), S6 (Newsom, Carney).",
+   "scope": "US/EU"
+  },
+  {
+   "ref": "operator/legal.md#ai-act-art50; operator/legal.md#ai-act-our-case",
+   "what": "'AI · AI voice' plate in the first 3 seconds of the video, top of frame (EU AI Act Art. 50(4) deployer disclosure duty; applies because the operator is in Spain, regardless of the channel's US audience).",
+   "scope": "EU"
+  },
+  {
+   "ref": "channels/8bitnews-us/metadata.md; platforms/youtube/rules.md#3-синтетический-и-ai-контент",
+   "what": "status.containsSyntheticMedia=true and status.selfDeclaredMadeForKids=false at upload.",
+   "scope": "youtube"
+  },
+  {
+   "ref": "channels/8bitnews-us/metadata.md; platforms/tiktok/rules.md#3-синтетический-и-ai-контент",
+   "what": "post_info.is_aigc=true on every Direct Post / inbox upload.",
+   "scope": "tiktok"
+  },
+  {
+   "ref": "channels/8bitnews-us/metadata.md; platforms/instagram/rules.md#3-синтетический-и-ai-контент",
+   "what": "is_ai_generated=true on the media container.",
+   "scope": "instagram"
+  },
+  {
+   "ref": "countries/us/policy.md#раскрытие",
+   "what": "In-video 'AI' / 'AI voice' on-screen label at the start of the episode; a platform API disclosure flag does not substitute for this in-video label.",
+   "scope": "US/EU (operator), all platforms"
+  }
+ ]
+}

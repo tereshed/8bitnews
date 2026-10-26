@@ -1,0 +1,234 @@
+{
+ "cover": {
+  "text": "Appeals Court Doubts DOJ List",
+  "frame": "S1",
+  "visual": "Anchor hook scene: host at news desk, screen behind her shows a pixel-art courthouse icon with a fading question mark over a gavel silhouette."
+ },
+ "music": {
+  "cue": "Track enters low under S2 as the hearing is described, ducks under every line of narration, swells slightly under S5's three-way dispute, and fades out during S8's closing line.",
+  "mood": "tense",
+  "energy": 3,
+  "enabled": true
+ },
+ "notes": [
+  "Reworked per legal_review bdd59b42 fix_required items script=[R1,R2,P1,P2,X1]; scene ids S1-S3 unchanged, S4 is new (split from old S3), old S4-S7 renumbered S5-S8.",
+  "R1: reworded youtube.title and youtube.summary to drop the unhedged 'noncitizen' characterization of DOJ's list, matching the already-compliant tiktok/instagram phrasing; kept the 'noncitizen voting' YouTube tag per the fix instruction.",
+  "R2: S6 (world, was S5) speech bubbles over Newsom and Carney are now specified as plain wordless reaction icons, since no exact quote was placed in the bubble text and narration doesn't attribute specific words to that visual beat.",
+  "P1/P2: S5 (local, was S4) no longer shows Weber's labeled podium under the 'unverified and unlawful... disenfranchise voters' line, which traces to state/county attorneys (Siegel/Waxman), not Weber; middle panel is now an unlabeled state-seal podium with generic attorney icons, and Shirley Weber is removed from S5's real_people.",
+  "X1: split old S3 (DOJ letter/USB-drive/48-hour-deadline + Oct 19 charging announcement, sharing one desk/calendar) into S3 (county clerk's desk, Oct 13-15 deadline strand) and new S4 (separate courthouse-exterior visual, Oct 19 charges strand), so the visual no longer implies the 28 charged green-card holders came from the disputed county list.",
+  "First video on this storyline for 8bitnews-us (prior_coverage empty), so block 3 (known) still gets a full beat rather than compressing to one sentence; now split across S3/S4.",
+  "Blocks 4 and 5 (now S5/S6) kept separate since both the local 3-way split and the world 2-cluster split carry distinct new information worth screen time.",
+  "Local scene (S5) still gives each of L1/L2/L3 one sentence of comparable length and a panel of equal screen time, in dossier order, to avoid implying who is right.",
+  "Disputed figures (county-letter count F12, birthplace-stat F14) are presented in S7 as open/disputed, not resolved to a single number, per dossier risk flags.",
+  "Reworked per script_editor review f24d12ec: S2 narration restores the 'alleged-noncitizen' hedge dropped in the prior pass (dossier F8/F14/F15 mark DOJ's list as unverified/disputed, matching the hedge already used in S3); S5 narration trims one word ('for good' -> 'permanently') to bring the script to the 240-word budget for 90 seconds; S7 source_plate now carries an Oct 20-24 date range covering all three cited facts, matching the date-range style already used in S3/S4."
+ ],
+ "scenes": [
+  {
+   "id": "S1",
+   "shot": "anchor",
+   "blocks": [
+    "hook"
+   ],
+   "visual": "Host at the NES-style news desk; the screen behind her lights up with a pixel-art courthouse icon that pulses once, then a small question mark fades into a gavel silhouette.",
+   "fact_ids": [
+    "F1",
+    "F3"
+   ],
+   "narration": "A federal appeals panel just doubted the government's own voter list.",
+   "duration_s": 4.1,
+   "word_count": 11,
+   "real_people": [],
+   "on_screen_text": "Appeals court doubts DOJ's list"
+  },
+  {
+   "id": "S2",
+   "shot": "scene",
+   "blocks": [
+    "whats_new"
+   ],
+   "visual": "Full-screen pixel-art video-call courtroom: three small monitor windows labeled Bennett, Bumatay and Sanchez glow above a shared virtual bench; a digital calendar in the corner flips from Oct 25 to a blank 'no ruling yet' card.",
+   "fact_ids": [
+    "F1",
+    "F2",
+    "F3",
+    "F7"
+   ],
+   "narration": "On Sunday, the Ninth Circuit held a rare emergency hearing on roughly 20,000 disputed mail ballots. Two of three judges, including a Trump appointee, challenged the Justice Department's authority and its alleged-noncitizen list. The panel took the case under submission, without ruling.",
+   "duration_s": 15.6,
+   "word_count": 42,
+   "real_people": [
+    "Judge Mark Bennett",
+    "Judge Patrick Bumatay",
+    "Judge Gabriel Sanchez"
+   ],
+   "on_screen_text": "9th Circuit: 2 of 3 judges skeptical"
+  },
+  {
+   "id": "S3",
+   "shot": "scene",
+   "blocks": [
+    "known"
+   ],
+   "visual": "Full-screen scene at a county clerk's desk: a government envelope marked 'DOJ' lands next to a sealed USB drive with a handwritten password note; a wall calendar on the desk flips from Oct 13 to Oct 15, circling the deadline date.",
+   "fact_ids": [
+    "F8",
+    "F9",
+    "F10"
+   ],
+   "narration": "The Justice Department sued California, saying over 20,000 mail ballots went to likely noncitizens. It gave officials two days to act, a deadline Secretary of State Shirley Weber called \"a mere 48 hours.\" The county never opened the list, citing security rules.",
+   "duration_s": 15.6,
+   "word_count": 42,
+   "real_people": [],
+   "source_plate": "Source: DOJ complaint & CA Secretary of State letter · Oct 13-15",
+   "on_screen_text": "DOJ list, 48-hour deadline"
+  },
+  {
+   "id": "S4",
+   "shot": "scene",
+   "blocks": [
+    "known"
+   ],
+   "visual": "Full-screen scene outside a federal courthouse: a separate wall calendar here flips from Oct 15 to Oct 19, where a small 'charges filed' stamp appears next to a plain case-file icon; no names or faces are shown.",
+   "fact_ids": [
+    "F11"
+   ],
+   "narration": "Four days later, the Justice Department charged 28 lawful permanent residents with election-related felonies, under what it called Operation Protect the Vote.",
+   "duration_s": 8.2,
+   "word_count": 22,
+   "real_people": [],
+   "source_plate": "Source: DOJ press release · Oct 19",
+   "on_screen_text": "28 charged, Oct 19"
+  },
+  {
+   "id": "S5",
+   "shot": "scene",
+   "blocks": [
+    "local"
+   ],
+   "visual": "Full-screen scene split into three vertical panels that slide in one at a time and each briefly highlight as its side speaks: Essayli at a podium marked 'DOJ' on the left, an unlabeled state-seal podium with two generic California-attorney icons in the middle, and Clarke at a microphone marked 'NAACP' on the right.",
+   "fact_ids": [],
+   "group_ids": [
+    "L1",
+    "L2",
+    "L3"
+   ],
+   "narration": "The administration calls its count just a floor, warning that counting without checks permanently dilutes citizens' votes. California's lawyers call the list unverified and unlawful, warning it would disenfranchise voters instead. Voting rights groups, including the NAACP, call the push a suppression campaign, not fraud enforcement.",
+   "duration_s": 17.4,
+   "word_count": 46,
+   "real_people": [
+    "Bill Essayli",
+    "Kristen Clarke"
+   ],
+   "on_screen_text": "Three sides, one dispute"
+  },
+  {
+   "id": "S6",
+   "shot": "scene",
+   "blocks": [
+    "world"
+   ],
+   "visual": "Full-screen split-screen scene: a pixel-art world map zooms into the Middle East and UK on the left, where a plain wordless speech-bubble icon appears over a Newsom figure; it then pans to Canada on the right, where the same wordless bubble icon appears over a Carney figure; a thin dotted line connects the two panels.",
+   "fact_ids": [],
+   "narration": "Outlets like Al Jazeera and The Guardian frame the fight as democratic backsliding, not a states'-rights dispute. Canadian coverage looks elsewhere: citizens charged in the same sweep, with Ottawa and Washington trading accusations over election interference.",
+   "duration_s": 13.4,
+   "word_count": 36,
+   "cluster_ids": [
+    "W1",
+    "W2"
+   ],
+   "real_people": [
+    "Gavin Newsom",
+    "Mark Carney"
+   ],
+   "on_screen_text": "World press, two framings"
+  },
+  {
+   "id": "S7",
+   "shot": "scene",
+   "blocks": [
+    "unknown"
+   ],
+   "visual": "Full-screen scene: a courthouse door stays shut as a calendar page flips toward Oct 27 under a question-mark stamp; beside it, three mismatched bar-chart icons flicker without settling into one height.",
+   "fact_ids": [
+    "F7",
+    "F12",
+    "F14"
+   ],
+   "narration": "It's still unknown whether the Ninth Circuit will rule before Tuesday's hearing. Outlets also disagree on how many counties got DOJ's letters, and on a disputed birthplace statistic in the case.",
+   "duration_s": 11.5,
+   "word_count": 31,
+   "real_people": [],
+   "source_plate": "Source: NBC News, CBS News & LA County brief · Oct 20-24",
+   "on_screen_text": "What's still unknown"
+  },
+  {
+   "id": "S8",
+   "shot": "anchor",
+   "blocks": [
+    "outro"
+   ],
+   "visual": "Host back at the news desk; the screen behind her shows a simple 'Sources: link in description' text card fading in as she delivers the closing line.",
+   "fact_ids": [],
+   "narration": "Sources are in the description. Follow for what happens next.",
+   "duration_s": 3.8,
+   "word_count": 10,
+   "real_people": [],
+   "on_screen_text": "Sources in the description"
+  }
+ ],
+ "dossier": "0f464b7d-e3b0-439b-96c4-c7b3fb01cf11",
+ "language": "en-US",
+ "metadata": {
+  "tiktok": {
+   "title": "9th Circuit judges doubt DOJ's CA ballot list",
+   "summary": "A Ninth Circuit panel heard a rare Sunday hearing on DOJ's bid to block roughly 20,000 California mail ballots, with two of three judges doubting its authority and list. No ruling yet before Tuesday's district hearing.",
+   "hashtags": [
+    "#8BitNews",
+    "#California",
+    "#DOJ",
+    "#Midterms2026",
+    "#NinthCircuit"
+   ]
+  },
+  "youtube": {
+   "tags": [
+    "Ninth Circuit",
+    "Justice Department",
+    "California",
+    "noncitizen voting",
+    "mail ballots",
+    "voter rolls",
+    "Shirley Weber",
+    "Bill Essayli",
+    "midterms 2026",
+    "news analysis"
+   ],
+   "title": "9th Circuit Judges Doubt DOJ's California Ballot List",
+   "summary": "A Ninth Circuit panel heard a rare Sunday hearing on the Justice Department's bid to block roughly 20,000 California mail ballots, with two of three judges doubting DOJ's authority and its list. The panel took the case under submission, with no ruling yet before Tuesday's district court hearing.",
+   "hashtags": [
+    "#8BitNews",
+    "#California",
+    "#DOJ",
+    "#Midterms2026",
+    "#NinthCircuit"
+   ]
+  },
+  "instagram": {
+   "title": "9th Circuit judges doubt DOJ's CA ballot list",
+   "summary": "A Ninth Circuit panel heard a rare Sunday hearing on DOJ's bid to block roughly 20,000 California mail ballots, with two of three judges doubting its authority and list. No ruling yet before Tuesday's district hearing.",
+   "hashtags": [
+    "#8BitNews",
+    "#California",
+    "#DOJ",
+    "#Midterms2026",
+    "#NinthCircuit"
+   ]
+  }
+ },
+ "template": "nes-desk",
+ "hook_type": "new_fact",
+ "channel_id": "8bitnews-us",
+ "duration_s": 90,
+ "word_count": 240,
+ "serious_mode": false
+}

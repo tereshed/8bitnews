@@ -1,0 +1,45 @@
+{
+ "story": {
+  "title": "Justice Department vs. California over mail ballots sent to alleged noncitizens before the midterms",
+  "summary": "The Justice Department says tens of thousands of mail-in ballots in California went to people it suspects are noncitizens, and sued the state and Los Angeles County on Oct 15 to force officials to set those ballots aside until citizenship is verified, warning of federal charges for officials who tabulate them anyway. California and county officials say the federal data is unreliable and that state law already screens for citizenship; a district court in Los Angeles and, since Oct 22, the Ninth Circuit Court of Appeals are both weighing emergency requests in the case, days before the Nov 3 midterms.",
+  "started_at": "2026-10-15",
+  "hub_story_id": null
+ },
+ "country": "US",
+ "variant": {
+  "arm_id": "default",
+  "params": {},
+  "experiment_id": null
+ },
+ "why_now": "The Ninth Circuit panel could rule any day before the Oct 27 district-court hearing, while mail ballots for the Nov 3 midterms are already being returned and counted statewide, so the legal outcome has an immediate, hard deadline for the channel's audience.",
+ "language": "en-US",
+ "channel_id": "8bitnews-us",
+ "development": {
+  "summary": "On Sunday, Oct 25, a three-judge Ninth Circuit panel (Mark Bennett, Gabriel Sanchez, Patrick Bumatay; case No. 26-7070) held a rare weekend Zoom oral argument on the DOJ's emergency bid to block roughly 20,000 California mail ballots pending citizenship checks. Judges Bennett and Sanchez repeatedly questioned the court's jurisdiction to intervene before the district judge rules and pressed DOJ attorney Matthew Donnelly on the reliability of the noncitizen list; Judge Bumatay was more sympathetic to the DOJ's position. The panel took the case under submission without ruling, saying it would try to decide before the district court's own hearing set for Oct 27.",
+  "reported_at": "2026-10-26T01:09:00Z"
+ },
+ "seed_sources": [
+  {
+   "url": "https://www.nbcnews.com/politics/2026-election/us-appeals-court-appears-skeptical-trump-dojs-lawsuit-california-voter-rcna605625",
+   "kind": "press",
+   "title": "US appeals court appears skeptical of Trump DOJ's lawsuit over California voter rolls",
+   "outlet": "NBC News",
+   "published_at": "2026-10-26T01:09:00Z"
+  },
+  {
+   "url": "https://www.foxnews.com/politics/ninth-circuit-questions-trump-doj-emergency-request-set-aside-20000-california-mail-ballots",
+   "kind": "press",
+   "title": "Ninth Circuit questions Trump DOJ's emergency request to set aside 20,000 California mail ballots",
+   "outlet": "Fox News",
+   "published_at": "2026-10-26T01:26:00Z"
+  },
+  {
+   "url": "https://www.aljazeera.com/news/2026/10/26/us-appeals-court-sceptical-of-trumps-lawsuit-over-california-voter-rolls",
+   "kind": "press",
+   "title": "US appeals court sceptical of Trump's lawsuit over California voter rolls",
+   "outlet": "Al Jazeera (state media)",
+   "published_at": "2026-10-26"
+  }
+ ],
+ "prior_coverage": []
+}
