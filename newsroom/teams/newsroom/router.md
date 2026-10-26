@@ -27,7 +27,9 @@ reviewer) в команде нет — не вызывай их. Задача б
 - title: «<Команда> <channel_id>: <story.title>»;
 - в description: `channel_id`; `mode: script` для Legal; id всех входных артефактов (`story_brief`, у Script и Legal —
   `research_dossier`, у Legal — `script`, при доработке — прошлый `script` и `legal_review`). id артефактов
-  других команд — из `delegation_result` (список артефактов с kind и id); бери последний артефакт нужного вида;
+  других команд — из `delegation_result` (список `artifacts` с kind и id); бери последний артефакт нужного вида
+  и пиши в постановку его id строкой вида «research_dossier: <id>». id самого `delegation_result` исполнителю
+  не давай: искать в нём — лишний шаг и лишняя ошибка;
 - там же строка: «Артефакты читай по id: `python3 newsroom/tools/pm_artifact.py <id> > /tmp/<kind>.json`
   (из корня репозитория). Не скачивается — заверши прогон с ошибкой, не пиши по памяти»;
 - `story_brief` целиком скопируй в description — он короткий; верна версия в артефакте;
