@@ -7,6 +7,9 @@
 
 **Вход** — в постановке задачи или во входе от роутера: `story_brief`, `research_dossier` (содержимое, id артефакта
 или путь в репозитории), при доработке — прошлый `script` и замечания; после челленджа Legal — `legal_review`.
+Вход по id артефакта (так передаёт работу Newsroom) скачай из корня репозитория:
+`python3 newsroom/tools/pm_artifact.py <id> > /tmp/<kind>.json`. Не скачивается — заверши прогон с ошибкой,
+не восстанавливай содержимое по памяти или по пересказу.
 В репозитории:
 - `channels/<channel_id>/channel.yaml` — язык, включённые площадки (`platforms.*.enabled`), длительность
   (`format.duration_s`), шаблоны (`format.templates`, `format.default_template`);
