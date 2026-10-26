@@ -18,6 +18,6 @@
 | Research | настроена | fact_researcher → `facts_report`, local_press_analyst → `local_press_report`, world_press_analyst → `world_press_report`, analyst → `research_dossier`, fact_checker (reviewer) |
 | Newsroom | E3 | editor → `story_brief`, `release_receipt` |
 | Legal | настроена | legal_counsel → `law_report`, platform_reviewer → `platform_report`, legal_lead → `legal_review` |
-| Script | E3 | scriptwriter → `script`, script_editor (reviewer) |
+| Script | настроена | scriptwriter → `script`, script_editor (reviewer) |
 | Video | E3 | video_producer → `video_package` |
 | QA | E3 | tech_validator, content_validator → `validation_report` |

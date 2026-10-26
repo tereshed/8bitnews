@@ -1,0 +1,36 @@
+{
+  "team_id": "b566ff4f-94e1-4872-a96e-1fe3c10d27c0",
+  "description": "Сценарии роликов 8bitnews: по research_dossier и формату канала (channels/<id>/format.md) пишет script — сцены с текстом диктора, текстом в кадре и визуалом со ссылками на факты досье, тайминг в бюджете слов, музыкальную подложку, метаданные под каждую площадку и обложку; редактор проверяет верность досье, формат и правила канала. Результат — script. Кода не пишет.",
+  "accepts_delegation": true,
+  "agents": [
+    {
+      "name": "router",
+      "role": "router",
+      "prompt": "router.md",
+      "common": false
+    },
+    {
+      "name": "scriptwriter",
+      "role": "scriptwriter",
+      "prompt": "scriptwriter.md",
+      "role_description": "Пишет сценарий ролика по research_dossier и channels/<id>/format.md: хук о новом повороте, сцены (текст диктора, текст в кадре, визуал, реальные люди, ссылки на F/L/W), длительность в бюджете слов, музыка, метаданные по metadata.md, обложка. Дорабатывает по ревью и по legal_review. Сдаёт script."
+    },
+    {
+      "name": "script_editor",
+      "role": "reviewer",
+      "prompt": "script_editor.md",
+      "role_description": "Ревьюер команды Script: проверяет script — опору каждой фразы на досье, оговорки и статусы фактов, бюджет слов и тайминг, формат канала, правила policy.md, метаданные, язык. Возвращает approved или changes_requested с готовыми формулировками."
+    }
+  ],
+  "deactivate": [],
+  "contracts": [
+    {
+      "kind": "script",
+      "schema": "script.schema.json",
+      "audience": [
+        "scriptwriter"
+      ],
+      "description": "Итог команды Script: сценарий ролика — сцены, тайминг, музыка, метаданные по площадкам, обложка."
+    }
+  ]
+}
