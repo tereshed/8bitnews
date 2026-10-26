@@ -1,0 +1,182 @@
+{
+ "mode": "script",
+ "issues": [
+  {
+   "id": "R1",
+   "fix": "Change S1.on_screen_text to match the hedge already used correctly in the narration and in F13, e.g. 'DOJ: knowingly count ballots, risk legal jeopardy'.",
+   "rule": {
+    "ref": "countries/us/legal.md#defamation-quotes-parody",
+    "summary": "A quote or paraphrase attributed to a named source must preserve its actual meaning and degree of certainty; amplifying a conditional warning into a definite criminal outcome is the kind of meaning-change that undermines the channel's diligence defense (Masson) and draws extra platform scrutiny for civic/election-adjacent claims."
+   },
+   "scope": "US",
+   "where": "S1.on_screen_text",
+   "family": "election",
+   "excerpt": "DOJ: knowingly count ballots, face charges",
+   "scenario": "F13's actual DOJ quote is conditional ('opening themselves to legal jeopardy'); the bold on-screen hook text attributed to 'DOJ' instead asserts a definite outcome DOJ did not state. This is the first thing viewers read -- not softened narration, which is why I keep this at high rather than medium. A critic, a later-cleared official, or a platform fact-checker could point to this as the channel putting a stronger claim in DOJ's mouth than DOJ made, inside the 10-day pre-election window platforms police for civic-integrity claims.",
+   "severity": "high",
+   "fix_owner": "script"
+  },
+  {
+   "id": "R2",
+   "fix": "Split or rephrase the lead-in, e.g. 'California election officials and congressional Democrats disagree' or two separate sentences, so DeSaulnier isn't grouped under 'election officials'.",
+   "rule": {
+    "ref": "countries/us/policy.md (раздел «Утверждения о людях и организациях»)",
+    "summary": "Attribution must be precise about who said what and in what role; the dossier itself keeps Logan's group (L2, election administrators) and DeSaulnier's group (L3, congressional Democrats) separate because their standing and arguments differ."
+   },
+   "scope": "US",
+   "where": "S5.narration",
+   "family": "other",
+   "excerpt": "California election officials disagree. LA County Registrar Dean Logan called the new letters a 'posture of intimidation.' Rep. Mark DeSaulnier called it 'the escalating weaponization of the Justice Department.'",
+   "scenario": "The lead-in 'California election officials disagree' is immediately followed by a quote from Rep. Mark DeSaulnier, a sitting member of Congress, not an election administrator. A sharp viewer, fact-checker, or DeSaulnier's office could flag the mislabeling as inaccurate role attribution in an election-sensitive story, which platforms actively police for unverified claims about an election.",
+   "severity": "medium",
+   "fix_owner": "script"
+  },
+  {
+   "id": "R3",
+   "fix": "Expand S6.source_plate to list all three outlets cited in the scene, e.g. 'Source: The Guardian, El País, CBC News · Oct 20-22'.",
+   "rule": {
+    "ref": "countries/us/policy.md (раздел «Источники в ролике»)",
+    "summary": "Every claim in the video must trace to a source, and the channel's own practice (seen in S2's source_plate listing both outlets behind that scene) is to name the outlets actually relied on in-scene, not just one of several."
+   },
+   "scope": "US",
+   "where": "S6.source_plate",
+   "family": "other",
+   "excerpt": "Source: El País · Oct 20 (while S6.narration also attributes claims to The Guardian and CBC News)",
+   "scenario": "S6 attributes distinct claims to three different outlets (The Guardian, El País, CBC News) but the in-frame source_plate names only El País. A viewer trying to verify the Guardian or CBC claim from the frame alone has no on-screen sourcing for it, weakening the fair-report/diligence record for those two claims if ever challenged.",
+   "severity": "medium",
+   "fix_owner": "script"
+  },
+  {
+   "id": "R4",
+   "fix": "Confirm Video renders the 'AI · AI voice' plate top-of-frame for S1's first 3 seconds (then the persistent small 'AI' icon per format.md) before this episode moves past script stage; no narration change needed.",
+   "rule": {
+    "ref": "operator/legal.md#ai-act-art50",
+    "summary": "EU AI Act Art. 50(4)-(5) requires the deployer (the Spain-based operator, which applies to this US channel per operator/legal.md#ai-act-scope) to disclose AI-generated/synthetic voice and content 'in a clear and distinguishable manner at the latest at the time of first interaction'; fines run up to EUR15M or 3% of global turnover."
+   },
+   "scope": "EU",
+   "where": "S1 (first 3s of video)",
+   "family": "ai_disclosure",
+   "excerpt": "S1.visual and S1.on_screen_text contain no 'AI'/'AI voice' plate text; format.md requires one top-of-frame for the first 3s, but the nes-desk template that would render it is not yet built.",
+   "scenario": "If this ships without the 'AI · AI voice' plate, a complainant could treat it as a deployer-side Art. 50(4) violation by the operator; YouTube/TikTok/Instagram could independently flag or restrict the video for undisclosed synthetic media once live, per policy.md's own 'mark everything' rule. Since nes-desk isn't built yet, this is recorded as what must exist before the episode leaves script stage, not a script-text problem.",
+   "severity": "high",
+   "fix_owner": "video"
+  },
+  {
+   "id": "R5",
+   "fix": "Confirm Video's nes-desk template renders a persistent 'AI illustration' plate (fixed position per format.md) throughout S3, S4, S5 and S6 wherever a named real person is on screen, before this moves to final render.",
+   "rule": {
+    "ref": "countries/us/legal.md#election-pixel-art",
+    "summary": "Policy.md requires an 'AI illustration' plate on screen the entire time a real person is shown; inside the active state election-deepfake window (CA AB 502's 30-day window, open since Oct 4 for the Nov 3 election) this plate doubles as the in-video disclaimer the statute requires for depictions of a candidate."
+   },
+   "scope": "US-CA",
+   "where": "S3, S4, S5, S6 (every scene listing real_people)",
+   "family": "likeness",
+   "excerpt": "S3.real_people=['Shirley Weber']; S4.real_people=['Bill Essayli']; S5.real_people=['Dean Logan','Mark DeSaulnier']; S6.real_people=['Gavin Newsom'] -- no scene's visual or on_screen_text mentions an 'AI illustration' plate.",
+   "scenario": "Rep. Mark DeSaulnier (S5) is a candidate for re-election in the Nov 3 midterms, so his stylized depiction inside the active AB 502 window needs the in-video AI disclaimer the statute contemplates, not just a platform-level flag; absent that plate, DeSaulnier or an election official could seek relief under Elec. Code §20012, and Weber, Essayli, Logan and Newsom separately need the plate under right-of-publicity rules regardless of the election-law angle.",
+   "severity": "high",
+   "fix_owner": "video"
+  },
+  {
+   "id": "R6",
+   "fix": "Confirm at render time that Video/Studio produces the format.md-mandated separate, music-less audio mix for the YouTube cut of this 90s episode before upload; TikTok and Instagram keep the music; no script change needed.",
+   "rule": {
+    "ref": "channels/8bitnews-us/format.md (раздел «Музыка и длина»)",
+    "summary": "Format.md requires a separate music-less YouTube mix for any cut longer than 60s, because YouTube blocks Shorts 61-90s outright on any active Content ID claim 'regardless of policy' (platforms/youtube/rules.md §6), and CC0 tracks here have unknown Content ID status."
+   },
+   "scope": "youtube",
+   "where": "music (global), duration_s=90",
+   "family": "reach",
+   "excerpt": "script_team.json music block: {enabled: true, duration_s: 90, one cue spanning the full runtime} with no YouTube-specific no-music variant noted; music/catalog.yaml lists content_id: unknown for every approved CC0 track.",
+   "scenario": "If the rendered YouTube Short keeps the same music track as the TikTok/Instagram cuts and any rights holder (or a library that registered the CC0 track in Content ID without the channel's knowledge) files a claim, YouTube auto-blocks the entire Short on that platform -- not just demonetizes it -- regardless of the track's CC0 licensing. I keep this at high rather than platform_report's medium: the realistic worst case here is a full removal of the upload, not a reach or revenue hit, given every candidate track's Content ID status is unknown.",
+   "severity": "high",
+   "fix_owner": "video"
+  },
+  {
+   "id": "P2",
+   "fix": "Replace the seal graphic with a plain text chip reading 'DOJ' in the channel's pixel font, or a generic unbranded government-building icon, instead of a seal-style stamp.",
+   "rule": {
+    "ref": "channels/8bitnews-us/format.md (обложка)",
+    "summary": "Cover art must stay in the channel's own pixel-art brand and state only what's in the dossier; it should not borrow real institutional insignia that could make the thumbnail read as official or affiliated content, the pattern YouTube's thumbnail/misleading-metadata policy cautions against."
+   },
+   "scope": "youtube, tiktok, instagram",
+   "where": "cover.visual",
+   "family": "metadata",
+   "excerpt": "Stylized California map with a pulsing red alert over a ballot-box icon and a small DOJ seal stamp in the corner.",
+   "scenario": "A viewer or a platform reviewer doing a quick thumbnail check could read the DOJ seal as implying the video is official DOJ content or produced with the agency's involvement. None of the three platforms' rules carve out an exception for stylized government insignia on an unaffiliated news channel's cover, so this is a precautionary edit rather than a clear violation.",
+   "severity": "medium",
+   "fix_owner": "video"
+  },
+  {
+   "id": "X1",
+   "fix": "Move the gavel icon out of Weber's shot into a neutral courthouse-establishing beat for the Oct 27 hearing date, or replace it with a plain calendar/clock icon with no judicial symbolism; if a gavel is used at all, keep it generic and not co-located with any named person's portrait.",
+   "rule": {
+    "ref": "channels/8bitnews-us/format.md (раздел «Чего не делаем»)",
+    "summary": "Format.md explicitly bans pairing tense music, dark lighting or 'villain framing' with a real person who has not been found guilty of anything, stating that combination is itself an accusation; the dossier's own risk list separately bars dramatized arrest, crime, or endorsement scenes for any named official."
+   },
+   "scope": "US",
+   "where": "S3.visual",
+   "family": "defamation",
+   "excerpt": "A sealed thumb drive with a padlock icon sits untouched on a county office desk; nearby, Secretary Weber signs a letter at her own desk as a calendar flips its pages from Oct 13 to Oct 27 and a gavel icon appears. -- shown under the episode's tense chiptune cue, described as building through 'what's-new' and 'known' and lifting at points through the runtime.",
+   "scenario": "Weber is the California official refusing to hand DOJ the password-protected list and contesting DOJ's lawsuit -- she is not accused of any crime, and the Oct. 27 hearing is about the county's refusal to comply, not about her personal conduct. Placing a gavel icon directly over her shot, under the episode's building tense score, visually suggests she personally faces judgment for that hearing -- the exact visual-plus-score 'verdict' framing format.md forbids for anyone not yet adjudicated. Weber's office, or a platform civil-integrity reviewer doing a frame-by-frame check in the pre-election window, could read this as implying an unresolved legal conclusion about a named election official that the narration itself never states.",
+   "severity": "high",
+   "fix_owner": "script"
+  }
+ ],
+ "country": "US",
+ "verdict": "fix_required",
+ "platforms": {
+  "tiktok": {
+   "reason": "Open high issues: R1, R4, R5 apply (same on-screen text, same missing AI plaques). Medium: P2.",
+   "verdict": "fix_required"
+  },
+  "youtube": {
+   "reason": "Open high issues: R1 (on-screen text overstates DOJ's quote), R4 (hook AI/AI-voice plaque not yet rendered), R5 (AI illustration plaque for real people not yet rendered), R6 (must confirm the music-less YouTube mix for this 90s cut). Medium: P2 (DOJ seal on cover).",
+   "verdict": "fix_required"
+  },
+  "instagram": {
+   "reason": "Open high issues: R1, R4, R5 apply. Medium: P2. Instagram's own rule makes the AI-voice disclosure mandatory regardless of style.",
+   "verdict": "fix_required"
+  }
+ },
+ "channel_id": "8bitnews-us",
+ "summary_ru": "Сценарий требует правок на всех трёх площадках (fix_required), блокеров и причин для kill нет. Главные риски: заголовок в кадре S1 усиливает условную цитату DOJ до «face charges»; гавар-иконка рядом с Weber под тревожной музыкой в S3 визуально намекает на вину без приговора; обязательные AI-плашки (голос, иллюстрация) ещё не отрисованы — шаблон nes-desk не готов; для YouTube нужен бесмузыкальный микс на 90 секунд. Плюс обложка с печатью DOJ и неточная атрибуция роли DeSaulnier — средние замечания.",
+ "checked_against": [
+  "newsroom/trials/2026-10-24-ca-ballots/story_brief.json",
+  "newsroom/trials/2026-10-24-ca-ballots/research_dossier.json (as_of 2026-10-24T20:00:00Z)",
+  "newsroom/trials/2026-10-24-ca-ballots/script_team.json",
+  "channels/8bitnews-us/channel.yaml",
+  "channels/8bitnews-us/format.md",
+  "channels/8bitnews-us/metadata.md",
+  "countries/us/legal.md (verified_at 2026-10-24)",
+  "countries/us/policy.md",
+  "operator/legal.md (verified_at 2026-10-24)",
+  "platforms/youtube/rules.md (verified_at 2026-10-24)",
+  "platforms/tiktok/rules.md (verified_at 2026-10-24)",
+  "platforms/instagram/rules.md (verified_at 2026-10-24)",
+  "music/catalog.yaml",
+  "law_report bed1d387-e55c-4696-9c0c-a79d11d6f384",
+  "platform_report 91b773ed-dc54-4935-91b4-740a467e9020"
+ ],
+ "required_disclosures": [
+  {
+   "ref": "platforms/youtube/rules.md §3 (GenAI disclosure), channels/8bitnews-us/format.md, countries/us/policy.md#раскрытие",
+   "what": "'AI · AI voice' on-screen plaque top-of-frame for the hook (first 3s), then a persistent small 'AI' icon for the rest of the video; API fields status.containsSyntheticMedia=true and status.selfDeclaredMadeForKids=false at upload; YouTube description keeps metadata.md's standard AI-disclosure line ('synthetic narration and AI-generated pixel-art visuals; real people are shown in stylized form').",
+   "scope": "youtube"
+  },
+  {
+   "ref": "platforms/tiktok/rules.md §3 (AIGC), channels/8bitnews-us/metadata.md",
+   "what": "Same in-video 'AI'/'AI voice' plaque; API field post_info.is_aigc=true at publish; caption line 'AI voice and visuals.' per the channel's TikTok caption template.",
+   "scope": "tiktok"
+  },
+  {
+   "ref": "platforms/instagram/rules.md §3",
+   "what": "Same in-video AI plaque; API field is_ai_generated=true (mandatory here since the voiceover is a realistic AI voice); caption line 'AI voice and visuals; real people are shown as stylized illustrations.'",
+   "scope": "instagram"
+  },
+  {
+   "ref": "channels/8bitnews-us/format.md (Текст в кадре), countries/us/legal.md#election-pixel-art",
+   "what": "'AI illustration' plaque, fixed position per the nes-desk template, visible for the full time any real person is on screen (S3 Weber, S4 Essayli, S5 Logan and DeSaulnier, S6 Newsom); for DeSaulnier this plaque doubles as the CA AB 502 election-deepfake disclaimer while the 30-day pre-election window is open.",
+   "scope": "youtube, tiktok, instagram, US-CA"
+  }
+ ]
+}

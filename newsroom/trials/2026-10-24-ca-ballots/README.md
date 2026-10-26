@@ -8,3 +8,5 @@
   образец и не давайте командам Script и Research.
 - `script_team.json` — сценарий команды Script после одной доработки, одобренный script_editor (задача af789b0b,
   артефакт 3a4ddc2c, ревью 63e4226a).
+- `legal_review_team.json` — челлендж Legal (`mode: script`) по `script_team.json`: fix_required на всех площадках,
+  блокеров нет (задача f460d465, артефакт 91b0d45f). Замечания с `fix_owner: video` — требования к шаблону в E2.
