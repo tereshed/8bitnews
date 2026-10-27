@@ -206,13 +206,77 @@ in `channels/8bitnews-us/` and `templates/*/assets/`; it is not part of the
 shipped engine, just how the placeholders were made (documented so the
 next pass can regenerate or replace them deliberately).
 
-## Known gaps (left for E2a-2 / E2a-3, or explicitly deferred)
+## `studio build` (E2a-2a)
 
-- No TTS, no real voice volume envelope (the uniform timeline stands in).
-- No music, no loudness/ducking.
-- No `studio build`, no `package.json`, no end-to-end video assembly from a
-  real script end to end — `template preview` only runs the built-in demo
-  script.
+`studio build --script <script.json> --channel <id> [--channels-dir <dir>]
+[--template <dir-or-id>] [--assets <dir>] [--tts stub] --out <dir>` turns a
+`newsroom/contracts/script.schema.json` document into a self-contained
+`newsroom/contracts/video_package.schema.json` package: `video.mp4`,
+`subtitles.srt`, `cover.png`, `timeline.json`, a copy of `script.json` and
+of the template package used, every scene's `keyframes/<id>_first.png` /
+`_mid.png`, and `package.json` itself.
+
+Pipeline (`studio/studio/build.py`): per-scene TTS (`studio/studio/tts.py`;
+`studio.pronunciation` applies/undoes `script.pronunciations` hints around
+it, general code so a future Kokoro adapter gets it for free) ->
+`timeline.timeline_from_voice` (real word timings + the template's
+`timing.scene_pause_s` gap between scenes, none at either end) ->
+`audio.mix_audio` (passthrough until E2a-3 adds music) -> frames rendered
+and written to disk one at a time (kept around after the build so a later
+pass can re-encode without music) -> `video.encode` (H.264+AAC, ×4
+nearest-neighbour to 1080×1920 @ 30fps) -> cover + keyframes -> a
+schema-validated `package.json` with `studio validate`'s result already
+attached in `validate`.
+
+**Files in the container.** `studio-test` and `studio-build-sample` mount
+the repo root read-only at `/repo` and set `STUDIO_REPO_ROOT=/repo`: the
+channel's publishing profile (`<channels-dir>/<id>/channel.yaml`, default
+`$STUDIO_REPO_ROOT/channels`, overridable with `--channels-dir` on both
+`build` and `validate`) and the contract schemas
+(`$STUDIO_REPO_ROOT/newsroom/contracts/*.schema.json`) are read from there,
+separately from `studio/channels/<id>/` (the font/palette/anchor assets
+`template.palette()`/`channel_assets.py` use). If the root isn't mounted,
+`studio.repo.repo_root()` raises instead of silently skipping anything that
+needs it.
+
+**Subtitles.** `studio.subtitles.split_cues` replaces E2a-1's
+`split_subtitles`: it groups actual timed words (not re-split narration
+text) into cues capped at the active template's
+`subtitles.style.max_lines`/`max_chars_per_line`, cutting after the last
+sentence punctuation (or a comma from the 3rd word on) inside the maximal
+group that still fits, and holding a cue up to the next one's start if the
+gap is under 0.3s. The same cues go on screen and into `subtitles.srt`.
+
+**Cover.** `cover.frame: S*` renders that scene's middle frame with only
+the scene_title/source_plate/ai_illustration plates (`engine.render_cover_frame`)
+— no AI-voice/AI-icon plate or subtitles, since a still cover has no video
+timeline of its own. `cover.frame: custom` quantizes `<assets>/cover.png` to
+the template's palette at 270×480 (or falls back to `cover.layout.background`
+if there's no custom asset) and word-wraps `cover.text` inside
+`cover.layout.text_rect`; `build.fit_cover_title` raises a readable
+`BuildError` if the title needs more lines than the rect has room for.
+
+**`studio validate --package <dir>/package.json [--channels-dir <dir>]`**
+runs the registry in `studio/studio/checks.py` (fixed `id`s: `format`,
+`duration`, `file_size`, `subtitles_cover_words` in this pass; E2a-2b/E2a-3
+add more) and exits non-zero if any check fails. The same registry backs
+the `validate` field a fresh `studio build` writes into its own
+`package.json`.
+
+```sh
+make studio-build-sample   # builds newsroom/trials/2026-10-26-ninth-circuit
+                            # with the stub voice into out/studio-sample/
+```
+
+## Known gaps (left for E2a-2b / E2a-3, or explicitly deferred)
+
+- No real voice: `--tts stub` is a deterministic quiet tone; E2a-3 adds a
+  `kokoro` entry to `studio.tts.ADAPTERS` without changing the interface.
+- No music, no loudness ducking: `audio.mix_audio` is a passthrough and
+  `package.json`'s `music.enabled` is always `false` (E2a-3).
+- `studio validate`'s registry has only the four checks this task adds;
+  E2a-2b's plate/image/text checks and E2a-3's loudness/music checks land
+  in the same registry.
 - Transition sounds (`transitions[].sound`) are validated as data but not
   played — the sound files themselves ship in E2a-3.
 - The scene-title plate's rect height is fixed by the template (not shrunk

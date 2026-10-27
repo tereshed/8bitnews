@@ -136,6 +136,19 @@
         }
       }
     },
+    "timing": {
+      "type": "object",
+      "description": "Timing knobs that depend on the template, not the channel (E2a-2a: studio build).",
+      "properties": {
+        "scene_pause_s": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.3,
+          "description": "Silence between consecutive scenes when the Timeline is built from real voice timings; no pause before the first or after the last scene."
+        }
+      }
+    },
     "cover": {
       "type": "object",
       "required": ["layout"],

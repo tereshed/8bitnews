@@ -1,0 +1,75 @@
+{
+  "channel_id": "8bitnews-us",
+  "language": "en-US",
+  "duration_s": 17,
+  "word_count": 33,
+  "serious_mode": false,
+  "hook_type": "new_fact",
+  "music": { "enabled": false },
+  "pronunciations": [
+    { "text": "Garcetti", "say": "gar-SET-ee" }
+  ],
+  "scenes": [
+    {
+      "id": "S1",
+      "blocks": ["hook"],
+      "shot": "anchor",
+      "duration_s": 3.5,
+      "narration": "Pixels report a quick test today.",
+      "word_count": 6,
+      "on_screen_text": "Test hook",
+      "visual": "The anchor sits at the studio desk and introduces a short test story.",
+      "real_people": [],
+      "fact_ids": []
+    },
+    {
+      "id": "S2",
+      "blocks": ["whats_new"],
+      "shot": "scene",
+      "duration_s": 5.0,
+      "narration": "Mayor Garcetti's plan just passed the city council quickly.",
+      "word_count": 9,
+      "on_screen_text": "City council vote passes",
+      "visual": "A pixel-art city council chamber with Garcetti speaking at the podium.",
+      "real_people": ["Mayor Garcetti"],
+      "fact_ids": ["F1"]
+    },
+    {
+      "id": "S3",
+      "blocks": ["known"],
+      "shot": "scene",
+      "duration_s": 5.5,
+      "narration": "Before this, the council had delayed the vote twice this year.",
+      "word_count": 11,
+      "on_screen_text": "Vote delayed twice before",
+      "source_plate": "Source: City records · Oct 1",
+      "visual": "A pixel-art council chamber calendar flipping through delayed vote dates.",
+      "real_people": [],
+      "fact_ids": ["F1"]
+    },
+    {
+      "id": "S4",
+      "blocks": ["outro"],
+      "shot": "anchor",
+      "duration_s": 3.0,
+      "narration": "Follow for more pixel news next week.",
+      "word_count": 7,
+      "on_screen_text": "Follow for more",
+      "visual": "The anchor waves goodbye at the pixel news studio desk calmly.",
+      "real_people": [],
+      "fact_ids": []
+    }
+  ],
+  "metadata": {
+    "youtube": {
+      "title": "Pixel News Test Fixture Short Script",
+      "summary": "A short fixture script used by the studio build test suite to exercise the whole pipeline.",
+      "hashtags": ["#test"]
+    }
+  },
+  "cover": {
+    "frame": "S1",
+    "visual": "Anchor intro test frame for the cover image fixture.",
+    "text": "Pixel News Test"
+  }
+}

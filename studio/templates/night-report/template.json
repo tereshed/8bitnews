@@ -114,6 +114,9 @@
       "max_chars_per_line": 23
     }
   },
+  "timing": {
+    "scene_pause_s": 0.3
+  },
   "motion_presets": [
     {
       "id": "slow-pan",
@@ -173,7 +176,7 @@
         "x": 10,
         "y": 378,
         "w": 190,
-        "h": 18
+        "h": 22
       }
     }
   },

@@ -11,7 +11,7 @@ REF ?= main
 
 STUDIO_IMAGE := 8bitnews-studio
 
-.PHONY: lint test validate-profiles up down deploy-hub-vm deploy-hub deploy-hub-backup deploy-check studio-image studio-test studio-preview
+.PHONY: lint test validate-profiles up down deploy-hub-vm deploy-hub deploy-hub-backup deploy-check studio-image studio-test studio-preview studio-build-sample
 
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run ./...
@@ -53,12 +53,19 @@ studio-image:
 	docker build -t $(STUDIO_IMAGE) ./studio
 
 studio-test: studio-image
-	docker run --rm --entrypoint python $(STUDIO_IMAGE) -m pytest -q
+	docker run --rm -v $(CURDIR):/repo:ro -e STUDIO_REPO_ROOT=/repo --entrypoint python $(STUDIO_IMAGE) -m pytest -q
 
 studio-preview: studio-image
 	mkdir -p out/studio-preview
 	docker run --rm -v $(CURDIR)/out/studio-preview:/app/out $(STUDIO_IMAGE) \
 		template preview templates/nes-desk --out out
+
+# E2a-2a: studio build (studio/README.md). stub voice, --channels-dir reads
+# the real channel.yaml from the mounted repo root.
+studio-build-sample: studio-image
+	mkdir -p out/studio-sample
+	docker run --rm -v $(CURDIR):/repo:ro -e STUDIO_REPO_ROOT=/repo -v $(CURDIR)/out/studio-sample:/app/out $(STUDIO_IMAGE) \
+		build --script /repo/newsroom/trials/2026-10-26-ninth-circuit/script.json --channel 8bitnews-us --tts stub --out out
 
 # Fully offline: ansible-playbook --syntax-check + ansible-lint on all three
 # playbooks, `caddy validate`/`nft -c -f` on rendered templates, and

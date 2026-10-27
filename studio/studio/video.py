@@ -67,3 +67,32 @@ def encode_mp4(frames_dir: Path, out_path: Path, duration_s: float, fps: int = F
         str(out_path),
     ]
     subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+
+def encode(frames_dir: Path, audio_path: Path, out_path: Path, fps: int = FPS) -> None:
+    """`studio build`'s encode step: frame_%06d.png (logical 270x480) plus a
+    real audio track (voice, or voice+music once E2a-3 lands) into the
+    channel's final H.264/AAC 1080x1920 MP4 -- same ×4 nearest-neighbour
+    scaling as `encode_mp4`, but with real audio instead of a test tone."""
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-framerate",
+        str(fps),
+        "-i",
+        str(frames_dir / "frame_%06d.png"),
+        "-i",
+        str(audio_path),
+        "-vf",
+        f"scale={OUTPUT_W}:{OUTPUT_H}:flags=neighbor",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-shortest",
+        str(out_path),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, text=True)

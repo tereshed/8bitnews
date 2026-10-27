@@ -299,28 +299,27 @@ def active_plates(script: dict, scene_timing: SceneTiming, template: TemplatePac
     return plates
 
 
-def _render_core(
+def _render_scene_pixels(
     script: dict,
+    scene: dict,
+    scene_timing: SceneTiming,
     template: TemplatePackage,
     assets: ChannelAssets,
     t_abs: float,
     assets_dir: Path | None,
     palette: Palette,
     font,
-    scene_timing: SceneTiming,
 ) -> Image.Image:
-    """Renders one scene's content, plates and subtitles -- everything
-    `render_frame` needs both for the frame actually requested and for the
-    previous scene's frozen last frame a transition blends from."""
-    scene = _scene_data(script, scene_timing.scene_id)
-
     if scene["shot"] == "anchor":
-        frame = _render_anchor_shot(script, scene, scene_timing, template, assets, t_abs, assets_dir, palette, font)
-    else:
-        frame = _render_scene_shot(script, scene, scene_timing, template, t_abs, assets_dir, palette, font)
+        return _render_anchor_shot(script, scene, scene_timing, template, assets, t_abs, assets_dir, palette, font)
+    return _render_scene_shot(script, scene, scene_timing, template, t_abs, assets_dir, palette, font)
 
-    plates = active_plates(script, scene_timing, template, t_abs)
 
+def _draw_content_plates(frame: Image.Image, scene: dict, plates: set[str], template: TemplatePackage, font) -> None:
+    """Scene-title / source / AI-illustration plates -- shared by the timed
+    frame render (`_render_core`) and the untimed cover render
+    (`render_cover_frame`), which skips the AI-voice/AI-icon plate and
+    subtitles a still cover doesn't need."""
     if "scene_title" in plates:
         title_cfg = template.plate("scene_title")
         max_chars = _max_chars_for_rect(title_cfg["rect"]["w"])
@@ -335,6 +334,70 @@ def _render_core(
 
     if "ai_illustration" in plates:
         _draw_plate(frame, template.plate("ai_illustration"), ["AI illustration"], font)
+
+
+def render_cover_frame(
+    script: dict,
+    timeline: Timeline,
+    template: TemplatePackage,
+    assets: ChannelAssets,
+    t_abs: float,
+    assets_dir: Path | None = None,
+) -> Image.Image:
+    """A still frame for `cover.frame: S*`: the same scene pixels as the
+    timed render at `t_abs`, but only the scene_title/source_plate/
+    ai_illustration plates -- no AI-voice/AI-icon plate (those are timed
+    relative to the video's start, which a still cover has none of) and no
+    subtitles."""
+    scene_timing = timeline.scene_at(t_abs)
+    scene = _scene_data(script, scene_timing.scene_id)
+    serious = bool(script.get("serious_mode"))
+    palette = template.palette(serious=serious)
+    font = assets.font(FONT_PX)
+    frame = _render_scene_pixels(script, scene, scene_timing, template, assets, t_abs, assets_dir, palette, font)
+    plates = active_plates(script, scene_timing, template, t_abs) & {"scene_title", "source_plate", "ai_illustration"}
+    _draw_content_plates(frame, scene, plates, template, font)
+    return frame.convert("RGB")
+
+
+def _select_transition(template: TemplatePackage, scene_index: int) -> dict | None:
+    if scene_index == 0:
+        return None
+    transitions = template.data.get("transitions", [])
+    if not transitions:
+        return None
+    return transitions[scene_index % len(transitions)]
+
+
+def scene_transition_duration(template: TemplatePackage, scene_index: int) -> float:
+    """How long (seconds) the scene at `scene_index` spends blending in from
+    the previous one -- 0 for the first scene, a `cut`, or a template with
+    no transitions. Used by `studio build` to find each scene's first
+    keyframe just after this blend ends."""
+    transition = _select_transition(template, scene_index)
+    if transition is None or transition["type"] == "cut":
+        return 0.0
+    return transition.get("duration_s", 0.0)
+
+
+def _render_core(
+    script: dict,
+    template: TemplatePackage,
+    assets: ChannelAssets,
+    t_abs: float,
+    assets_dir: Path | None,
+    palette: Palette,
+    font,
+    scene_timing: SceneTiming,
+) -> Image.Image:
+    """Renders one scene's content, plates and subtitles -- everything
+    `render_frame` needs both for the frame actually requested and for the
+    previous scene's frozen last frame a transition blends from."""
+    scene = _scene_data(script, scene_timing.scene_id)
+    frame = _render_scene_pixels(script, scene, scene_timing, template, assets, t_abs, assets_dir, palette, font)
+
+    plates = active_plates(script, scene_timing, template, t_abs)
+    _draw_content_plates(frame, scene, plates, template, font)
 
     if "ai_voice" in plates:
         _draw_plate(frame, template.plate("ai_voice"), ["AI · AI voice"], font)
@@ -427,10 +490,9 @@ def render_frame(
     if scene_index == 0:
         return frame
 
-    transitions = template.data.get("transitions", [])
-    if not transitions:
+    transition = _select_transition(template, scene_index)
+    if transition is None:
         return frame
-    transition = transitions[scene_index % len(transitions)]
     duration = transition.get("duration_s", 0.0)
     elapsed = t_abs - scene_timing.start_s
     if transition["type"] == "cut" or duration <= 0 or elapsed >= duration:
