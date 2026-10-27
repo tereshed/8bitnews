@@ -83,11 +83,12 @@ def built_package(tmp_path_factory) -> dict:
     return {"out_dir": out_dir, "package_path": package_path, "package": json.loads(package_path.read_text())}
 
 
-def _corrupt_copy(pkg: dict, fn) -> Path:
+def _corrupt_copy(pkg: dict, fn, rehash: bool = True) -> Path:
     """Copies the built package directory, applies `fn(copy_dir, package)`
-    to corrupt it, and recomputes sha256/bytes in `files` for whatever `fn`
-    touched -- the shared helper every registry-check negative test uses
-    (studio/README.md task 11)."""
+    to corrupt it, and recomputes sha256/bytes of every file record (`files`
+    and scenes' keyframes) so only the check under test sees the damage --
+    the shared helper every registry-check negative test uses.
+    `rehash=False` leaves the records stale (for the package_schema check)."""
     import hashlib
     import json
 
@@ -100,7 +101,8 @@ def _corrupt_copy(pkg: dict, fn) -> Path:
     package = json.loads((copy_dir / "package.json").read_text())
     fn(copy_dir, package)
 
-    for entry in package["files"].values():
+    entries = list(package["files"].values()) + [kf for scene in package["scenes"] for kf in scene["keyframes"]]
+    for entry in entries if rehash else []:
         path = copy_dir / entry["path"]
         h = hashlib.sha256()
         size = 0

@@ -11,6 +11,7 @@ import jsonschema
 
 from .channel_assets import load_channel_assets
 from .constants import FONT_PX
+from .cover_title import COVER_TEXT_MAX_CHARS, cover_text_capacity, worst_case_title_lines
 from .errors import TemplateValidationError
 from .palette import channel_palette_set, image_colors_in_palette
 from .paths import TEMPLATE_SCHEMA_PATH
@@ -30,6 +31,10 @@ _FIXED_PLATE_TEXT = {
 # scene_title/source_plate hold scene-dependent text; validate only that the
 # rect can fit at least one line of *some* text, per the review ("хотя бы одну строку").
 _MIN_LINE_PROBE_TEXT = "W"
+# ...and that it is tall enough for its declared max_lines (engine._draw_plate:
+# 2px pad, then FONT_PX+2 per line).
+_TEXT_PLATES = ("scene_title", "source_plate")
+_DEFAULT_PLATE_MAX_LINES = 2
 
 
 def _srgb_to_linear(c: float) -> float:
@@ -172,6 +177,12 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
                 f"plates.{plate_name}.rect {rect} overlaps the anchor's face {face_rect} "
                 f"(channels/{channel_id}/anchor/manifest.json face_rect, scaled/offset by studio.anchor)"
             )
+        if plate_name in _TEXT_PLATES:
+            n = plate.get("max_lines", _DEFAULT_PLATE_MAX_LINES)
+            if rect["h"] < 10 * n + 2:
+                problems.append(
+                    f"plates.{plate_name}.rect h={rect['h']} is too low for max_lines={n}: needs at least {10 * n + 2}"
+                )
         min_w, min_h = _min_plate_size(plate_name, font)
         if rect["w"] < min_w or rect["h"] < min_h:
             problems.append(
@@ -201,8 +212,23 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
             )
 
     cover_rect = data.get("cover", {}).get("layout", {}).get("text_rect")
-    if cover_rect is not None and not rect_within(cover_rect, safe_rect):
-        problems.append(f"cover.layout.text_rect {cover_rect} is outside the common safe zone {safe_rect}")
+    if cover_rect is not None:
+        if not rect_within(cover_rect, safe_rect):
+            problems.append(f"cover.layout.text_rect {cover_rect} is outside the common safe zone {safe_rect}")
+        # The title is drawn over S* covers too: anchor frames keep the face
+        # and the AI-illustration plate, so it must clear both.
+        if rects_intersect(cover_rect, face_rect):
+            problems.append(f"cover.layout.text_rect {cover_rect} overlaps the anchor's face {face_rect}")
+        ai_rect = data["plates"]["ai_illustration"]["rect"]
+        if rects_intersect(cover_rect, ai_rect):
+            problems.append(f"cover.layout.text_rect {cover_rect} overlaps plates.ai_illustration {ai_rect}")
+        max_chars, max_rows = cover_text_capacity(cover_rect)
+        needed = worst_case_title_lines(max_chars)
+        if needed > max_rows:
+            problems.append(
+                f"cover.layout.text_rect {cover_rect} fits {max_rows} line(s) of {max_chars} characters; a "
+                f"{COVER_TEXT_MAX_CHARS}-character title can need {needed} (h >= {FONT_PX + (needed - 1) * (FONT_PX + 2) + 4})"
+            )
 
     for color in data.get("palette", {}).get("colors", []):
         if color.lower() not in palette_set:

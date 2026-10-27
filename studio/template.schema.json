@@ -212,7 +212,14 @@
       "properties": {
         "rect": { "$ref": "#/$defs/rect" },
         "bg_color": { "$ref": "#/$defs/hex_color" },
-        "text_color": { "$ref": "#/$defs/hex_color" }
+        "text_color": { "$ref": "#/$defs/hex_color" },
+        "max_lines": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "default": 2,
+          "description": "Lines of scene text the plate holds (scene_title, source_plate). The rect must be at least 10*max_lines+2 px high; studio build fails on text that needs more lines."
+        }
       }
     }
   }

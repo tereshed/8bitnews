@@ -87,17 +87,19 @@
         "h": 36
       },
       "bg_color": "#000000",
-      "text_color": "#f8f8f8"
+      "text_color": "#f8f8f8",
+      "max_lines": 2
     },
     "source_plate": {
       "rect": {
         "x": 10,
         "y": 89,
         "w": 190,
-        "h": 28
+        "h": 32
       },
       "bg_color": "#000000",
-      "text_color": "#7c7c7c"
+      "text_color": "#7c7c7c",
+      "max_lines": 3
     }
   },
   "subtitles": {
@@ -174,9 +176,9 @@
       "background": "assets/sample_scene.png",
       "text_rect": {
         "x": 10,
-        "y": 378,
+        "y": 322,
         "w": 190,
-        "h": 22
+        "h": 32
       }
     }
   },

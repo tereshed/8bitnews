@@ -249,9 +249,12 @@ gap is under 0.3s. The same cues go on screen and into `subtitles.srt`.
 
 **Cover.** Both kinds carry `cover.text` (format.md: a cover is a frame
 with a title of up to 30 characters), word-wrapped inside
-`cover.layout.text_rect` in the subtitle colors (`build.cover_title_layout`);
-`build.fit_cover_title` raises a readable `BuildError` if the title needs
-more lines than the rect has room for.
+`cover.layout.text_rect` in the subtitle colors
+(`cover_title.cover_title_layout`); `cover_title.fit_cover_title` raises a
+readable `BuildError` if the title needs more lines than the rect has room
+for, checked before TTS. `studio template validate` requires the rect to
+hold any 30-character title and to clear the anchor's face and the
+AI-illustration plate.
 - `cover.frame: S*` — that scene's middle frame (`engine.render_cover_frame`)
   with `engine.cover_plates` only: the AI-illustration plate by the same rule
   as the video (a real person in the scene or on the screen behind the
@@ -273,10 +276,47 @@ script's path relative to the repo root when it lives inside it.
 (e.g. a multi-word phrase) is not applied: `build` prints a warning and
 records it in `package.notes`.
 
+**Plates never cut text.** `scene_title` and `source_plate` wrap scene text
+to the plate width and hold up to `max_lines` lines (template schema, 1–3,
+default 2). `build` refuses a script whose
+`on_screen_text` or `source_plate` needs more lines (format.md: title up to
+2 lines, source up to 3 — `scene_title` uses 2, `source_plate` 3), naming the scene, the
+field and the line count (`build.check_plate_text`), before any TTS or
+rendering. `studio template validate` requires such a plate to be at least
+`10*max_lines+2` px high.
+
+**Pauses between scenes** hold the previous scene's picture
+(`Timeline.scene_at` returns the last scene that has started); before
+E2a-2b they rendered black.
+
 **`studio validate --package <dir>/package.json [--channels-dir <dir>]`**
-runs the registry in `studio/studio/checks.py` (fixed `id`s: `format`,
-`duration`, `file_size`, `subtitles_cover_words` in this pass; E2a-2b/E2a-3
-add more) and exits non-zero if any check fails.
+runs the registry in `studio/studio/checks.py` and exits non-zero if any
+check fails. Each check is a function registered under a fixed `id` with
+`@register("<id>")`, returning `{id, ok, value, expected, note}`:
+
+| id | what it checks |
+|---|---|
+| `format` | 1080×1920, 30 fps, H.264 + AAC (ffprobe) |
+| `duration` | measured `video.mp4` length inside the channel range and within 0.1 s of `package.duration_s` |
+| `file_size` | `video.mp4` ≤ `max_file_size_bytes` (`studio/config.json`) |
+| `subtitles_cover_words` | SRT cue text and timing against `timeline.json` words (below) |
+| `package_schema` | `package.json` against `video_package.schema.json`; `sha256`/`bytes` of every file record (`files.*` including `files.template` = `template/template.json`, scenes' keyframes) against the file, no path outside the package; every keyframe the package lists has its `timeline.json` record (scene, `t_s = frame/30`) |
+| `template_valid` | the package's `template/` copy passes `studio template validate` and is the template `package.template` names |
+| `keyframes_grid_palette` | keyframes and cover: 1080×1920, every 4×4 cell one color, NES palette only |
+| `ai_plates` | on every keyframe and an `S*` cover, by pixels: the plate rect equals that plate drawn with its format.md label («AI · AI voice», «AI», «AI illustration»). Required: `ai_voice` before 3 s, `ai_icon` after, `ai_illustration` whenever a real person is in frame (scene or the screen behind the anchor) — stated independently of `engine.active_plates`, which must agree |
+| `face_clear` | on anchor keyframes and an anchor cover, the face rect equals the anchor sprite for that moment (pose, blink, mouth) |
+| `video_matches_keyframes` | each keyframe PNG against the video frame with the same number, per 4×4 cell: no cell's mean difference above `max_keyframe_cell_diff` (`studio/config.json`) |
+| `no_black_frames` | ffmpeg `blackdetect` (whole picture black, `pic_th=1.0`): no black frame anywhere; an unreadable video fails |
+| `disclosures` | `ai_voice`, `ai_visuals` true and `ai_label` true for every enabled platform |
+| `loudness`, `true_peak`, `silence`, `music_under_voice`, `video_no_music` | placeholders returning `ok` with "not implemented (E2a-3)"; E2a-3 replaces them by registering real functions under the same ids |
+
+Keyframes taken mid-transition (only a scene shorter than its transition
+gets them) are skipped by `ai_plates` and `face_clear`: there the picture
+legitimately mixes two scenes.
+
+Negative tests in `tests/test_validate_checks.py` corrupt a copy of the
+session build with `corrupt_copy` (which re-hashes every file record unless
+`rehash=False`) and expect that one check to fail.
 - `duration` measures `video.mp4` with ffprobe: it must be inside the
   channel's `format.duration_s` and within 0.1 s of `package.duration_s`.
 - `subtitles_cover_words` reads cues from `subtitles.srt` and words from
@@ -293,15 +333,13 @@ make studio-build-sample   # builds newsroom/trials/2026-10-26-ninth-circuit
                             # with the stub voice into out/studio-sample/
 ```
 
-## Known gaps (left for E2a-2b / E2a-3, or explicitly deferred)
+## Known gaps (left for E2a-3, or explicitly deferred)
 
 - No real voice: `--tts stub` is a deterministic quiet tone; E2a-3 adds a
   `kokoro` entry to `studio.tts.ADAPTERS` without changing the interface.
 - No music, no loudness ducking: `audio.mix_audio` is a passthrough and
   `package.json`'s `music.enabled` is always `false` (E2a-3).
-- `studio validate`'s registry has only the four checks this task adds;
-  E2a-2b's plate/image/text checks and E2a-3's loudness/music checks land
-  in the same registry.
+- Audio checks are placeholders until E2a-3 (see the table above).
 - Transition sounds (`transitions[].sound`) are validated as data but not
   played — the sound files themselves ship in E2a-3.
 - The scene-title plate's rect height is fixed by the template (not shrunk
