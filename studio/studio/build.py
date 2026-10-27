@@ -118,7 +118,11 @@ def fit_cover_title(text: str, text_rect: dict, font) -> list[str]:
     pad = 2
     max_chars = max(1, (text_rect["w"] - 2 * pad) // FONT_PX)
     lines = wrap_words(text.split(), max_chars)
-    max_rows = max(1, (text_rect["h"] - 2 * pad) // (FONT_PX + 2))
+    # _render_custom_cover draws line i at y = pad + i*(FONT_PX+2), each
+    # FONT_PX tall: the first line only costs FONT_PX, every additional line
+    # costs FONT_PX+2, so max_rows = 1 + how many extra (FONT_PX+2) slots
+    # fit after that first line.
+    max_rows = 1 + max(0, text_rect["h"] - 2 * pad - FONT_PX) // (FONT_PX + 2)
     if len(lines) > max_rows:
         raise BuildError(
             f"cover text {text!r} needs {len(lines)} line(s) but cover.layout.text_rect {text_rect} only "
@@ -341,9 +345,13 @@ def build_package(
     voice_raw_path.unlink(missing_ok=True)
 
     frames_dir = out_dir / "frames"
-    frames_dir.mkdir(parents=True, exist_ok=True)
+    if frames_dir.exists():
+        shutil.rmtree(frames_dir)
+    frames_dir.mkdir(parents=True)
     keyframes_dir = out_dir / "keyframes"
-    keyframes_dir.mkdir(parents=True, exist_ok=True)
+    if keyframes_dir.exists():
+        shutil.rmtree(keyframes_dir)
+    keyframes_dir.mkdir(parents=True)
 
     n_frames = max(int(round(timeline.duration_s * FPS)), 1)
     keyframe_targets = _keyframe_targets(template, timeline, n_frames)

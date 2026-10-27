@@ -77,6 +77,30 @@ def test_fit_cover_title_fits_when_there_is_room():
     assert lines
 
 
+def test_fit_cover_title_fits_two_lines_on_night_reports_real_rect(night_report_dir):
+    """night-report's cover.layout.text_rect was raised to h=22 specifically
+    so a realistic schema-valid 2-line custom-cover title fits (task п.7):
+    guard the real rect geometry, not just a synthetic one."""
+    template = load_template(night_report_dir)
+    font = load_channel_assets("8bitnews-us").font(FONT_PX)
+    text_rect = template.data["cover"]["layout"]["text_rect"]
+    assert text_rect["h"] == 22
+    lines = fit_cover_title("Ninth Circuit Hearing Tonight", text_rect, font)
+    assert len(lines) == 2
+
+
+def test_fit_cover_title_still_rejects_text_needing_three_lines_on_night_report(night_report_dir):
+    template = load_template(night_report_dir)
+    font = load_channel_assets("8bitnews-us").font(FONT_PX)
+    text_rect = template.data["cover"]["layout"]["text_rect"]
+    with pytest.raises(BuildError):
+        fit_cover_title(
+            "This cover title is deliberately far too long to fit in two lines at all",
+            text_rect,
+            font,
+        )
+
+
 def test_cover_frame_scene_vs_custom_produce_different_images(nes_desk_dir, tmp_path):
     template = load_template(nes_desk_dir)
     assets = load_channel_assets("8bitnews-us")
@@ -221,3 +245,25 @@ def test_build_is_deterministic_across_independent_runs(short_script_path, test_
     for scene_a, scene_b in zip(pkg_a["scenes"], pkg_b["scenes"]):
         for kf_a, kf_b in zip(scene_a["keyframes"], scene_b["keyframes"]):
             assert kf_a["sha256"] == kf_b["sha256"]
+
+
+def test_build_clears_stale_frames_and_keyframes_on_rebuild_into_same_out_dir(
+    short_script_path, test_channels_dir, tmp_path
+):
+    """Rebuilding into the same --out dir after a scene id changes must not
+    leave orphaned keyframes/frames from the previous build lying around."""
+    out_dir = tmp_path / "out"
+    build_package(script_path=short_script_path, channel_id="8bitnews-us", out_dir=out_dir, channels_dir=test_channels_dir, tts_name="stub")
+    assert (out_dir / "keyframes" / "S4_first.png").is_file()
+
+    script = json.loads(short_script_path.read_text())
+    script["scenes"][-1]["id"] = "S9"
+    renamed_script_path = tmp_path / "renamed-script.json"
+    renamed_script_path.write_text(json.dumps(script))
+
+    build_package(script_path=renamed_script_path, channel_id="8bitnews-us", out_dir=out_dir, channels_dir=test_channels_dir, tts_name="stub")
+
+    assert not (out_dir / "keyframes" / "S4_first.png").exists()
+    assert not (out_dir / "keyframes" / "S4_mid.png").exists()
+    assert (out_dir / "keyframes" / "S9_first.png").is_file()
+    assert (out_dir / "keyframes" / "S9_mid.png").is_file()
