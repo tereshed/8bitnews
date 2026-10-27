@@ -42,7 +42,6 @@ tester, merger, reviewer) в команде нет — не вызывай их.
     полные id из summary `stage_report` (часть `ids:`);
 - там же строка: «Не скачивается — заверши прогон с ошибкой, не пиши по памяти»;
 - при доработке Script — замечания Legal, которые надо исправить (часть `fix: script=[…]` из `stage_report`);
-- строка «hub ещё нет: `releases_recent` и история роликов канала недоступны»;
 - expected_result: что вернуть (вид артефакта и условие: «одобрен fact_checker», «одобрен script_editor»,
   «legal_review сдан»);
 - inherit_branch: false.

@@ -48,3 +48,13 @@ hub_s3_region: auto
 # hub's own listen port inside the guest; shared between the host's
 # qemu hostfwd target and the guest's compose/healthz tasks.
 hub_guest_http_port: 8080
+
+# qemu hostfwd ports on the host's loopback only (task E1d AC3): SSH for
+# Ansible/operator access, HTTP for Caddy's reverse_proxy. Shared, not
+# hub_host-only: the hub_guest inventory entry connects through the SSH one.
+hub_vm_ssh_port: 2223
+hub_vm_http_port: 9201
+
+# The guest VM's only login user: created by cloud-init on the host side
+# (hub_vm.yml) and used as ansible_user by the hub_guest inventory entry.
+hub_admin_user: bitnews

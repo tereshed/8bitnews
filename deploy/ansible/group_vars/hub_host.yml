@@ -19,11 +19,6 @@ hub_vm_vcpus: 2
 hub_vm_mem_mb: 4096
 hub_vm_disk_gb: 60
 
-# Both forwards land on the host loopback only (task E1d AC3): SSH for
-# Ansible/operator access, HTTP for Caddy's reverse_proxy.
-hub_vm_ssh_port: 2223
-hub_vm_http_port: 9201
-
 # systemd resource limits for the qemu unit. MemoryMax leaves ~512MiB of
 # headroom over -m for QEMU/virtio-net overhead so a runaway guest is OOM
 # killed before it pressures the host's other tenant.
@@ -31,7 +26,6 @@ hub_vm_cpu_quota: "150%"
 hub_vm_mem_max: "{{ (hub_vm_mem_mb | int + 512) }}M"
 hub_vm_nice: 5
 
-hub_admin_user: bitnews
 # The guest admin's own key pair (not the operator's / not the host's root
 # key): hub_vm.yml derives the public half from HUB_ADMIN_SSH_KEY on the
 # controller (ssh-keygen -y) and injects it via cloud-init. cloud-init
