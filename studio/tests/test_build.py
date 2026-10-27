@@ -202,7 +202,7 @@ def test_build_ai_label_shown_matches_real_person_scene(built_package):
     assert by_id["S3"]["ai_label_shown"] is False
 
 
-def test_build_scene_pause_changes_total_duration(short_script_path, test_channels_dir, nes_desk_dir, tmp_path):
+def test_build_scene_pause_changes_total_duration(short_script_path, test_channels_dir, nes_desk_dir, tmp_path, monkeypatch):
     def _template_with_pause(pause_s: float):
         d = tmp_path / f"tmpl-{pause_s}"
         shutil.copytree(nes_desk_dir, d)
@@ -213,6 +213,12 @@ def test_build_scene_pause_changes_total_duration(short_script_path, test_channe
 
     short_pause_dir = tmp_path / "out-short"
     long_pause_dir = tmp_path / "out-long"
+    # package.duration_s must come from measuring video.mp4: a small offset on
+    # the measurement shows up in the package, a timeline length would not.
+    import studio.build as build_mod
+    from studio.video import probe_duration_s
+
+    monkeypatch.setattr(build_mod, "probe_duration_s", lambda path: probe_duration_s(path) + 0.05)
     build_package(
         script_path=short_script_path,
         channel_id="8bitnews-us",
@@ -228,7 +234,11 @@ def test_build_scene_pause_changes_total_duration(short_script_path, test_channe
         channels_dir=test_channels_dir,
         template_dir_arg=str(_template_with_pause(0.9)),
         tts_name="stub",
+        keep_work=True,
     )
+    assert (long_pause_dir / "frames" / "frame_000000.png").is_file()  # --keep-work keeps the build scratch
+    measured = probe_duration_s(long_pause_dir / "video.mp4")
+    assert json.loads((long_pause_dir / "package.json").read_text())["duration_s"] == pytest.approx(measured + 0.05)
     short_duration = json.loads((short_pause_dir / "package.json").read_text())["duration_s"]
     long_duration = json.loads((long_pause_dir / "package.json").read_text())["duration_s"]
     assert long_duration > short_duration
@@ -267,3 +277,165 @@ def test_build_clears_stale_frames_and_keyframes_on_rebuild_into_same_out_dir(
     assert not (out_dir / "keyframes" / "S4_mid.png").exists()
     assert (out_dir / "keyframes" / "S9_first.png").is_file()
     assert (out_dir / "keyframes" / "S9_mid.png").is_file()
+
+
+# --- cover title, cover plates, measured duration, build scratch, notes ---
+
+
+def _title_mask(text, template, assets):
+    """Logical-size boolean mask of the cover title's fill pixels, drawn
+    with the same layout the build uses."""
+    import numpy as np
+
+    from studio.build import cover_title_layout
+    from studio.constants import LOGICAL_H, LOGICAL_W
+    from studio.text_render import draw_text
+
+    font = assets.font(FONT_PX)
+    canvas = Image.new("RGBA", (LOGICAL_W, LOGICAL_H), (0, 0, 0, 0))
+    for line, xy in cover_title_layout(text, template.data["cover"]["layout"]["text_rect"], font):
+        draw_text(canvas, xy, line, font, (255, 255, 255))
+    return np.array(canvas)[:, :, 3] > 0
+
+
+def _assert_title_drawn(cover_path, text, template, assets):
+    import numpy as np
+
+    from studio.constants import SCALE
+    from studio.palette import hex_to_rgb
+
+    mask = _title_mask(text, template, assets)
+    assert mask.sum() > 50
+    big = np.repeat(np.repeat(mask, SCALE, axis=0), SCALE, axis=1)
+    pixels = np.array(Image.open(cover_path).convert("RGB"))[big]
+    assert (pixels == hex_to_rgb(template.data["subtitles"]["style"]["color"])).all()
+
+
+def test_scene_cover_of_the_build_carries_the_cover_title(built_package):
+    out_dir = built_package["out_dir"]
+    script = json.loads((out_dir / "script.json").read_text())
+    assert script["cover"]["frame"].startswith("S")
+    template = load_template(out_dir / "template")
+    _assert_title_drawn(out_dir / "cover.png", script["cover"]["text"], template, load_channel_assets("8bitnews-us"))
+
+
+def test_scene_cover_is_the_scene_frame_plus_title_only(built_package):
+    """Outside the title's own pixels (and their 1px outline) the S* cover is
+    exactly the upscaled render_cover_frame output: no re-quantization of the
+    anchor, nothing else drawn on top."""
+    import numpy as np
+
+    from studio.constants import SCALE
+    from studio.engine import render_cover_frame
+    from studio.timeline import load_timeline
+
+    out_dir = built_package["out_dir"]
+    script = json.loads((out_dir / "script.json").read_text())
+    template = load_template(out_dir / "template")
+    assets = load_channel_assets("8bitnews-us")
+    timeline = load_timeline(out_dir / "timeline.json")
+    st = next(s for s in timeline.scenes if s.scene_id == script["cover"]["frame"])
+    base = np.array(render_cover_frame(script, timeline, template, assets, (st.start_s + st.end_s) / 2))
+    cover = np.array(Image.open(out_dir / "cover.png").convert("RGB"))[::SCALE, ::SCALE]
+
+    mask = _title_mask(script["cover"]["text"], template, assets)
+    near_title = mask.copy()
+    for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+        near_title |= np.roll(mask, (dy, dx), axis=(0, 1))
+    assert (cover[~near_title] == base[~near_title]).all()
+
+    # No scene_title plate: its rect is not filled with the plate's background.
+    from studio.palette import hex_to_rgb
+
+    plate = template.plate("scene_title")
+    r = plate["rect"]
+    area = cover[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]]
+    assert (area == hex_to_rgb(plate["bg_color"])).all(axis=2).mean() < 0.6
+
+
+def test_custom_cover_carries_the_cover_title(nes_desk_dir, tmp_path):
+    template = load_template(nes_desk_dir)
+    assets = load_channel_assets("8bitnews-us")
+    script = dict(BUILTIN_SCRIPT, cover={"frame": "custom", "visual": "x" * 20, "text": "Custom Cover Title"})
+    out = tmp_path / "custom.png"
+    _render_cover(script, builtin_timeline(), template, assets, None, out)
+    _assert_title_drawn(out, "Custom Cover Title", template, assets)
+
+
+def test_scene_cover_title_text_changes_the_title_area(nes_desk_dir, tmp_path):
+    import numpy as np
+
+    from studio.constants import SCALE
+
+    template = load_template(nes_desk_dir)
+    assets = load_channel_assets("8bitnews-us")
+    r = template.data["cover"]["layout"]["text_rect"]
+    crops = []
+    for text in ("First Title", "Second Title"):
+        out = tmp_path / f"{text}.png"
+        _render_cover(dict(BUILTIN_SCRIPT, cover={"frame": "S2", "visual": "x" * 20, "text": text}),
+                      builtin_timeline(), template, assets, None, out)
+        img = np.array(Image.open(out).convert("RGB"))
+        crops.append(img[r["y"] * SCALE:(r["y"] + r["h"]) * SCALE, r["x"] * SCALE:(r["x"] + r["w"]) * SCALE])
+    assert not np.array_equal(crops[0], crops[1])
+
+
+def test_scene_cover_title_that_does_not_fit_fails_the_build(nes_desk_dir, tmp_path):
+    template = load_template(nes_desk_dir)
+    template.data["cover"]["layout"]["text_rect"] = {"x": 10, "y": 350, "w": 60, "h": 12}
+    script = dict(BUILTIN_SCRIPT, cover={"frame": "S1", "visual": "x" * 20, "text": "Far Too Long For This Rect"})
+    with pytest.raises(BuildError):
+        _render_cover(script, builtin_timeline(), template, load_channel_assets("8bitnews-us"), None, tmp_path / "c.png")
+
+
+def test_cover_plates_keep_only_ai_illustration(short_script_path, nes_desk_dir):
+    from studio.engine import cover_plates
+    from studio.timeline import uniform_timeline
+
+    script = json.loads(short_script_path.read_text())
+    template = load_template(nes_desk_dir)
+    timeline = uniform_timeline(script)
+
+    def plates(scene_id):
+        st = next(s for s in timeline.scenes if s.scene_id == scene_id)
+        return cover_plates(script, st, template, (st.start_s + st.end_s) / 2)
+
+    assert plates("S2") == {"ai_illustration"}  # real person in the scene
+    assert plates("S1") == {"ai_illustration"}  # anchor, S2's real person on the screen behind her
+    assert plates("S3") == set()
+
+
+def test_build_duration_is_the_measured_video_length(built_package):
+    from studio.video import probe_duration_s
+
+    measured = probe_duration_s(built_package["out_dir"] / "video.mp4")
+    assert abs(built_package["package"]["duration_s"] - measured) <= 0.1
+
+
+def test_build_removes_frames_scratch_but_keeps_voice(built_package):
+    out_dir = built_package["out_dir"]
+    assert not (out_dir / "frames").exists()
+    assert (out_dir / "voice.wav").is_file()
+
+
+def test_build_notes_an_unmatched_pronunciation_hint(built_package):
+    notes = built_package["package"]["notes"]
+    assert any("Pixel Council" in n for n in notes)  # fixture hint that matches no single word
+
+
+def test_script_artifact_is_repo_relative_inside_the_repo(tmp_path):
+    from studio.build import _script_artifact
+
+    root = tmp_path / "repo"
+    script = root / "newsroom" / "trials" / "x" / "script.json"
+    script.parent.mkdir(parents=True)
+    script.write_text("{}")
+    assert _script_artifact(script, root) == "newsroom/trials/x/script.json"
+
+
+def test_script_artifact_outside_the_repo_is_kept_as_given(tmp_path):
+    from studio.build import _script_artifact
+
+    outside = tmp_path / "elsewhere" / "script.json"
+    assert _script_artifact(outside, tmp_path / "repo") == str(outside)
+    assert _script_artifact(outside, None) == str(outside)

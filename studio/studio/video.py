@@ -4,6 +4,7 @@
 without needing to open the video."""
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -96,3 +97,17 @@ def encode(frames_dir: Path, audio_path: Path, out_path: Path, fps: int = FPS) -
         str(out_path),
     ]
     subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+
+def probe(path: Path) -> dict:
+    """ffprobe's format + streams description of a media file."""
+    cmd = ["ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", str(path)]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    return json.loads(result.stdout)
+
+
+def probe_duration_s(path: Path) -> float:
+    """Measured length of a rendered file (ffprobe `format.duration`): what
+    `studio build` writes to `package.duration_s` and what the `duration`
+    check compares against the channel range."""
+    return float(probe(path)["format"]["duration"])

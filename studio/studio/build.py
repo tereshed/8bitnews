@@ -12,6 +12,7 @@ import hashlib
 import json
 import math
 import shutil
+import sys
 from pathlib import Path
 
 import jsonschema
@@ -35,7 +36,7 @@ from .engine import active_plates, render_cover_frame, render_frame, scene_trans
 from .errors import BuildError
 from .palette import hex_to_rgb, quantize_image
 from .paths import TEMPLATES_DIR
-from .pronunciation import build_synthesis_text, regroup_words
+from .pronunciation import build_synthesis_text, regroup_words, unused_pronunciations
 from .quantize import quantize
 from .srt import write_srt
 from .subtitles import wrap_words
@@ -43,7 +44,7 @@ from .template_pkg import TemplatePackage, load_template
 from .text_render import draw_text
 from .timeline import SceneVoice, Timeline, timeline_from_voice, timeline_to_dict
 from .tts import ADAPTERS
-from .video import OUTPUT_H, OUTPUT_W, encode, upscale_nearest
+from .video import OUTPUT_H, OUTPUT_W, encode, probe_duration_s, upscale_nearest
 
 
 def _sha256_and_size(path: Path) -> tuple[str, int]:
@@ -59,6 +60,17 @@ def _sha256_and_size(path: Path) -> tuple[str, int]:
 def _media_entry(path: Path, base: Path) -> dict:
     sha256, size = _sha256_and_size(path)
     return {"path": str(path.relative_to(base)), "sha256": sha256, "bytes": size}
+
+
+def _script_artifact(script_path: Path, root: Path | None) -> str:
+    """`package.script`: the script's path relative to the repo root when it
+    lives inside it (not the container mount point), else as given."""
+    if root is not None:
+        try:
+            return str(Path(script_path).resolve().relative_to(Path(root).resolve()))
+        except ValueError:
+            pass
+    return str(script_path)
 
 
 def _load_script_validated(script_path: Path) -> dict:
@@ -110,15 +122,18 @@ def _resolve_tts_name(tts_arg: str | None, channel_profile: dict) -> str:
     return name
 
 
+_COVER_PAD = 2
+
+
 def fit_cover_title(text: str, text_rect: dict, font) -> list[str]:
     """Word-wraps `text` inside `text_rect` at the channel's fixed pixel
     font, raising BuildError if it needs more lines than the rect has room
-    for. Pulled out of `_render_custom_cover` so it's testable without
-    rendering a frame (studio/README.md task 7's required negative test)."""
-    pad = 2
+    for. Used by both cover kinds (`S*` and `custom`) and testable without
+    rendering a frame."""
+    pad = _COVER_PAD
     max_chars = max(1, (text_rect["w"] - 2 * pad) // FONT_PX)
     lines = wrap_words(text.split(), max_chars)
-    # _render_custom_cover draws line i at y = pad + i*(FONT_PX+2), each
+    # cover_title_layout puts line i at y = pad + i*(FONT_PX+2), each
     # FONT_PX tall: the first line only costs FONT_PX, every additional line
     # costs FONT_PX+2, so max_rows = 1 + how many extra (FONT_PX+2) slots
     # fit after that first line.
@@ -129,6 +144,26 @@ def fit_cover_title(text: str, text_rect: dict, font) -> list[str]:
             f"fits {max_rows} at {FONT_PX}px"
         )
     return lines
+
+
+def cover_title_layout(text: str, text_rect: dict, font) -> list[tuple[str, tuple[int, int]]]:
+    """Each cover title line with its top-left origin in logical 270x480
+    coordinates: the same geometry `fit_cover_title` checks against."""
+    lines = fit_cover_title(text, text_rect, font)
+    x = text_rect["x"] + _COVER_PAD
+    y0 = text_rect["y"] + _COVER_PAD
+    return [(line, (x, y0 + i * (FONT_PX + 2))) for i, line in enumerate(lines)]
+
+
+def _draw_cover_title(frame: Image.Image, text: str, template: TemplatePackage, assets: ChannelAssets) -> None:
+    """Draws `cover.text` into `cover.layout.text_rect` in the subtitle
+    colors; `frame` is a logical-size RGBA image, drawn on in place."""
+    sub_style = template.data["subtitles"]["style"]
+    fg = hex_to_rgb(sub_style["color"])
+    outline = hex_to_rgb(sub_style["outline_color"])
+    font = assets.font(FONT_PX)
+    for line, xy in cover_title_layout(text, template.data["cover"]["layout"]["text_rect"], font):
+        draw_text(frame, xy, line, font, fg, outline=outline)
 
 
 def _render_custom_cover(
@@ -143,20 +178,9 @@ def _render_custom_cover(
         bg_asset = template.load_asset_image(template.data["cover"]["layout"]["background"])
         bg = quantize(bg_asset.convert("RGB"), palette, target_w=LOGICAL_W, target_h=LOGICAL_H).convert("RGBA")
 
-    text_rect = template.data["cover"]["layout"]["text_rect"]
-    font = assets.font(FONT_PX)
-    lines = fit_cover_title(cover_cfg["text"], text_rect, font)
-
     frame = Image.new("RGBA", (LOGICAL_W, LOGICAL_H), (0, 0, 0, 255))
     frame.alpha_composite(bg)
-    sub_style = template.data["subtitles"]["style"]
-    fg = hex_to_rgb(sub_style["color"])
-    outline = hex_to_rgb(sub_style["outline_color"])
-    pad = 2
-    y = text_rect["y"] + pad
-    for line in lines:
-        draw_text(frame, (text_rect["x"] + pad, y), line, font, fg, outline=outline)
-        y += FONT_PX + 2
+    _draw_cover_title(frame, cover_cfg["text"], template, assets)
 
     quantized = quantize_image(frame, palette)
     upscale_nearest(quantized.convert("RGB")).save(out_path)
@@ -178,8 +202,11 @@ def _render_cover(
     if scene_timing is None:
         raise BuildError(f"cover.frame {cover_cfg['frame']!r} does not match any scene id in the script")
     mid_t = (scene_timing.start_s + scene_timing.end_s) / 2
-    frame = render_cover_frame(script, timeline, template, assets, mid_t, assets_dir)
-    upscale_nearest(frame).save(out_path)
+    # The title goes onto the rendered frame as is: re-quantizing it would
+    # recolor the anchor sprite (see engine._render_anchor_shot).
+    frame = render_cover_frame(script, timeline, template, assets, mid_t, assets_dir).convert("RGBA")
+    _draw_cover_title(frame, cover_cfg["text"], template, assets)
+    upscale_nearest(frame.convert("RGB")).save(out_path)
 
 
 def _keyframe_targets(template: TemplatePackage, timeline: Timeline, n_frames: int) -> dict[int, list[tuple[str, str]]]:
@@ -215,7 +242,9 @@ def _assemble_package(
     voice_id: str,
     synth_narrations: dict[str, str],
     loudness: float,
+    duration_s: float,
     channel_profile: dict,
+    extra_notes: list[str],
 ) -> dict:
     total_words = 0
     total_span = 0.0
@@ -258,7 +287,7 @@ def _assemble_package(
         "channel_id": channel_id,
         "script": script_artifact,
         "template": template.id,
-        "duration_s": timeline.duration_s,
+        "duration_s": duration_s,
         "files": {
             "video": video_entry,
             "subtitles": srt_entry,
@@ -282,7 +311,8 @@ def _assemble_package(
         "disclosures": disclosures,
         "notes": [
             "music.enabled is always false in this build pipeline: mixing a real music bed (catalog pick, "
-            "ducking under narration) is E2a-3's job, not this one's (studio/README.md E2a-2a scope)."
+            "ducking under narration) is E2a-3's job, not this one's (studio/README.md E2a-2a scope).",
+            *extra_notes,
         ],
     }
     package["validate"] = run_checks(out_dir, package, channel_profile)
@@ -297,7 +327,10 @@ def build_package(
     template_dir_arg: str | None = None,
     assets_dir: Path | None = None,
     tts_name: str | None = None,
+    keep_work: bool = False,
 ) -> Path:
+    """`keep_work` keeps frames/ (every rendered logical frame) after the
+    build for debugging; by default it is deleted once nothing needs it."""
     script_path = Path(script_path)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -307,6 +340,9 @@ def build_package(
 
     template_dir = _resolve_template_dir(template_dir_arg, script, channel_profile)
     template = load_template(template_dir)
+    assets = load_channel_assets(channel_id)
+    # Fail before TTS and rendering, not after them, if the cover title can't fit.
+    fit_cover_title(script["cover"]["text"], template.data["cover"]["layout"]["text_rect"], assets.font(FONT_PX))
 
     tts_name_resolved = _resolve_tts_name(tts_name, channel_profile)
     voice_cfg = channel_profile["format"]["voice"]
@@ -314,14 +350,20 @@ def build_package(
     wpm = SERIOUS_WPM if script.get("serious_mode") else DEFAULT_WPM
     adapter = ADAPTERS[tts_name_resolved](wpm=wpm)
 
-    assets = load_channel_assets(channel_id)
-
     sub_style = template.data["subtitles"]["style"]
     max_lines = sub_style.get("max_lines", MAX_SUBTITLE_LINES)
     max_chars = sub_style.get("max_chars_per_line", MAX_SUBTITLE_CHARS_PER_LINE)
     pause_s = template.data.get("timing", {}).get("scene_pause_s", 0.3)
 
     pronunciations = script.get("pronunciations", [])
+    extra_notes = []
+    for text in unused_pronunciations([s["narration"] for s in script["scenes"]], pronunciations):
+        note = (
+            f"pronunciation hint {text!r} matched no narration word and was not applied "
+            "(hints match single whole words only)"
+        )
+        print(f"warning: {note}", file=sys.stderr)
+        extra_notes.append(note)
     scene_voices: list[SceneVoice] = []
     scene_wavs: list[Path] = []
     synth_narrations: dict[str, str] = {}
@@ -391,10 +433,15 @@ def build_package(
     shutil.copytree(template_dir, template_out_dir)
 
     loudness = measure_loudness_lufs(video_path)
+    duration_s = probe_duration_s(video_path)
+    try:
+        root = repo.repo_root()
+    except repo.RepoRootNotSet:
+        root = None
 
     package = _assemble_package(
         script=script,
-        script_artifact=str(script_path),
+        script_artifact=_script_artifact(script_path, root),
         channel_id=channel_id,
         template=template,
         timeline=timeline,
@@ -408,7 +455,9 @@ def build_package(
         voice_id=voice_id,
         synth_narrations=synth_narrations,
         loudness=loudness,
+        duration_s=duration_s,
         channel_profile=channel_profile,
+        extra_notes=extra_notes,
     )
 
     schema = repo.load_contract_schema("video_package.schema.json")
@@ -426,4 +475,8 @@ def build_package(
 
     package_path = out_dir / "package.json"
     package_path.write_text(json.dumps(package, indent=2))
+    # Last step, after the last encode: frames/ is only build scratch
+    # (voice.wav stays -- E2a-3 needs the voice apart from the music).
+    if not keep_work:
+        shutil.rmtree(frames_dir, ignore_errors=True)
     return package_path

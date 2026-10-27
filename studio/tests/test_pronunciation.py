@@ -60,3 +60,17 @@ def test_regroup_words_passes_through_unmatched_words_one_to_one():
         ("hints", 0.3, 0.6),
         ("here.", 0.6, 0.9),
     ]
+
+
+def test_unused_pronunciations_lists_hints_matching_no_word():
+    from studio.pronunciation import unused_pronunciations
+
+    hints = [
+        {"text": "Garcetti", "say": "gar-SET-ee"},
+        {"text": "Ninth Circuit", "say": "NINE-th SIR-kit"},
+        {"text": "Bumatay", "say": "boo-MAH-tie"},
+    ]
+    assert unused_pronunciations(["Mayor Garcetti's plan.", "The Ninth Circuit ruled."], hints) == [
+        "Ninth Circuit",
+        "Bumatay",
+    ]

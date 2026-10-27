@@ -69,3 +69,12 @@ def regroup_words(narration: str, group_sizes: list[int], synth_words: tuple[Wor
         idx += size
         result.append(Word(text=word, start_s=chunk[0].start_s, end_s=chunk[-1].end_s))
     return tuple(result)
+
+
+def unused_pronunciations(narrations: list[str], pronunciations: list[dict] | None) -> list[str]:
+    """`text` of every hint that matches no word of any narration under the
+    same rules as `build_synthesis_text` -- e.g. a multi-word phrase, which
+    single-word matching never applies. `studio build` warns about these
+    instead of dropping them silently."""
+    cores = {_split_word(word)[1] for narration in narrations for word in narration.split()}
+    return [p["text"] for p in pronunciations or [] if p["text"] not in cores]

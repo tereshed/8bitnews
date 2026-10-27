@@ -118,7 +118,7 @@ def split_cues(
         end_s = group[-1].end_s
         if idx + 1 < len(groups):
             next_start = groups[idx + 1][0][0].start_s
-            if next_start - end_s < _HOLD_GAP_S:
+            if 0 <= next_start - end_s < _HOLD_GAP_S:
                 end_s = next_start
         cues.append(SubtitleCue(lines=tuple(lines), start_s=start_s, end_s=end_s))
     return cues

@@ -247,19 +247,44 @@ sentence punctuation (or a comma from the 3rd word on) inside the maximal
 group that still fits, and holding a cue up to the next one's start if the
 gap is under 0.3s. The same cues go on screen and into `subtitles.srt`.
 
-**Cover.** `cover.frame: S*` renders that scene's middle frame with only
-the scene_title/source_plate/ai_illustration plates (`engine.render_cover_frame`)
-— no AI-voice/AI-icon plate or subtitles, since a still cover has no video
-timeline of its own. `cover.frame: custom` quantizes `<assets>/cover.png` to
-the template's palette at 270×480 (or falls back to `cover.layout.background`
-if there's no custom asset) and word-wraps `cover.text` inside
-`cover.layout.text_rect`; `build.fit_cover_title` raises a readable
-`BuildError` if the title needs more lines than the rect has room for.
+**Cover.** Both kinds carry `cover.text` (format.md: a cover is a frame
+with a title of up to 30 characters), word-wrapped inside
+`cover.layout.text_rect` in the subtitle colors (`build.cover_title_layout`);
+`build.fit_cover_title` raises a readable `BuildError` if the title needs
+more lines than the rect has room for.
+- `cover.frame: S*` — that scene's middle frame (`engine.render_cover_frame`)
+  with `engine.cover_plates` only: the AI-illustration plate by the same rule
+  as the video (a real person in the scene or on the screen behind the
+  anchor), no scene title or source plate (the cover title replaces them),
+  no AI-voice/AI-icon plate, no subtitles. The title is drawn at 270×480
+  before the ×4 upscale and the frame is not re-quantized, so the anchor
+  keeps her colors.
+- `cover.frame: custom` — `<assets>/cover.png` quantized to the template's
+  palette at 270×480, or `cover.layout.background` without one, then the
+  title.
+
+**Build scratch.** `frames/` (every logical frame) is deleted as the last
+step of the build; `--keep-work` keeps it for debugging. `voice.wav` stays —
+E2a-3 needs the voice apart from the music. `package.duration_s` is the
+measured length of `video.mp4` (ffprobe), and `package.script` is the
+script's path relative to the repo root when it lives inside it.
+
+**Pronunciations** match single whole words. A hint that matches no word
+(e.g. a multi-word phrase) is not applied: `build` prints a warning and
+records it in `package.notes`.
 
 **`studio validate --package <dir>/package.json [--channels-dir <dir>]`**
 runs the registry in `studio/studio/checks.py` (fixed `id`s: `format`,
 `duration`, `file_size`, `subtitles_cover_words` in this pass; E2a-2b/E2a-3
-add more) and exits non-zero if any check fails. The same registry backs
+add more) and exits non-zero if any check fails.
+- `duration` measures `video.mp4` with ffprobe: it must be inside the
+  channel's `format.duration_s` and within 0.1 s of `package.duration_s`.
+- `subtitles_cover_words` reads cues from `subtitles.srt` and words from
+  `timeline.json`. Words are handed to cues in order; each cue's text without
+  whitespace must equal its words glued together (a word `wrap_words` split
+  across lines still matches), each word must lie inside its cue's time
+  (±1 frame), cues must not overlap, and every scene's words must equal the
+  script's `narration.split()` (no pronunciation respelling in subtitles). The same registry backs
 the `validate` field a fresh `studio build` writes into its own
 `package.json`.
 

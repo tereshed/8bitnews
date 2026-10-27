@@ -4,13 +4,17 @@ way in `package.json`'s `validate.checks` (video_package.schema.json)."""
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 from typing import Callable
 
 from .config import max_file_size_bytes
+from .constants import FPS
 from .srt import parse_srt
 from .timeline import load_timeline
+from .video import probe, probe_duration_s
+
+# How far package.duration_s may drift from the measured video.mp4 length.
+DURATION_TOLERANCE_S = 0.1
 
 CHECKS: dict[str, Callable[[Path, dict, dict], dict]] = {}
 
@@ -23,12 +27,6 @@ def register(check_id: str):
     return deco
 
 
-def _ffprobe(path: Path) -> dict:
-    cmd = ["ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", str(path)]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    return json.loads(result.stdout)
-
-
 def _parse_rate(rate: str) -> float:
     num, _, den = rate.partition("/")
     return float(num) / float(den) if den else float(num)
@@ -37,9 +35,9 @@ def _parse_rate(rate: str) -> float:
 @register("format")
 def _check_format(package_dir: Path, package: dict, channel_profile: dict) -> dict:
     video_path = package_dir / package["files"]["video"]["path"]
-    probe = _ffprobe(video_path)
-    v_stream = next((s for s in probe["streams"] if s["codec_type"] == "video"), None)
-    a_stream = next((s for s in probe["streams"] if s["codec_type"] == "audio"), None)
+    probe_data = probe(video_path)
+    v_stream = next((s for s in probe_data["streams"] if s["codec_type"] == "video"), None)
+    a_stream = next((s for s in probe_data["streams"] if s["codec_type"] == "audio"), None)
     value = {
         "width": v_stream.get("width") if v_stream else None,
         "height": v_stream.get("height") if v_stream else None,
@@ -55,12 +53,20 @@ def _check_format(package_dir: Path, package: dict, channel_profile: dict) -> di
 
 @register("duration")
 def _check_duration(package_dir: Path, package: dict, channel_profile: dict) -> dict:
-    duration = package["duration_s"]
+    """Measures video.mp4 itself: package.duration_s alone can't catch a
+    truncated or swapped file, so it only has to agree with the measurement."""
+    measured = probe_duration_s(package_dir / package["files"]["video"]["path"])
+    declared = package["duration_s"]
     bounds = channel_profile["format"]["duration_s"]
     lo, hi = bounds["min"], bounds["max"]
-    ok = lo <= duration <= hi
-    note = f"{duration:.2f}s within [{lo},{hi}]s" if ok else f"{duration:.2f}s outside channel range [{lo},{hi}]s"
-    return {"id": "duration", "ok": ok, "value": duration, "expected": {"min": lo, "max": hi}, "note": note}
+    problems = []
+    if not lo <= measured <= hi:
+        problems.append(f"outside channel range [{lo},{hi}]s")
+    if abs(measured - declared) > DURATION_TOLERANCE_S:
+        problems.append(f"differs from package.duration_s by more than {DURATION_TOLERANCE_S}s")
+    summary = f"video.mp4 {measured:.2f}s, package.duration_s {declared:.2f}s"
+    note = f"{summary}: " + "; ".join(problems) if problems else f"{summary}, within [{lo},{hi}]s"
+    return {"id": "duration", "ok": not problems, "value": measured, "expected": {"min": lo, "max": hi}, "note": note}
 
 
 @register("file_size")
@@ -73,26 +79,85 @@ def _check_file_size(package_dir: Path, package: dict, channel_profile: dict) ->
     return {"id": "file_size", "ok": ok, "value": size, "expected": limit, "note": note}
 
 
+def _subtitle_problems(package_dir: Path, package: dict) -> list[str]:
+    """Problems with subtitles.srt against timeline.json and script.json,
+    grouped by kind (scene words, cue order, cue text and timing); the first
+    one is what the check reports. Stops at the first cue whose text doesn't
+    match, since every later cue would be off as well."""
+    cues = parse_srt(package_dir / package["files"]["subtitles"]["path"])
+    timeline = load_timeline(package_dir / package["files"]["timeline"]["path"])
+    script = json.loads((package_dir / package["files"]["script"]["path"]).read_text())
+    tol = 1.0 / FPS
+    problems: list[str] = []
+
+    # Timeline words are the script's original words: a pronunciation
+    # respelling must never reach the subtitles.
+    script_ids = [scene["id"] for scene in script["scenes"]]
+    timeline_ids = [scene.scene_id for scene in timeline.scenes]
+    if timeline_ids != script_ids:
+        problems.append(f"timeline.json scenes {timeline_ids} != script scenes {script_ids}")
+    narration = {scene["id"]: scene["narration"].split() for scene in script["scenes"]}
+    for scene in timeline.scenes:
+        got = [w.text for w in scene.words]
+        want = narration.get(scene.scene_id, [])
+        if got != want:
+            i = next((k for k, (a, b) in enumerate(zip(got, want)) if a != b), min(len(got), len(want)))
+            problems.append(
+                f"timeline.json {scene.scene_id} word {i + 1}: {got[i] if i < len(got) else '<none>'!r}, "
+                f"script narration has {want[i] if i < len(want) else '<none>'!r}"
+            )
+
+    for a, b in zip(cues, cues[1:]):
+        if b.start_s < a.end_s - tol:
+            problems.append(
+                f"SRT cue {a.index} ({a.start_s:.3f}-{a.end_s:.3f}s) overlaps cue {b.index} starting {b.start_s:.3f}s"
+            )
+    for cue in cues:
+        if not cue.start_s < cue.end_s:
+            problems.append(f"SRT cue {cue.index} ends at {cue.end_s:.3f}s, not after its start {cue.start_s:.3f}s")
+
+    # Hand words to cues in order: a cue's text without whitespace must equal
+    # its words glued together (wrap_words may split a long word across
+    # lines, so cue tokens and words don't map one to one).
+    words = [w for scene in timeline.scenes for w in scene.words]
+    wi = 0
+    for cue in cues:
+        target = "".join(cue.text.split())
+        first = wi
+        glued = ""
+        while wi < len(words) and len(glued) < len(target):
+            glued += words[wi].text
+            wi += 1
+        mine = words[first:wi]
+        if not mine or glued != target:
+            problems.append(
+                f"SRT cue {cue.index} text {' '.join(cue.text.split())!r} != timeline words "
+                f"{' '.join(w.text for w in mine)!r}"
+            )
+            return problems
+        for w in mine:
+            if not (w.start_s >= cue.start_s - tol and w.end_s <= cue.end_s + tol):
+                problems.append(
+                    f"word {w.text!r} {w.start_s:.3f}-{w.end_s:.3f}s is outside its SRT cue {cue.index} "
+                    f"({cue.start_s:.3f}-{cue.end_s:.3f}s)"
+                )
+    if wi < len(words):
+        problems.append(
+            f"{len(words) - wi} timeline word(s) after the last SRT cue, starting with {words[wi].text!r}"
+        )
+    return problems
+
+
 @register("subtitles_cover_words")
 def _check_subtitles_cover_words(package_dir: Path, package: dict, channel_profile: dict) -> dict:
-    srt_path = package_dir / package["files"]["subtitles"]["path"]
-    timeline_path = package_dir / package["files"]["timeline"]["path"]
-    cues = parse_srt(srt_path)
-    timeline = load_timeline(timeline_path)
-    tol = 1.0 / 30.0
-    uncovered = [
-        word.text
-        for scene in timeline.scenes
-        for word in scene.words
-        if not any(word.start_s >= c.start_s - tol and word.end_s <= c.end_s + tol for c in cues)
-    ]
-    ok = not uncovered
+    problems = _subtitle_problems(package_dir, package)
+    ok = not problems
     note = (
-        "every word falls within a subtitle cue (1 frame tolerance)"
+        "every word is in the text and time of its SRT cue (1 frame tolerance)"
         if ok
-        else f"{len(uncovered)} word(s) not covered by any subtitle cue: {uncovered[:5]}"
+        else f"{problems[0]}" + (f" (+{len(problems) - 1} more)" if len(problems) > 1 else "")
     )
-    return {"id": "subtitles_cover_words", "ok": ok, "value": len(uncovered), "expected": 0, "note": note}
+    return {"id": "subtitles_cover_words", "ok": ok, "value": len(problems), "expected": 0, "note": note}
 
 
 def run_checks(package_dir: Path, package: dict, channel_profile: dict) -> dict:

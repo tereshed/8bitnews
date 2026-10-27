@@ -336,6 +336,15 @@ def _draw_content_plates(frame: Image.Image, scene: dict, plates: set[str], temp
         _draw_plate(frame, template.plate("ai_illustration"), ["AI illustration"], font)
 
 
+def cover_plates(script: dict, scene_timing: SceneTiming, template: TemplatePackage, t_abs: float) -> set[str]:
+    """Plates on a `cover.frame: S*` cover: only ai_illustration, by the same
+    rule as the timed frame (a real person in the scene or on the screen
+    behind the anchor). The cover's own title replaces scene_title and
+    source_plate, and AI-voice/AI-icon are timed against a video start a
+    still cover doesn't have."""
+    return active_plates(script, scene_timing, template, t_abs) & {"ai_illustration"}
+
+
 def render_cover_frame(
     script: dict,
     timeline: Timeline,
@@ -345,18 +354,15 @@ def render_cover_frame(
     assets_dir: Path | None = None,
 ) -> Image.Image:
     """A still frame for `cover.frame: S*`: the same scene pixels as the
-    timed render at `t_abs`, but only the scene_title/source_plate/
-    ai_illustration plates -- no AI-voice/AI-icon plate (those are timed
-    relative to the video's start, which a still cover has none of) and no
-    subtitles."""
+    timed render at `t_abs` with `cover_plates` only and no subtitles; the
+    caller draws `cover.text` on top."""
     scene_timing = timeline.scene_at(t_abs)
     scene = _scene_data(script, scene_timing.scene_id)
     serious = bool(script.get("serious_mode"))
     palette = template.palette(serious=serious)
     font = assets.font(FONT_PX)
     frame = _render_scene_pixels(script, scene, scene_timing, template, assets, t_abs, assets_dir, palette, font)
-    plates = active_plates(script, scene_timing, template, t_abs) & {"scene_title", "source_plate", "ai_illustration"}
-    _draw_content_plates(frame, scene, plates, template, font)
+    _draw_content_plates(frame, scene, cover_plates(script, scene_timing, template, t_abs), template, font)
     return frame.convert("RGB")
 
 

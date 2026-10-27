@@ -7,7 +7,8 @@
   "hook_type": "new_fact",
   "music": { "enabled": false },
   "pronunciations": [
-    { "text": "Garcetti", "say": "gar-SET-ee" }
+    { "text": "Garcetti", "say": "gar-SET-ee" },
+    { "text": "Pixel Council", "say": "PIK-sel KOWN-sil" }
   ],
   "scenes": [
     {

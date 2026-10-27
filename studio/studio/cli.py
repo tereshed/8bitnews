@@ -45,6 +45,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
             template_dir_arg=args.template,
             assets_dir=Path(args.assets) if args.assets else None,
             tts_name=args.tts,
+            keep_work=args.keep_work,
         )
     except (BuildError, RepoRootNotSet, FileNotFoundError) as e:
         print(f"build failed: {e}", file=sys.stderr)
@@ -104,6 +105,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_build.add_argument("--assets", default=None)
     p_build.add_argument("--tts", default=None)
     p_build.add_argument("--out", required=True)
+    p_build.add_argument("--keep-work", action="store_true", help="keep frames/ after the build, for debugging")
     p_build.set_defaults(func=_cmd_build)
 
     p_pkg_validate = sub.add_parser("validate", help="run studio validate's checks against a built package")
