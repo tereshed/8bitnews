@@ -1,0 +1,197 @@
+{
+  "id": "night-report",
+  "name": "Night Report",
+  "version": 1,
+  "license_note": "All PNG assets in assets/ are original placeholder pixel art drawn for this repository (studio/scripts/generate_assets.py); no third-party material.",
+  "studio": {
+    "layers": [
+      {
+        "file": "assets/background_layer0.png",
+        "x": 0,
+        "y": 0,
+        "parallax": 0.1
+      },
+      {
+        "file": "assets/background_layer1.png",
+        "x": 0,
+        "y": 0,
+        "parallax": 0.5
+      }
+    ],
+    "anchor": {
+      "x": 110,
+      "y": 300,
+      "scale": 1.3
+    },
+    "screen": {
+      "x": 160,
+      "y": 50,
+      "w": 90,
+      "h": 110
+    }
+  },
+  "palette": {
+    "colors": [
+      "#000000",
+      "#004058",
+      "#787878",
+      "#7c7c7c",
+      "#008888",
+      "#f8f8f8"
+    ],
+    "serious_colors": [
+      "#000000",
+      "#004058",
+      "#787878",
+      "#7c7c7c",
+      "#008888",
+      "#f8f8f8"
+    ]
+  },
+  "plates": {
+    "ai_voice": {
+      "rect": {
+        "x": 10,
+        "y": 25,
+        "w": 190,
+        "h": 20
+      },
+      "bg_color": "#000000",
+      "text_color": "#f8f8f8"
+    },
+    "ai_icon": {
+      "rect": {
+        "x": 10,
+        "y": 25,
+        "w": 24,
+        "h": 20
+      },
+      "bg_color": "#000000",
+      "text_color": "#f8f8f8"
+    },
+    "ai_illustration": {
+      "rect": {
+        "x": 10,
+        "y": 355,
+        "w": 190,
+        "h": 18
+      },
+      "bg_color": "#000000",
+      "text_color": "#f8f8f8"
+    },
+    "scene_title": {
+      "rect": {
+        "x": 10,
+        "y": 49,
+        "w": 190,
+        "h": 36
+      },
+      "bg_color": "#000000",
+      "text_color": "#f8f8f8"
+    },
+    "source_plate": {
+      "rect": {
+        "x": 10,
+        "y": 89,
+        "w": 190,
+        "h": 28
+      },
+      "bg_color": "#000000",
+      "text_color": "#7c7c7c"
+    }
+  },
+  "subtitles": {
+    "rect": {
+      "x": 10,
+      "y": 320,
+      "w": 190,
+      "h": 32
+    },
+    "style": {
+      "color": "#f8f8f8",
+      "outline_color": "#000000",
+      "max_lines": 2,
+      "max_chars_per_line": 23
+    }
+  },
+  "motion_presets": [
+    {
+      "id": "slow-pan",
+      "type": "pan",
+      "params": {
+        "dx_px": 12,
+        "dy_px": 0,
+        "duration_s": 4.0
+      }
+    },
+    {
+      "id": "slow-zoom",
+      "type": "zoom",
+      "params": {
+        "max_px": 12,
+        "duration_s": 4.0
+      }
+    },
+    {
+      "id": "parallax-default",
+      "type": "parallax",
+      "params": {
+        "layer_indices": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "title-appear",
+      "type": "element_appear",
+      "params": {
+        "element": "scene_title",
+        "delay_s": 0.2
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "id": "cut",
+      "type": "cut",
+      "duration_s": 0.0,
+      "sound": null
+    },
+    {
+      "id": "slow-slide",
+      "type": "slide",
+      "duration_s": 0.6,
+      "sound": null
+    }
+  ],
+  "cover": {
+    "layout": {
+      "background": "assets/sample_scene.png",
+      "text_rect": {
+        "x": 10,
+        "y": 378,
+        "w": 190,
+        "h": 18
+      }
+    }
+  },
+  "fit": {
+    "serious_mode": "required",
+    "moods": [
+      "somber",
+      "neutral"
+    ],
+    "tags": [
+      "night",
+      "serious",
+      "studio"
+    ]
+  },
+  "assets": [
+    "assets/background_layer0.png",
+    "assets/background_layer1.png",
+    "assets/screen_frame.png",
+    "assets/sample_scene.png"
+  ]
+}

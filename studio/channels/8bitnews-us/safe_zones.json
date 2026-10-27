@@ -1,0 +1,21 @@
+{
+  "$comment": "Rectangles are in logical 270x480 engine pixels (9:16, matches the 1080x1920 output at *4). Every important text element (subtitles, on_screen_text, source_plate, AI plates) must stay inside the intersection of all enabled platforms' safe zones for a given release, so templates use the tightest common rectangle unless they target one platform only.",
+  "frame": { "w": 270, "h": 480 },
+  "sourcing_note": "Per-platform rectangles below are conservative engineering estimates, not numbers copied from a live, currently-fetched official guide: YouTube's, TikTok's and Instagram's own safe-zone pages (support.google.com, ads.tiktok.com/business/creativecenter, facebook.com/business/help) were unreachable from this sandbox at the time this file was written (403/404/blocked, consistent with other platform domains being blocked here -- see notes). The margins follow the well-known general shape repeatedly published by third-party creator tools (reserve roughly the top ~5-8% for a status/caption bar, the bottom ~15-20% for username/caption/music ticker, and the right ~20-25% for the like/comment/share icon column on TikTok and Instagram specifically), erring conservative. Re-verify against each platform's current official safe-zone guide with a working fetch before this ships to production, and update this file plus `common_safe_rect` if the real numbers differ.",
+  "platforms": {
+    "youtube": {
+      "source": "Engineering estimate, not independently verified in this sandbox (see sourcing_note). YouTube Shorts' own on-screen UI (title, channel handle, like/comment/share column) is generally considered the lightest of the three platforms.",
+      "safe_rect": { "x": 10, "y": 10, "w": 250, "h": 430 }
+    },
+    "tiktok": {
+      "source": "Engineering estimate, not independently verified in this sandbox (see sourcing_note). TikTok reserves the widest right-hand icon column and a deep bottom caption/sound band of the three platforms.",
+      "safe_rect": { "x": 10, "y": 20, "w": 190, "h": 380 }
+    },
+    "instagram": {
+      "source": "Engineering estimate, not independently verified in this sandbox (see sourcing_note). Reels reserves a shorter top strip than TikTok but a deep bottom caption band and a right-hand action column.",
+      "safe_rect": { "x": 10, "y": 25, "w": 215, "h": 390 }
+    }
+  },
+  "common_safe_rect": { "x": 10, "y": 25, "w": 190, "h": 375 },
+  "common_safe_rect_note": "Intersection of the three platform rectangles above, in logical pixels; nes-desk and night-report both key their plate/subtitle placement to this rectangle so one render clears all three platforms."
+}

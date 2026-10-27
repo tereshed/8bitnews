@@ -1,0 +1,209 @@
+{
+  "id": "bad-safezone",
+  "name": "Bad Safe Zone (negative test fixture)",
+  "version": 1,
+  "license_note": "All PNG assets in assets/ are original placeholder pixel art drawn for this repository (studio/scripts/generate_assets.py); no third-party material.",
+  "studio": {
+    "layers": [
+      {
+        "file": "assets/background_layer0.png",
+        "x": 0,
+        "y": 0,
+        "parallax": 0.2
+      },
+      {
+        "file": "assets/background_layer1.png",
+        "x": 0,
+        "y": 0,
+        "parallax": 0.6
+      }
+    ],
+    "anchor": {
+      "x": 30,
+      "y": 300,
+      "scale": 1.4
+    },
+    "screen": {
+      "x": 175,
+      "y": 65,
+      "w": 80,
+      "h": 100
+    }
+  },
+  "palette": {
+    "colors": [
+      "#000000",
+      "#fcfcfc",
+      "#787878",
+      "#0000bc",
+      "#0058f8",
+      "#3cbcfc",
+      "#503000",
+      "#ac7c00",
+      "#881400",
+      "#f83800",
+      "#4428bc",
+      "#9878f8",
+      "#d8b8f8"
+    ],
+    "serious_colors": [
+      "#000000",
+      "#7c7c7c",
+      "#bcbcbc",
+      "#f8f8f8",
+      "#787878",
+      "#004058",
+      "#008888",
+      "#0000bc",
+      "#3cbcfc"
+    ]
+  },
+  "plates": {
+    "ai_voice": {
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "w": 270,
+        "h": 20
+      },
+      "bg_color": "#000000",
+      "text_color": "#fcfcfc"
+    },
+    "ai_icon": {
+      "rect": {
+        "x": 176,
+        "y": 25,
+        "w": 24,
+        "h": 20
+      },
+      "bg_color": "#881400",
+      "text_color": "#fcfcfc"
+    },
+    "ai_illustration": {
+      "rect": {
+        "x": 10,
+        "y": 330,
+        "w": 190,
+        "h": 18
+      },
+      "bg_color": "#000000",
+      "text_color": "#fcfcfc"
+    },
+    "scene_title": {
+      "rect": {
+        "x": 10,
+        "y": 51,
+        "w": 190,
+        "h": 40
+      },
+      "bg_color": "#000000",
+      "text_color": "#fcfcfc"
+    },
+    "source_plate": {
+      "rect": {
+        "x": 10,
+        "y": 97,
+        "w": 190,
+        "h": 28
+      },
+      "bg_color": "#000000",
+      "text_color": "#787878"
+    }
+  },
+  "subtitles": {
+    "rect": {
+      "x": 10,
+      "y": 354,
+      "w": 190,
+      "h": 40
+    },
+    "style": {
+      "color": "#fcfcfc",
+      "outline_color": "#000000",
+      "max_lines": 2,
+      "max_chars_per_line": 23
+    }
+  },
+  "motion_presets": [
+    {
+      "id": "pan-right",
+      "type": "pan",
+      "params": {
+        "dx_px": 24,
+        "dy_px": 0,
+        "duration_s": 3.0
+      }
+    },
+    {
+      "id": "zoom-in",
+      "type": "zoom",
+      "params": {
+        "max_px": 12,
+        "duration_s": 3.0
+      }
+    },
+    {
+      "id": "parallax-default",
+      "type": "parallax",
+      "params": {
+        "layer_indices": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "title-appear",
+      "type": "element_appear",
+      "params": {
+        "element": "scene_title",
+        "delay_s": 0.15
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "id": "cut",
+      "type": "cut",
+      "duration_s": 0.0,
+      "sound": null
+    },
+    {
+      "id": "pixel-wipe",
+      "type": "pixelate",
+      "duration_s": 0.4,
+      "sound": null
+    }
+  ],
+  "cover": {
+    "layout": {
+      "background": "assets/sample_scene.png",
+      "text_rect": {
+        "x": 10,
+        "y": 350,
+        "w": 190,
+        "h": 40
+      }
+    }
+  },
+  "fit": {
+    "serious_mode": "allowed",
+    "moods": [
+      "neutral",
+      "curious",
+      "tense",
+      "hopeful"
+    ],
+    "tags": [
+      "daytime",
+      "studio",
+      "default"
+    ]
+  },
+  "assets": [
+    "assets/background_layer0.png",
+    "assets/background_layer1.png",
+    "assets/screen_frame.png",
+    "assets/sample_scene.png"
+  ]
+}

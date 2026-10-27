@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "studio template",
+  "description": "A template package is data, not code (docs/architecture.md §5, 'Templates'): template.json plus PNG assets in the NES palette. The engine draws any package that validates against this schema.",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "version",
+    "studio",
+    "palette",
+    "plates",
+    "subtitles",
+    "motion_presets",
+    "transitions",
+    "cover",
+    "fit"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "type": "integer", "minimum": 1 },
+    "license_note": {
+      "type": "string",
+      "description": "Where the template's own assets come from and under what license; required whenever assets[] is non-empty."
+    },
+    "studio": {
+      "type": "object",
+      "description": "The anchor desk: background/foreground layers for parallax, and where the anchor and her over-the-shoulder screen sit.",
+      "required": ["layers", "anchor", "screen"],
+      "properties": {
+        "layers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["file", "x", "y"],
+            "properties": {
+              "file": { "type": "string", "minLength": 1 },
+              "x": { "type": "integer" },
+              "y": { "type": "integer" },
+              "parallax": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0,
+                "description": "0 = fixed background, 1 = moves at full foreground speed"
+              }
+            }
+          }
+        },
+        "anchor": {
+          "type": "object",
+          "required": ["x", "y", "scale"],
+          "properties": {
+            "x": { "type": "integer", "minimum": 0 },
+            "y": { "type": "integer", "minimum": 0 },
+            "scale": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "screen": {
+          "type": "object",
+          "description": "The screen over the anchor's shoulder that shows the scene image during anchor shots.",
+          "$ref": "#/$defs/rect"
+        }
+      }
+    },
+    "palette": {
+      "type": "object",
+      "required": ["colors"],
+      "properties": {
+        "colors": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/hex_color" },
+          "description": "Subset of channels/8bitnews-us/palette.json this template draws from."
+        },
+        "serious_colors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hex_color" },
+          "description": "Muted subset (night, greys and blues) used when the script's serious_mode is true."
+        }
+      }
+    },
+    "plates": {
+      "type": "object",
+      "description": "Placement and style for every text plate format.md requires, each confined to a safe zone.",
+      "required": ["ai_voice", "ai_icon", "ai_illustration", "scene_title", "source_plate"],
+      "properties": {
+        "ai_voice": { "$ref": "#/$defs/plate_style" },
+        "ai_icon": { "$ref": "#/$defs/plate_style" },
+        "ai_illustration": { "$ref": "#/$defs/plate_style" },
+        "scene_title": { "$ref": "#/$defs/plate_style" },
+        "source_plate": { "$ref": "#/$defs/plate_style" }
+      }
+    },
+    "subtitles": {
+      "type": "object",
+      "required": ["rect", "style"],
+      "properties": {
+        "rect": { "$ref": "#/$defs/rect" },
+        "style": { "$ref": "#/$defs/text_style" }
+      }
+    },
+    "motion_presets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "params"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": { "enum": ["pan", "zoom", "parallax", "element_appear"] },
+          "params": { "type": "object" }
+        }
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "duration_s"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": { "enum": ["cut", "wipe", "pixelate", "slide"] },
+          "duration_s": { "type": "number", "minimum": 0 },
+          "sound": {
+            "type": ["string", "null"],
+            "description": "Relative path to a transition sound asset; sounds themselves ship in E2a-3, so this is null until then."
+          }
+        }
+      }
+    },
+    "cover": {
+      "type": "object",
+      "required": ["layout"],
+      "properties": {
+        "layout": {
+          "type": "object",
+          "required": ["background", "text_rect"],
+          "properties": {
+            "background": { "type": "string", "minLength": 1 },
+            "text_rect": { "$ref": "#/$defs/rect" }
+          }
+        }
+      }
+    },
+    "fit": {
+      "type": "object",
+      "required": ["serious_mode"],
+      "properties": {
+        "serious_mode": { "enum": ["allowed", "required", "forbidden"] },
+        "moods": {
+          "type": "array",
+          "items": { "enum": ["neutral", "curious", "tense", "urgent", "somber", "hopeful"] }
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Relative paths (under assets/) to every PNG/sound file the template references; validated to exist, be in-palette, and free of external URLs."
+    }
+  },
+  "$defs": {
+    "hex_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+    "rect": {
+      "type": "object",
+      "required": ["x", "y", "w", "h"],
+      "properties": {
+        "x": { "type": "integer", "minimum": 0 },
+        "y": { "type": "integer", "minimum": 0 },
+        "w": { "type": "integer", "exclusiveMinimum": 0 },
+        "h": { "type": "integer", "exclusiveMinimum": 0 }
+      }
+    },
+    "text_style": {
+      "type": "object",
+      "required": ["color", "outline_color"],
+      "properties": {
+        "color": { "$ref": "#/$defs/hex_color" },
+        "outline_color": { "$ref": "#/$defs/hex_color" },
+        "max_lines": { "type": "integer", "minimum": 1, "maximum": 2, "default": 2 },
+        "max_chars_per_line": { "type": "integer", "minimum": 1, "maximum": 32, "default": 32 }
+      }
+    },
+    "plate_style": {
+      "type": "object",
+      "required": ["rect", "bg_color", "text_color"],
+      "properties": {
+        "rect": { "$ref": "#/$defs/rect" },
+        "bg_color": { "$ref": "#/$defs/hex_color" },
+        "text_color": { "$ref": "#/$defs/hex_color" }
+      }
+    }
+  }
+}

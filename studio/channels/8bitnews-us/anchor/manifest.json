@@ -1,0 +1,45 @@
+{
+  "$comment": "Placeholder adult anchor sprite set; see studio/README.md for how a future Design pass swaps these files without touching engine code.",
+  "canvas": {
+    "w": 64,
+    "h": 96
+  },
+  "poses": {
+    "normal": {
+      "body": "body_normal.png"
+    },
+    "serious": {
+      "body": "body_serious.png"
+    }
+  },
+  "eyes": {
+    "offset": {
+      "x": 20,
+      "y": 28
+    },
+    "frames": {
+      "open": "eyes_open.png",
+      "closed": "eyes_closed.png"
+    }
+  },
+  "mouth": {
+    "offset": {
+      "x": 24,
+      "y": 40
+    },
+    "frames": {
+      "0": "mouth_0.png",
+      "1": "mouth_1.png",
+      "2": "mouth_2.png"
+    },
+    "volume_thresholds": {
+      "1": 0.15,
+      "2": 0.5
+    }
+  },
+  "blink": {
+    "period_s": 4.0,
+    "duration_s": 0.12
+  },
+  "license": "Original placeholder art drawn for this repository; no third-party assets."
+}

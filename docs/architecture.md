@@ -389,8 +389,15 @@ cmd/profiles/                     CLI: `go run ./cmd/profiles validate [--strict
 internal/profile/                 загрузка и валидация профилей каналов и стран
 deploy/                           docker-compose.yml (Postgres, S3-совместимое хранилище для локальной разработки)
 .github/workflows/                CI: lint, test, validate-profiles
-studio/                           [план, E2] тулкит генерации ролика: TTS, ассеты, шаблоны, рендер, validate
-  templates/<id>/
+studio/                           тулкит генерации ролика: Python 3.12 + Pillow/NumPy + ffmpeg, CLI `python -m studio`
+  template.schema.json            JSON Schema пакета шаблона (данные, не код)
+  channels/<channel_id>/          общее для канала: шрифт (OFL), палитра NES, логотип, спрайты ведущей, safe_zones.json
+  templates/<id>/                 пакеты шаблонов: template.json + assets/*.png; nes-desk и night-report — E2a-1
+  studio/                         движок: engine.py (кадры), timeline.py, quantize.py, validate.py, video.py, cli.py
+  tests/                          pytest (quantize, субтитры, тайминг AI-плашек, validate, детерминизм) — `make studio-test`
+  Dockerfile                      Python 3.12 + ffmpeg (Kokoro добавит E2a-3)
+  [план, E2a-2] TTS-адаптер таймлайна, `studio build`, `package.json`, `studio validate` готового ролика
+  [план, E2a-3] голос Kokoro, музыка, сведение громкости, демо-ролик
 cmd/hub/                          Go: точка входа hub — `migrate up|down`, `sync-profiles`, `serve` (REST + MCP)
 internal/api/                     REST-транспорт (/api/v1) над internal/service
 internal/mcpapi/                  MCP-транспорт (streamable HTTP, /mcp) над internal/service — тот же контракт
