@@ -206,8 +206,19 @@ def active_plates(script: dict, scene_timing: SceneTiming, template: TemplatePac
         plates.add("scene_title")
     if scene.get("source_plate"):
         plates.add("source_plate")
-    if scene.get("real_people"):
+
+    # ai_illustration must stay up for as long as a real person's likeness is
+    # anywhere in frame -- including an anchor shot's over-the-shoulder screen,
+    # which _render_anchor_shot fills with the *next* scene-shot's image
+    # (_next_scene_shot), not the anchor scene's own real_people.
+    real_person_in_frame = bool(scene.get("real_people"))
+    if scene["shot"] == "anchor":
+        screen_scene = _next_scene_shot(script, scene["id"])
+        if screen_scene is not None and screen_scene.get("real_people"):
+            real_person_in_frame = True
+    if real_person_in_frame:
         plates.add("ai_illustration")
+
     plates.add("ai_voice" if t_abs < AI_VOICE_PLATE_S else "ai_icon")
     return plates
 

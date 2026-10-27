@@ -28,16 +28,21 @@ def test_ai_voice_and_ai_icon_are_mutually_exclusive(nes_desk_dir):
         assert ("ai_voice" in plates) != ("ai_icon" in plates)
 
 
-def test_ai_illustration_only_for_scenes_with_real_people(nes_desk_dir):
+def test_ai_illustration_shows_whenever_a_real_person_is_in_frame(nes_desk_dir):
+    """Not just for a scene's own `real_people`: an anchor shot (S1) puts the
+    *next* scene-shot's image on its over-the-shoulder screen
+    (engine._next_scene_shot), so S1 must also carry the disclosure for as
+    long as that next scene (S2) has a real person on it."""
     template = load_template(nes_desk_dir)
     timeline = builtin_timeline()
 
     by_scene_id = {s["id"]: s for s in BUILTIN_SCRIPT["scenes"]}
+    expect_plate = {"S1": True, "S2": True, "S3": False}  # S1's screen shows S2
     for scene_timing in timeline.scenes:
         scene = by_scene_id[scene_timing.scene_id]
         mid_t = (scene_timing.start_s + scene_timing.end_s) / 2
         plates = active_plates(BUILTIN_SCRIPT, scene_timing, template, mid_t)
-        if scene["real_people"]:
+        if expect_plate[scene["id"]]:
             assert "ai_illustration" in plates, scene["id"]
         else:
             assert "ai_illustration" not in plates, scene["id"]

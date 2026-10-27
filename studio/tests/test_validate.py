@@ -31,6 +31,13 @@ def test_bad_palette_fails_with_readable_reason(bad_palette_dir):
     assert "#ff0000" in message
 
 
+def test_missing_license_note_fails_with_readable_reason(missing_license_note_dir):
+    with pytest.raises(TemplateValidationError) as exc_info:
+        validate_template(missing_license_note_dir)
+    message = str(exc_info.value)
+    assert "license_note" in message
+
+
 @pytest.mark.parametrize("fixture_name", ["nes-desk", "night-report"])
 def test_cli_exits_zero_on_valid_template(fixture_name, nes_desk_dir, night_report_dir):
     template_dir = nes_desk_dir if fixture_name == "nes-desk" else night_report_dir

@@ -59,8 +59,11 @@ timing, kept separate from pixel drawing so it is unit-testable
 - `ai_voice` — the whole video's first 3 seconds (`AI_VOICE_PLATE_S` in
   `studio/constants.py`), top of frame.
 - `ai_icon` — every frame after that (mutually exclusive with `ai_voice`).
-- `ai_illustration` — any frame of a scene whose `real_people` is
-  non-empty, for that scene's entire duration.
+- `ai_illustration` — any frame where a real person's likeness is in frame:
+  either the current scene's own `real_people` is non-empty, or (for an
+  anchor shot) the scene shown on the over-the-shoulder screen
+  (`_next_scene_shot`) has non-empty `real_people` — the plate holds for
+  that scene's entire duration either way.
 - `scene_title` / `source_plate` — straight from the scene's
   `on_screen_text` / `source_plate` fields, wrapped to fit the template's
   own plate rect width (`studio/engine.py:_max_chars_for_rect`).

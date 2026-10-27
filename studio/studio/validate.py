@@ -77,6 +77,11 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
     if url_hits:
         problems.append("external URLs are not allowed in a template package: " + "; ".join(url_hits))
 
+    if data.get("assets") and not data.get("license_note", "").strip():
+        problems.append(
+            "license_note is required when assets[] is non-empty (template.schema.json)"
+        )
+
     palette_set = channel_palette_set(channel_id)
     for rel_asset in data.get("assets", []):
         asset_path = template_dir / rel_asset

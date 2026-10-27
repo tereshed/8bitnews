@@ -30,3 +30,8 @@ def bad_safezone_dir() -> Path:
 @pytest.fixture
 def bad_palette_dir() -> Path:
     return FIXTURES_DIR / "bad-palette"
+
+
+@pytest.fixture
+def missing_license_note_dir() -> Path:
+    return FIXTURES_DIR / "missing-license-note"
