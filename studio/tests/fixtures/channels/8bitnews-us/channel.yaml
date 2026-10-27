@@ -1,0 +1,43 @@
+# Test fixture channel profile: same id as the real channel (so the studio
+# asset bundle under studio/channels/8bitnews-us/ is found), but a narrower
+# duration_s range matching the short fixture script, and format.voice.provider
+# set to the "stub" adapter so a default-provider build actually runs
+# end-to-end in tests without needing a real TTS model.
+
+id: 8bitnews-us
+name: 8BitNewsUS (test fixture)
+country: US
+language: en-US
+timezone: America/New_York
+
+platforms:
+  youtube:   { enabled: true, account: tbd }
+  tiktok:    { enabled: true, account: tbd }
+  instagram: { enabled: true, account: tbd }
+
+schedule:
+  runs: ["0 7 * * *"]
+  publish_slots: ["09:00"]
+
+moderation:
+  approval_required: true
+
+editorial:
+  tone: calm, neutral, analytical
+  topics_include: []
+  topics_exclude: []
+
+format:
+  description: format.md
+  aspect: "9:16"
+  duration_s: { min: 10, max: 30 }
+  templates: [nes-desk]
+  default_template: nes-desk
+  voice: { provider: stub, voice_id: stub-test-voice }
+  subtitles: burned_in
+
+sources: countries/us/sources.yaml
+policy: countries/us/policy.md
+
+experiments:
+  enabled: false

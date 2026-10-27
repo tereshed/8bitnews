@@ -124,6 +124,9 @@
       "max_chars_per_line": 23
     }
   },
+  "timing": {
+    "scene_pause_s": 0.3
+  },
   "motion_presets": [
     {
       "id": "pan-right",

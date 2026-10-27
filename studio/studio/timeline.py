@@ -1,16 +1,20 @@
 """The timeline is a standalone data structure, independent of how it was
-produced: scenes with start/end, subtitle cues with words, and a voice
-volume envelope the anchor's mouth animates against (docs: 'Таймлайн —
-отдельная структура данных'). In E2a-2 a TTS adapter will produce one from
-real audio; `uniform_timeline` below produces one from word count and a
-words-per-minute pace, for preview and tests without any TTS.
+produced: scenes with absolute start/end, per-word timings, subtitle cues,
+and a voice volume envelope the anchor's mouth animates against (docs:
+'Таймлайн — отдельная структура данных'). `uniform_timeline` builds one from
+word count and a words-per-minute pace (no audio) -- used by tests and by
+`template preview`. `timeline_from_voice` (E2a-2a) builds the same structure
+from a TTS adapter's real per-scene word timings plus the template's
+`timing.scene_pause_s` gap between scenes.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from .constants import DEFAULT_WPM, SERIOUS_WPM
-from .subtitles import SubtitleCue, split_subtitles
+from .subtitles import SubtitleCue, split_cues
 
 
 @dataclass(frozen=True)
@@ -92,7 +96,7 @@ def uniform_timeline(script: dict, wpm: float | None = None) -> Timeline:
             Word(text=w, start_s=scene_start + i * word_dur, end_s=scene_start + (i + 1) * word_dur)
             for i, w in enumerate(words_text)
         )
-        subtitles = tuple(split_subtitles(scene["narration"], scene_start, scene_end))
+        subtitles = tuple(split_cues(words))
         scenes.append(
             SceneTiming(
                 scene_id=scene["id"],
@@ -105,3 +109,81 @@ def uniform_timeline(script: dict, wpm: float | None = None) -> Timeline:
         )
         t = scene_end
     return Timeline(scenes=tuple(scenes))
+
+
+@dataclass(frozen=True)
+class SceneVoice:
+    """One scene's TTS output, already mapped back to the *original* words
+    (studio.pronunciation.regroup_words): timings are local to the scene,
+    starting at 0 -- `timeline_from_voice` places them on the absolute
+    timeline."""
+
+    scene_id: str
+    shot: str
+    words: tuple[Word, ...]
+
+
+def timeline_from_voice(
+    scene_voices: list[SceneVoice],
+    pause_s: float,
+    max_lines: int,
+    max_chars: int,
+) -> Timeline:
+    """Builds a Timeline from real per-scene voice word timings plus
+    `pause_s` silence *between* scenes (template `timing.scene_pause_s`) --
+    none before the first scene or after the last, so the rendered video has
+    no dead air at either end."""
+    scenes: list[SceneTiming] = []
+    t = 0.0
+    for i, sv in enumerate(scene_voices):
+        if i > 0:
+            t += pause_s
+        start = t
+        words = tuple(Word(text=w.text, start_s=start + w.start_s, end_s=start + w.end_s) for w in sv.words)
+        end = words[-1].end_s if words else start
+        subtitles = tuple(split_cues(words, max_lines, max_chars))
+        scenes.append(SceneTiming(scene_id=sv.scene_id, shot=sv.shot, start_s=start, end_s=end, words=words, subtitles=subtitles))
+        t = end
+    return Timeline(scenes=tuple(scenes))
+
+
+def timeline_to_dict(timeline: Timeline) -> dict:
+    return {
+        "scenes": [
+            {
+                "scene_id": s.scene_id,
+                "shot": s.shot,
+                "start_s": s.start_s,
+                "end_s": s.end_s,
+                "words": [{"text": w.text, "start_s": w.start_s, "end_s": w.end_s} for w in s.words],
+                "subtitles": [
+                    {"lines": list(c.lines), "start_s": c.start_s, "end_s": c.end_s} for c in s.subtitles
+                ],
+            }
+            for s in timeline.scenes
+        ]
+    }
+
+
+def timeline_from_dict(data: dict) -> Timeline:
+    scenes = []
+    for s in data["scenes"]:
+        words = tuple(Word(text=w["text"], start_s=w["start_s"], end_s=w["end_s"]) for w in s["words"])
+        subs = tuple(
+            SubtitleCue(lines=tuple(c["lines"]), start_s=c["start_s"], end_s=c["end_s"]) for c in s["subtitles"]
+        )
+        scenes.append(
+            SceneTiming(scene_id=s["scene_id"], shot=s["shot"], start_s=s["start_s"], end_s=s["end_s"], words=words, subtitles=subs)
+        )
+    return Timeline(scenes=tuple(scenes))
+
+
+def save_timeline(timeline: Timeline, path: Path) -> None:
+    Path(path).write_text(json.dumps(timeline_to_dict(timeline), indent=2))
+
+
+def load_timeline(path: Path) -> Timeline:
+    """Reads back a Timeline written by `save_timeline` -- or the richer
+    timeline.json a `studio build` package writes, which has the same
+    top-level `scenes` key plus a `keyframes` list this function ignores."""
+    return timeline_from_dict(json.loads(Path(path).read_text()))
