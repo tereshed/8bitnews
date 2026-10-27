@@ -47,3 +47,11 @@ go.work.sum
 # own scratch dir — never real deploy secrets, just local tooling state.
 /deploy/ansible/.collections/
 /deploy/ansible/.deploy-check/
+
+# make studio-preview output (MP4 + contact sheet + frame PNGs)
+/out/
+
+# studio/ (Python): bytecode caches, pytest cache
+__pycache__/
+*.pyc
+.pytest_cache/

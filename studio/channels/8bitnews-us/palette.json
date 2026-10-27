@@ -1,0 +1,24 @@
+{
+  "name": "NES PPU master palette",
+  "source": "https://lospec.com/palette-list/nintendo-entertainment-system (Lospec palette list, 'Nintendo Entertainment System' / NES 2C02 PPU master palette). Hex values were extracted directly from that page's HTML on 2026-10-27; nesdev.org/wiki/PPU_palettes documents the same hardware palette but was not directly cross-checked value-by-value here (its page only ships color swatches as an image and downloadable .pal files, not an inline hex table).",
+  "license": "Public domain hardware palette (console color output, not copyrightable artwork). Safe for commercial use.",
+  "note": "55 colors. docs/architecture.md and format.md round this to 'about 54' because two near-identical whites (#fcfcfc/#f8f8f8) are usually reported as one; this file keeps both because the PPU exposes them as distinct palette indices.",
+  "colors": [
+    "#000000", "#fcfcfc", "#f8f8f8", "#bcbcbc", "#7c7c7c",
+    "#a4e4fc", "#3cbcfc", "#0078f8", "#0000fc", "#b8b8f8",
+    "#6888fc", "#0058f8", "#0000bc", "#d8b8f8", "#9878f8",
+    "#6844fc", "#4428bc", "#f8b8f8", "#f878f8", "#d800cc",
+    "#940084", "#f8a4c0", "#f85898", "#e40058", "#a80020",
+    "#f0d0b0", "#f87858", "#f83800", "#a81000", "#fce0a8",
+    "#fca044", "#e45c10", "#881400", "#f8d878", "#f8b800",
+    "#ac7c00", "#503000", "#d8f878", "#b8f818", "#00b800",
+    "#007800", "#b8f8b8", "#58d854", "#00a800", "#006800",
+    "#b8f8d8", "#58f898", "#00a844", "#005800", "#00fcfc",
+    "#00e8d8", "#008888", "#004058", "#f8d8f8", "#787878"
+  ],
+  "serious_subset": [
+    "#000000", "#7c7c7c", "#bcbcbc", "#f8f8f8", "#787878",
+    "#004058", "#008888", "#00e8d8", "#0000bc", "#0000fc",
+    "#0058f8", "#0078f8", "#3cbcfc", "#a4e4fc", "#4428bc"
+  ]
+}

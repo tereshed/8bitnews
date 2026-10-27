@@ -9,7 +9,9 @@ COMPOSE := docker compose --project-directory . -f deploy/docker-compose.yml
 DEPLOY_ENV ?= $(HOME)/.config/8bitnews/deploy.env
 REF ?= main
 
-.PHONY: lint test validate-profiles up down deploy-hub-vm deploy-hub deploy-hub-backup deploy-check
+STUDIO_IMAGE := 8bitnews-studio
+
+.PHONY: lint test validate-profiles up down deploy-hub-vm deploy-hub deploy-hub-backup deploy-check studio-image studio-test studio-preview
 
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run ./...
@@ -45,6 +47,18 @@ deploy-hub:
 
 deploy-hub-backup:
 	set -a; . $(DEPLOY_ENV); set +a; cd deploy/ansible && ansible-playbook hub_backup.yml
+
+# E2a-1: studio frame engine and template packages (studio/README.md).
+studio-image:
+	docker build -t $(STUDIO_IMAGE) ./studio
+
+studio-test: studio-image
+	docker run --rm --entrypoint python $(STUDIO_IMAGE) -m pytest -q
+
+studio-preview: studio-image
+	mkdir -p out/studio-preview
+	docker run --rm -v $(CURDIR)/out/studio-preview:/app/out $(STUDIO_IMAGE) \
+		template preview templates/nes-desk --out out
 
 # Fully offline: ansible-playbook --syntax-check + ansible-lint on all three
 # playbooks, `caddy validate`/`nft -c -f` on rendered templates, and
