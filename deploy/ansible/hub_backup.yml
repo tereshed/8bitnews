@@ -1,0 +1,122 @@
+---
+# E1d: daily pg_dump + restic-to-R2 backups, plus a restore-check script.
+# Run as:
+#   make deploy-hub-backup
+# which calls:
+#   ansible-playbook hub_backup.yml
+- name: Configure daily Postgres backups to R2 (restic) with a restore check
+  hosts: hub_guest
+  become: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+  tasks:
+    - name: Require the restic/R2 settings this playbook cannot guess
+      ansible.builtin.assert:
+        that:
+          - r2_endpoint | length > 0
+          - r2_backup_bucket | length > 0
+          - r2_access_key_id | length > 0
+          - r2_secret_access_key | length > 0
+          - restic_password | length > 0
+        fail_msg: >-
+          R2_ENDPOINT/R2_BACKUP_BUCKET/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/
+          RESTIC_PASSWORD must be set in the controller's environment (see
+          deploy/ansible/deploy.env.example).
+        quiet: true
+
+    - name: Install restic
+      ansible.builtin.apt:
+        name: restic
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create the backup directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+      loop:
+        - "{{ hub_backup_dir }}"
+        - "{{ hub_backup_scripts_dir }}"
+
+    - name: Render the root-only restic/R2-backup-bucket secrets file
+      ansible.builtin.template:
+        src: backup-env.j2
+        dest: "{{ hub_backup_env_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Check whether the restic repository is already initialized
+      ansible.builtin.command: restic snapshots
+      environment:
+        RESTIC_REPOSITORY: "{{ restic_repository }}"
+        RESTIC_PASSWORD: "{{ restic_password }}"
+        AWS_ACCESS_KEY_ID: "{{ r2_access_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ r2_secret_access_key }}"
+      register: hub_restic_snapshots
+      failed_when: false
+      changed_when: false
+      no_log: true
+
+    - name: Initialize the restic repository (first run only)
+      ansible.builtin.command: restic init
+      environment:
+        RESTIC_REPOSITORY: "{{ restic_repository }}"
+        RESTIC_PASSWORD: "{{ restic_password }}"
+        AWS_ACCESS_KEY_ID: "{{ r2_access_key_id }}"
+        AWS_SECRET_ACCESS_KEY: "{{ r2_secret_access_key }}"
+      when: hub_restic_snapshots.rc != 0
+      changed_when: true
+      no_log: true
+
+    - name: Install the backup script
+      ansible.builtin.template:
+        src: pg-backup.sh.j2
+        dest: "{{ hub_backup_scripts_dir }}/pg-backup.sh"
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Install the restore-check script
+      ansible.builtin.template:
+        src: restore-check.sh.j2
+        dest: "{{ hub_backup_scripts_dir }}/restore-check.sh"
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Install the backup systemd service
+      ansible.builtin.template:
+        src: hub-backup.service.j2
+        dest: /etc/systemd/system/8bitnews-hub-backup.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload systemd
+
+    - name: Install the backup systemd timer
+      ansible.builtin.template:
+        src: hub-backup.timer.j2
+        dest: /etc/systemd/system/8bitnews-hub-backup.timer
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload systemd
+
+    - name: Apply pending unit changes
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start the backup timer
+      ansible.builtin.systemd:
+        name: 8bitnews-hub-backup.timer
+        enabled: true
+        state: started
+        daemon_reload: true

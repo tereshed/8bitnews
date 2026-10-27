@@ -1,0 +1,53 @@
+# Managed by deploy/ansible/hub_vm.yml. Do not edit by hand.
+[Unit]
+Description=8bitnews hub KVM VM ({{ hub_vm_name }})
+After=network-online.target 8bitnews-hub-network.service
+Wants=network-online.target
+Requires=8bitnews-hub-network.service
+
+[Service]
+Type=simple
+User={{ hub_vm_user }}
+Group={{ hub_vm_group }}
+# kvm is only ever granted here, as a supplementary group for /dev/kvm
+# access — the process's owning group stays the dedicated hub_vm_group, so
+# the neighbor's own kvm-group CI-runner user gets no extra access.
+SupplementaryGroups=kvm
+UMask=0077
+RuntimeDirectory=8bitnews-hub-vm
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/qemu-system-x86_64 \
+	-name {{ hub_vm_name }},process=8bitnews-hub \
+	-machine q35,accel=kvm \
+	-cpu host \
+	-smp {{ hub_vm_vcpus }} \
+	-m {{ hub_vm_mem_mb }} \
+	-drive file={{ hub_vm_dir }}/disk.qcow2,if=virtio,format=qcow2,cache=none \
+	-cdrom {{ hub_vm_dir }}/seed.iso \
+	-netdev user,id=net0,ipv6=off,hostfwd=tcp:127.0.0.1:{{ hub_vm_ssh_port }}-:22,hostfwd=tcp:127.0.0.1:{{ hub_vm_http_port }}-:{{ hub_guest_http_port }} \
+	-device virtio-net-pci,netdev=net0 \
+	-qmp unix:{{ hub_vm_runtime_dir }}/qmp.sock,server,nowait \
+	-pidfile {{ hub_vm_runtime_dir }}/vm.pid \
+	-nographic
+# No -no-reboot: a guest-initiated reboot (kernel update, `reboot`) should
+# restart the VM inside the same qemu process, not exit it — with
+# -no-reboot, qemu exits cleanly (code 0) on guest reboot and systemd has
+# nothing to restart, leaving the hub down until someone notices.
+# QMP-driven clean shutdown rather than SIGTERM, so the guest OS (and
+# Postgres inside it) gets to shut down gracefully.
+ExecStop=/usr/bin/python3 {{ hub_vm_dir }}/qmp-shutdown.py {{ hub_vm_runtime_dir }}/qmp.sock
+TimeoutStopSec=90
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths={{ hub_vm_dir }}/disk.qcow2 {{ hub_vm_runtime_dir }}
+Nice={{ hub_vm_nice }}
+CPUQuota={{ hub_vm_cpu_quota }}
+MemoryMax={{ hub_vm_mem_max }}
+
+[Install]
+WantedBy=multi-user.target

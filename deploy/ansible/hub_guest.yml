@@ -1,0 +1,220 @@
+---
+# E1d: provision the guest VM (Docker, unattended-upgrades, checkout) and
+# run the deploy sequence (migrate -> sync-profiles -> restart serve ->
+# healthz). Run as:
+#   make deploy-hub [REF=<git ref>]
+# which calls:
+#   ansible-playbook hub_guest.yml -e hub_ref=<ref>
+#
+# Reached only through hub_host via ProxyCommand (see group_vars/hub_guest.yml);
+# the guest itself listens on no externally reachable port.
+- name: Provision and deploy hub inside the isolated VM
+  hosts: hub_guest
+  become: true
+
+  tasks:
+    - name: Require the R2 settings this playbook cannot guess
+      ansible.builtin.assert:
+        that:
+          - r2_endpoint | length > 0
+          - r2_media_bucket | length > 0
+          - r2_access_key_id | length > 0
+          - r2_secret_access_key | length > 0
+        fail_msg: >-
+          R2_ENDPOINT/R2_MEDIA_BUCKET/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY
+          must be set in the controller's environment (see
+          deploy/ansible/deploy.env.example).
+        quiet: true
+
+    # --- Base packages ---
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - git
+          - unattended-upgrades
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Enable unattended security upgrades
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Ensure the unattended-upgrades service is enabled
+      ansible.builtin.systemd:
+        name: unattended-upgrades
+        enabled: true
+        state: started
+
+    # --- Docker from its official repository (docs.docker.com/engine/install/ubuntu) ---
+    - name: Create the apt keyrings directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Download Docker's official GPG key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        owner: root
+        group: root
+        mode: "0644"
+        force: true
+
+    - name: Add Docker's official apt repository
+      ansible.builtin.deb822_repository:
+        name: docker
+        types: [deb]
+        uris: "https://download.docker.com/linux/ubuntu"
+        suites: "{{ ansible_distribution_release }}"
+        components: [stable]
+        signed_by: /etc/apt/keyrings/docker.asc
+        state: present
+
+    - name: Install Docker Engine and the Compose plugin
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+
+    - name: Ensure Docker is enabled and running
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    # --- Checkout + compose files ---
+    - name: Create the install directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+      loop:
+        - "{{ hub_install_dir }}"
+        - "{{ hub_deploy_dir }}"
+
+    - name: Checkout github.com/tereshed/8bitnews at {{ hub_ref }}
+      ansible.builtin.git:
+        repo: "{{ hub_repo_url }}"
+        dest: "{{ hub_repo_dir }}"
+        version: "{{ hub_ref }}"
+        force: false
+
+    - name: Install the hub+postgres compose file
+      ansible.builtin.copy:
+        src: guest/docker-compose.yml
+        dest: "{{ hub_deploy_dir }}/docker-compose.yml"
+        owner: root
+        group: root
+        mode: "0644"
+
+    # --- Secrets: generated once, preserved on every later run ---
+    - name: Check whether the guest .env already exists
+      ansible.builtin.stat:
+        path: "{{ hub_env_file }}"
+      register: hub_env_stat
+
+    - name: Generate the one-time secrets (first run only)
+      when: not hub_env_stat.stat.exists
+      block:
+        - name: Generate the Postgres password
+          ansible.builtin.command: openssl rand -hex 24
+          register: hub_pg_password_gen
+          changed_when: false
+          no_log: true
+
+        - name: Generate the HUB_API_KEYS value
+          ansible.builtin.command: openssl rand -hex 32
+          register: hub_api_key_gen
+          changed_when: false
+          no_log: true
+
+        - name: Keep the freshly generated secrets for this run
+          ansible.builtin.set_fact:
+            hub_generated_postgres_password: "{{ hub_pg_password_gen.stdout }}"
+            hub_generated_api_key: "{{ hub_api_key_gen.stdout }}"
+          no_log: true
+
+    - name: Read back the existing secrets (reruns reuse them unchanged)
+      when: hub_env_stat.stat.exists
+      block:
+        - name: Slurp the existing .env
+          ansible.builtin.slurp:
+            src: "{{ hub_env_file }}"
+          register: hub_env_existing
+          no_log: true
+
+        - name: Extract the existing secrets
+          ansible.builtin.set_fact:
+            hub_generated_postgres_password: >-
+              {{ (hub_env_existing.content | b64decode | regex_findall('(?m)^POSTGRES_PASSWORD=(.*)$'))[0] }}
+            hub_generated_api_key: >-
+              {{ (hub_env_existing.content | b64decode | regex_findall('(?m)^HUB_API_KEYS=(.*)$'))[0] }}
+          no_log: true
+
+    - name: Render the guest .env (secrets preserved; R2/etc. refreshed from the controller)
+      ansible.builtin.template:
+        src: guest-env.j2
+        dest: "{{ hub_env_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    # --- Deploy sequence: every run, by design (this *is* the deploy) ---
+    - name: Build the hub image from {{ hub_ref }}
+      ansible.builtin.command:
+        cmd: docker compose build hub
+        chdir: "{{ hub_deploy_dir }}"
+      changed_when: true
+
+    - name: Start Postgres and wait for it to be healthy
+      ansible.builtin.command:
+        cmd: docker compose up -d --wait postgres
+        chdir: "{{ hub_deploy_dir }}"
+      changed_when: true
+
+    - name: Apply database migrations
+      ansible.builtin.command:
+        cmd: docker compose run --rm hub migrate up
+        chdir: "{{ hub_deploy_dir }}"
+      changed_when: true
+
+    - name: Sync channel/country profiles
+      ansible.builtin.command:
+        cmd: docker compose run --rm hub sync-profiles
+        chdir: "{{ hub_deploy_dir }}"
+      changed_when: true
+
+    - name: Restart hub serve with the newly built image
+      ansible.builtin.command:
+        cmd: docker compose up -d --force-recreate hub
+        chdir: "{{ hub_deploy_dir }}"
+      changed_when: true
+
+    - name: Wait for hub to report healthy
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ hub_guest_http_port }}/healthz"
+        status_code: 200
+      register: hub_healthz
+      until: hub_healthz.status == 200
+      retries: 15
+      delay: 2

@@ -3,7 +3,13 @@ GOBIN := $(CURDIR)/bin
 GOLANGCI_LINT := $(GOBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
 COMPOSE := docker compose --project-directory . -f deploy/docker-compose.yml
 
-.PHONY: lint test validate-profiles up down
+# make deploy-hub-vm / deploy-hub / deploy-hub-backup read deploy secrets
+# from this file (see deploy/ansible/deploy.env.example) instead of from
+# -e flags, so nothing sensitive shows up in shell history or `ps`.
+DEPLOY_ENV ?= $(HOME)/.config/8bitnews/deploy.env
+REF ?= main
+
+.PHONY: lint test validate-profiles up down deploy-hub-vm deploy-hub deploy-hub-backup deploy-check
 
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run ./...
@@ -27,3 +33,22 @@ up:
 
 down:
 	$(COMPOSE) down
+
+# E1d: deploy hub onto the shared Hetzner host (docs/deploy.md). Each
+# target only shells out to ansible-playbook after sourcing DEPLOY_ENV —
+# it never touches the real server from CI/this repo's own checks.
+deploy-hub-vm:
+	set -a; . $(DEPLOY_ENV); set +a; cd deploy/ansible && ansible-playbook hub_vm.yml
+
+deploy-hub:
+	set -a; . $(DEPLOY_ENV); set +a; cd deploy/ansible && ansible-playbook hub_guest.yml -e hub_ref=$(REF)
+
+deploy-hub-backup:
+	set -a; . $(DEPLOY_ENV); set +a; cd deploy/ansible && ansible-playbook hub_backup.yml
+
+# Fully offline: ansible-playbook --syntax-check + ansible-lint on all three
+# playbooks, `caddy validate`/`nft -c -f` on rendered templates, and
+# `docker compose config` on the guest compose file — all containerized,
+# no real server access. See deploy/ansible/deploy-check.sh.
+deploy-check:
+	bash deploy/ansible/deploy-check.sh

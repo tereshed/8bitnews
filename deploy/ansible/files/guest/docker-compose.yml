@@ -1,0 +1,66 @@
+name: 8bitnews-hub
+
+# Deployed verbatim (not templated) by deploy/ansible/hub_guest.yml; all
+# tunables come from the guest's .env file, which that playbook generates
+# and docker compose loads automatically because it sits next to this
+# file. Validate locally with:
+#   docker compose -f deploy/ansible/files/guest/docker-compose.yml --env-file <sample>.env config
+
+services:
+  postgres:
+    image: ${HUB_POSTGRES_IMAGE:-postgres:16-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-8bitnews}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-8bitnews}
+    # No `ports:` — Postgres is reachable only from the hub container over
+    # the compose-internal network (task E1d AC3: "Postgres не опубликован
+    # никуда").
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-8bitnews} -d ${POSTGRES_DB:-8bitnews}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: ${HUB_POSTGRES_MEM_LIMIT:-1g}
+          cpus: "${HUB_POSTGRES_CPUS:-1.0}"
+
+  hub:
+    build:
+      context: ${HUB_REPO_DIR:-/opt/8bitnews/repo}
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      HUB_DATABASE_URL: postgres://${POSTGRES_USER:-8bitnews}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-8bitnews}?sslmode=disable
+      # channels/ and countries/ are bind-mounted read-only below, under /repo.
+      HUB_REPO_ROOT: /repo
+      HUB_HTTP_ADDR: :8080
+      HUB_API_KEYS: ${HUB_API_KEYS:?HUB_API_KEYS is required}
+      HUB_S3_ENDPOINT: ${HUB_S3_ENDPOINT:?HUB_S3_ENDPOINT is required}
+      HUB_S3_REGION: ${HUB_S3_REGION:-auto}
+      HUB_S3_BUCKET: ${HUB_S3_BUCKET:?HUB_S3_BUCKET is required}
+      HUB_S3_ACCESS_KEY: ${HUB_S3_ACCESS_KEY:?HUB_S3_ACCESS_KEY is required}
+      HUB_S3_SECRET_KEY: ${HUB_S3_SECRET_KEY:?HUB_S3_SECRET_KEY is required}
+      HUB_S3_USE_PATH_STYLE: ${HUB_S3_USE_PATH_STYLE:-true}
+    volumes:
+      - ${HUB_REPO_DIR:-/opt/8bitnews/repo}/channels:/repo/channels:ro
+      - ${HUB_REPO_DIR:-/opt/8bitnews/repo}/countries:/repo/countries:ro
+    # Binds all interfaces *inside the guest*, not the host: the host's
+    # qemu user-mode network forwards 127.0.0.1:9201 -> guest:8080 by
+    # connecting to the guest as if from its gateway, which only reaches a
+    # service bound to the guest's real interface, not its loopback. The
+    # guest has no other network path in or out, so this never exposes hub
+    # beyond the host-loopback + Caddy chain in front of it.
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Managed by deploy/ansible/hub_backup.yml. Do not edit by hand.
+#
+# Daily job (run by 8bitnews-hub-backup.timer): pg_dump the live database
+# in custom format, keep {{ hub_backup_local_retention_days }} days of
+# dumps locally, push the new dump to the restic/R2 backups repository,
+# and prune older restic snapshots to the same retention.
+set -euo pipefail
+
+BACKUP_DIR="{{ hub_backup_dir }}"
+RETENTION_DAYS="{{ hub_backup_local_retention_days }}"
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+DUMP_FILE="${BACKUP_DIR}/8bitnews-${STAMP}.pgdump"
+
+set -a
+# shellcheck disable=SC1091
+source "{{ hub_env_file }}"
+# shellcheck disable=SC1091
+source "{{ hub_backup_env_file }}"
+set +a
+
+mkdir -p "${BACKUP_DIR}"
+
+docker compose --project-directory "{{ hub_deploy_dir }}" exec -T postgres \
+	pg_dump -U "${POSTGRES_USER:-8bitnews}" -d "${POSTGRES_DB:-8bitnews}" -Fc >"${DUMP_FILE}"
+
+restic backup "${DUMP_FILE}" --tag 8bitnews-hub
+
+find "${BACKUP_DIR}" -name '8bitnews-*.pgdump' -mtime "+${RETENTION_DAYS}" -delete
+
+restic forget --tag 8bitnews-hub --keep-daily "${RETENTION_DAYS}" --prune

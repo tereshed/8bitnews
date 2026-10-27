@@ -1,0 +1,157 @@
+---
+# make deploy-check runs this. Not part of any real deploy — a functional
+# (not just --syntax-check) regression test for deploy/ansible/tasks/caddy_site.yml,
+# the task logic hub_vm.yml uses to render/validate/install the 8bitnews
+# Caddy site file. --syntax-check alone would not have caught the
+# block/rescue handler bug this logic replaced (ansible-core silently
+# failing to find the handler at notify time), so this exercises the real
+# tasks against a real `caddy` binary (see deploy-check.sh) through three
+# scenarios: first install, idempotent re-run, and a rejected render.
+- name: Functional test of the render/validate/atomic-install Caddy task logic
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    hub_domain: hub.example.com
+    hub_caddy_max_body_size: 20MB
+    hub_vm_http_port: 9201
+  tasks:
+    - name: Create an isolated scratch root for this test run
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: 8bitnews-caddy-site-test.
+      register: hub_caddy_test_root
+
+    - name: Fix the scratch paths every task below (and the included file) uses
+      ansible.builtin.set_fact:
+        hub_caddy_sites_dir: "{{ hub_caddy_test_root.path }}/sites"
+        hub_caddy_site_file: "{{ hub_caddy_test_root.path }}/sites/8bitnews.caddy"
+        hub_caddy_main_file: "{{ hub_caddy_test_root.path }}/Caddyfile"
+
+    - name: Create the scratch sites directory
+      ansible.builtin.file:
+        path: "{{ hub_caddy_sites_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Seed a neighbor's own site file, like the real /etc/caddy/sites
+      ansible.builtin.copy:
+        dest: "{{ hub_caddy_sites_dir }}/spanish-tutor.caddy"
+        content: |
+          spanish-tutor.example.com {
+              reverse_proxy 127.0.0.1:9100
+          }
+        mode: "0644"
+
+    - name: Seed a stale 8bitnews.caddy, as if from a previous deploy
+      ansible.builtin.copy:
+        dest: "{{ hub_caddy_site_file }}"
+        content: |
+          old.example.com {
+              reverse_proxy 127.0.0.1:9999
+          }
+        mode: "0644"
+
+    - name: Seed a main Caddyfile that imports the sites directory, like the real one
+      ansible.builtin.copy:
+        dest: "{{ hub_caddy_main_file }}"
+        content: |
+          {
+              admin off
+          }
+
+          import {{ hub_caddy_sites_dir }}/*.caddy
+        mode: "0644"
+
+    # --- Scenario 1: first install ---
+    - name: Run the real render/validate/install task logic
+      ansible.builtin.include_tasks: tasks/caddy_site.yml
+
+    - name: Assert the first run installed the new site file
+      ansible.builtin.assert:
+        that:
+          - hub_caddy_site_changed | bool
+        fail_msg: "Expected the first run to install a new site file (hub_caddy_site_changed should be true)."
+
+    - name: Read back the installed site file
+      ansible.builtin.slurp:
+        src: "{{ hub_caddy_site_file }}"
+      register: hub_caddy_installed_content
+
+    - name: Assert the installed file is the new one, not the stale seed
+      ansible.builtin.assert:
+        that:
+          - "'hub.example.com' in (hub_caddy_installed_content.content | b64decode)"
+          - "'old.example.com' not in (hub_caddy_installed_content.content | b64decode)"
+
+    - name: Assert the neighbor's own site file was left untouched
+      ansible.builtin.slurp:
+        src: "{{ hub_caddy_sites_dir }}/spanish-tutor.caddy"
+      register: hub_caddy_neighbor_content
+
+    - name: Assert the neighbor's content is unchanged
+      ansible.builtin.assert:
+        that:
+          - "'spanish-tutor.example.com' in (hub_caddy_neighbor_content.content | b64decode)"
+
+    # --- Scenario 2: idempotent re-run with unchanged inputs (AC2) ---
+    - name: Re-run the same task logic with unchanged inputs
+      ansible.builtin.include_tasks: tasks/caddy_site.yml
+
+    - name: Assert the second run is a no-op
+      ansible.builtin.assert:
+        that:
+          - not (hub_caddy_site_changed | bool)
+        fail_msg: "Re-running with identical inputs should not report a change (AC2 idempotency)."
+
+    # --- Scenario 3: a syntactically broken render must be rejected, not installed ---
+    - name: Break the render on purpose (invalid request_body max_size)
+      ansible.builtin.set_fact:
+        hub_caddy_max_body_size: not-a-size
+
+    # ignore_errors on an include_tasks task only covers the include action
+    # itself, not the tasks it dynamically pulls in — block/rescue is the
+    # reliable way to catch a failure from inside an included file.
+    - name: Run the task logic again, expecting caddy validate to reject it
+      block:
+        - name: Include the task logic
+          ansible.builtin.include_tasks: tasks/caddy_site.yml
+        - name: Record that it unexpectedly did not fail
+          ansible.builtin.set_fact:
+            hub_caddy_broken_run_failed: false
+      rescue:
+        - name: Record that it failed, as expected
+          ansible.builtin.set_fact:
+            hub_caddy_broken_run_failed: true
+
+    - name: Assert the broken render actually failed the play, not silently
+      ansible.builtin.assert:
+        that:
+          - hub_caddy_broken_run_failed | bool
+        fail_msg: "A syntactically invalid Caddy site file must fail the task, not succeed silently."
+
+    - name: Read the live site file back after the rejected render
+      ansible.builtin.slurp:
+        src: "{{ hub_caddy_site_file }}"
+      register: hub_caddy_after_reject
+
+    - name: Assert the last good content survived the rejected render untouched
+      ansible.builtin.assert:
+        that:
+          - "'hub.example.com' in (hub_caddy_after_reject.content | b64decode)"
+        fail_msg: "The previous good site file must survive a rejected render untouched."
+
+    - name: Check for a leftover staging file after the rejected render
+      ansible.builtin.stat:
+        path: "{{ hub_caddy_site_file }}.new"
+      register: hub_caddy_leftover_stat
+
+    - name: Assert no staging file was left behind
+      ansible.builtin.assert:
+        that:
+          - not hub_caddy_leftover_stat.stat.exists
+
+    - name: Clean up the scratch root
+      ansible.builtin.file:
+        path: "{{ hub_caddy_test_root.path }}"
+        state: absent

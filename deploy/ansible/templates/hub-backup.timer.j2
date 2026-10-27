@@ -1,0 +1,11 @@
+# Managed by deploy/ansible/hub_backup.yml. Do not edit by hand.
+[Unit]
+Description=Run 8bitnews-hub-backup.service daily
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,351 @@
+---
+# E1d: stand up the isolated KVM VM for hub on the shared Hetzner host, and
+# wire its HTTP port through Caddy. Run as:
+#   make deploy-hub-vm
+# which just calls:
+#   ansible-playbook hub_vm.yml
+#
+# Idempotent by design (AC2): the disk is created once and never touched
+# again, cloud-init's seed ISO is only rebuilt when its inputs change, and
+# the VM/network systemd units are only restarted via handlers, i.e. only
+# when their rendered content actually changes.
+- name: Stand up the isolated hub VM on the shared host
+  hosts: hub_host
+  become: true
+  vars:
+    hub_vm_base_image: "{{ hub_vm_dir }}/base-ubuntu-24.04-cloudimg-amd64.img"
+    hub_vm_checksums_tmp: /tmp/8bitnews-hub-ubuntu-cloudimg.SHA256SUMS
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart 8bitnews-hub-network
+      ansible.builtin.systemd:
+        name: 8bitnews-hub-network
+        state: restarted
+
+    - name: Restart 8bitnews-hub-vm
+      ansible.builtin.systemd:
+        name: 8bitnews-hub-vm
+        state: restarted
+
+    - name: Resize new disk
+      ansible.builtin.command:
+        cmd: qemu-img resize {{ hub_vm_dir }}/disk.qcow2 {{ hub_vm_disk_gb }}G
+      changed_when: true
+
+  tasks:
+    # --- Guard rails: fail loud, change nothing, if preconditions aren't met ---
+    - name: Require the settings this playbook cannot guess
+      ansible.builtin.assert:
+        that:
+          - hub_domain | length > 0
+          - hub_admin_ssh_key | length > 0
+        fail_msg: >-
+          HUB_DOMAIN and HUB_ADMIN_SSH_KEY must be set in the controller's
+          environment (see deploy/ansible/deploy.env.example).
+        quiet: true
+
+    - name: Derive the guest admin's public key from HUB_ADMIN_SSH_KEY
+      ansible.builtin.command:
+        cmd: ssh-keygen -y -f {{ hub_admin_ssh_key }}
+      register: hub_admin_ssh_pubkey_raw
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Expose the derived public key for cloud-init templating
+      ansible.builtin.set_fact:
+        hub_admin_ssh_public_key: "{{ hub_admin_ssh_pubkey_raw.stdout }}"
+
+    - name: Check that the neighbor's Caddyfile imports our sites directory
+      ansible.builtin.command:
+        cmd: grep -F "import /etc/caddy/sites/*.caddy" {{ hub_caddy_main_file }}
+      register: hub_caddy_import_check
+      changed_when: false
+      failed_when: false
+
+    - name: Abort without changing anything if the import line is missing
+      ansible.builtin.fail:
+        msg: >-
+          {{ hub_caddy_main_file }} has no "import /etc/caddy/sites/*.caddy"
+          line. That file is owned by the neighbor's Ansible — add the
+          import there before re-running this playbook. Nothing has been
+          changed.
+      when: hub_caddy_import_check.rc != 0
+
+    # --- Host packages ---
+    - name: Install qemu/cloud-init/nft tooling
+      ansible.builtin.apt:
+        name:
+          - qemu-system-x86
+          - qemu-utils
+          - cloud-image-utils
+          - genisoimage
+          - nftables
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    # --- Dedicated system user, isolated from the neighbor's own VM user ---
+    # kvm is shared with the neighbor's own CI-runner VM user (needed by
+    # both for /dev/kvm) — it is only ever granted as a supplementary group,
+    # never as the owning group of anything we create, so that neighbor
+    # can't read our disk/seed through group permissions.
+    - name: Ensure the shared kvm group exists
+      ansible.builtin.group:
+        name: kvm
+        system: true
+        state: present
+
+    - name: Ensure our own, dedicated VM group exists
+      ansible.builtin.group:
+        name: "{{ hub_vm_group }}"
+        system: true
+        state: present
+
+    - name: Create the dedicated, shell-less VM user
+      ansible.builtin.user:
+        name: "{{ hub_vm_user }}"
+        system: true
+        shell: /usr/sbin/nologin
+        group: "{{ hub_vm_group }}"
+        groups: kvm
+        append: true
+        create_home: false
+        state: present
+
+    - name: Create the VM directory (root-owned, group-readable only)
+      ansible.builtin.file:
+        path: "{{ hub_vm_dir }}"
+        state: directory
+        owner: root
+        group: "{{ hub_vm_group }}"
+        mode: "0750"
+
+    - name: Create the cloud-init staging directory
+      ansible.builtin.file:
+        path: "{{ hub_vm_dir }}/cloud-init"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    # The VM's runtime directory (QMP socket, pidfile) is deliberately not
+    # pre-created here: systemd's RuntimeDirectory=/RuntimeDirectoryMode= in
+    # hub-vm.service.j2 creates it fresh on every service start, owned by
+    # User=/Group= from the unit — pre-creating it with the kvm group here
+    # would just be an extra stale grant between runs.
+
+    # --- Base cloud image, verified, then an independent disk ---
+    - name: Fetch the published checksums for the Ubuntu cloud image
+      ansible.builtin.get_url:
+        url: "{{ ubuntu_cloud_image_checksums_url }}"
+        dest: "{{ hub_vm_checksums_tmp }}"
+        mode: "0644"
+        force: true
+
+    - name: Read the downloaded checksums file
+      ansible.builtin.slurp:
+        src: "{{ hub_vm_checksums_tmp }}"
+      register: hub_vm_checksums_raw
+
+    - name: Pick out the sha256 for our image filename
+      ansible.builtin.set_fact:
+        ubuntu_cloud_image_sha256: >-
+          {{ (hub_vm_checksums_raw.content | b64decode
+              | regex_findall('(?m)^([0-9a-f]{64})\s+\*?' ~ (ubuntu_cloud_image_url | basename) ~ '$'))[0] }}
+
+    - name: Download the Ubuntu cloud image (skipped once the checksum matches)
+      ansible.builtin.get_url:
+        url: "{{ ubuntu_cloud_image_url }}"
+        dest: "{{ hub_vm_base_image }}"
+        checksum: "sha256:{{ ubuntu_cloud_image_sha256 }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Create the guest's own independent qcow2 disk (first run only)
+      ansible.builtin.command:
+        cmd: >-
+          qemu-img convert -O qcow2 {{ hub_vm_base_image }} {{ hub_vm_dir }}/disk.qcow2
+        creates: "{{ hub_vm_dir }}/disk.qcow2"
+      notify: Resize new disk
+
+    - name: Apply the disk resize now, before anything else needs it
+      ansible.builtin.meta: flush_handlers
+
+    - name: "Own the disk as the VM user (owner-only: hub's database lives here)"
+      ansible.builtin.file:
+        path: "{{ hub_vm_dir }}/disk.qcow2"
+        owner: "{{ hub_vm_user }}"
+        group: "{{ hub_vm_group }}"
+        mode: "0600"
+
+    # --- Host-generated guest SSH host key, trusted up front (no TOFU) ---
+    - name: Generate the guest's SSH host key on the host (first run only)
+      ansible.builtin.command:
+        cmd: >-
+          ssh-keygen -t ed25519 -N "" -C "{{ hub_vm_name }}"
+          -f {{ hub_vm_dir }}/guest_host_ed25519_key
+        creates: "{{ hub_vm_dir }}/guest_host_ed25519_key"
+
+    - name: Lock down the generated private host key
+      ansible.builtin.file:
+        path: "{{ hub_vm_dir }}/guest_host_ed25519_key"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Read the generated host key pair back
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      loop:
+        - "{{ hub_vm_dir }}/guest_host_ed25519_key"
+        - "{{ hub_vm_dir }}/guest_host_ed25519_key.pub"
+      register: hub_vm_host_key_files
+
+    - name: Expose the host key pair for cloud-init templating
+      ansible.builtin.set_fact:
+        hub_guest_host_key_private: "{{ hub_vm_host_key_files.results[0].content | b64decode }}"
+        hub_guest_host_key_public: "{{ hub_vm_host_key_files.results[1].content | b64decode | trim }}"
+
+    - name: Register the guest's host key in the controller's known_hosts
+      ansible.builtin.known_hosts:
+        name: "[127.0.0.1]:{{ hub_vm_ssh_port }}"
+        key: "[127.0.0.1]:{{ hub_vm_ssh_port }} {{ hub_guest_host_key_public }}"
+        path: "{{ lookup('env', 'HOME') }}/.ssh/known_hosts"
+        state: present
+      delegate_to: localhost
+      become: false
+
+    # --- cloud-init seed: only rebuilt when its inputs actually change ---
+    - name: Check whether the seed ISO already exists
+      ansible.builtin.stat:
+        path: "{{ hub_vm_dir }}/seed.iso"
+      register: hub_vm_seed_stat
+
+    - name: Render cloud-init user-data
+      ansible.builtin.template:
+        src: cloud-init-user-data.yml.j2
+        dest: "{{ hub_vm_dir }}/cloud-init/user-data"
+        owner: root
+        group: root
+        mode: "0600"
+      register: hub_vm_user_data
+
+    - name: Render cloud-init meta-data
+      ansible.builtin.template:
+        src: cloud-init-meta-data.yml.j2
+        dest: "{{ hub_vm_dir }}/cloud-init/meta-data"
+        owner: root
+        group: root
+        mode: "0600"
+      register: hub_vm_meta_data
+
+    - name: Build the cloud-init seed ISO
+      ansible.builtin.command:
+        cmd: >-
+          cloud-localds {{ hub_vm_dir }}/seed.iso
+          {{ hub_vm_dir }}/cloud-init/user-data
+          {{ hub_vm_dir }}/cloud-init/meta-data
+      when: hub_vm_user_data.changed or hub_vm_meta_data.changed or not hub_vm_seed_stat.stat.exists
+      changed_when: true
+      notify: Restart 8bitnews-hub-vm
+
+    - name: "Own the seed ISO (owner-only: embeds the guest's private host key)"
+      ansible.builtin.file:
+        path: "{{ hub_vm_dir }}/seed.iso"
+        owner: "{{ hub_vm_user }}"
+        group: "{{ hub_vm_group }}"
+        mode: "0600"
+
+    # --- Network isolation, loaded before the VM can start ---
+    - name: Install the network-isolation nft table
+      ansible.builtin.template:
+        src: bitnews_hub.nft.j2
+        dest: "{{ hub_vm_dir }}/bitnews_hub.nft"
+        owner: root
+        group: root
+        mode: "0600"
+      notify: Restart 8bitnews-hub-network
+
+    - name: Install the network-isolation oneshot service
+      ansible.builtin.template:
+        src: hub-network.service.j2
+        dest: /etc/systemd/system/8bitnews-hub-network.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart 8bitnews-hub-network
+
+    # --- The VM unit itself ---
+    - name: Copy the QMP shutdown helper
+      ansible.builtin.copy:
+        src: scripts/qmp-shutdown.py
+        dest: "{{ hub_vm_dir }}/qmp-shutdown.py"
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Install the VM systemd service
+      ansible.builtin.template:
+        src: hub-vm.service.j2
+        dest: /etc/systemd/system/8bitnews-hub-vm.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart 8bitnews-hub-vm
+
+    - name: Apply pending unit/table changes now (so they land before start)
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start the network-isolation service
+      ansible.builtin.systemd:
+        name: 8bitnews-hub-network
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Enable and start the VM service
+      ansible.builtin.systemd:
+        name: 8bitnews-hub-vm
+        enabled: true
+        state: started
+
+    # --- Caddy site file: validate the full config before ever reloading ---
+    - name: Check that the sites directory already exists
+      ansible.builtin.stat:
+        path: "{{ hub_caddy_sites_dir }}"
+      register: hub_caddy_sites_dir_stat
+
+    - name: Abort without changing anything if the sites directory is missing
+      ansible.builtin.fail:
+        msg: >-
+          {{ hub_caddy_sites_dir }} does not exist. That directory (and its
+          ownership) belongs to the neighbor's Ansible bootstrap — create it
+          there, not here. Nothing has been changed.
+      when: not hub_caddy_sites_dir_stat.stat.exists or not hub_caddy_sites_dir_stat.stat.isdir
+
+    # Renders to a staging file, validates the *full* Caddy config (the
+    # neighbor's other sites plus our new one) in a scratch copy, and only
+    # then atomically installs it — the live site file is never overwritten
+    # with something that hasn't already passed `caddy validate`. This is
+    # plain tasks, not a notify handler: a block/rescue handler is silently
+    # never invoked ("handler not found") on some ansible-core versions when
+    # the template task's own notify fires, which would leave a bad file in
+    # /etc/caddy/sites for the neighbor's next reload to pick up.
+    - name: Render, validate, and atomically install the 8bitnews Caddy site file
+      ansible.builtin.include_tasks: tasks/caddy_site.yml
+
+    - name: Reload Caddy now that the new site file has validated clean
+      ansible.builtin.systemd:
+        name: caddy
+        state: reloaded
+      when: hub_caddy_site_changed

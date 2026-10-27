@@ -1,0 +1,25 @@
+#cloud-config
+# Managed by deploy/ansible/hub_vm.yml. The admin user is key-only: no
+# password auth, no root login, so the only way into the guest is the SSH
+# key derived from HUB_ADMIN_SSH_KEY on the controller (task E1d).
+hostname: {{ hub_vm_name }}
+manage_etc_hosts: true
+ssh_pwauth: false
+disable_root: true
+
+users:
+  - name: {{ hub_admin_user }}
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    lock_passwd: true
+    ssh_authorized_keys:
+      - "{{ hub_admin_ssh_public_key }}"
+
+# Pinned to the key deploy/ansible/hub_vm.yml generated on the host and
+# already added to the controller's known_hosts, so the very first SSH
+# connection is verified against a key we chose — not trust-on-first-use.
+ssh_keys:
+  ed25519_private: |
+{{ hub_guest_host_key_private | indent(4, True) }}
+  ed25519_public: "{{ hub_guest_host_key_public }}"

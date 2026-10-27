@@ -1,0 +1,28 @@
+---
+# hub_guest: inside the VM. Reached only by jumping through hub_host —
+# the guest itself listens on no externally reachable port (task E1d).
+hub_guest_ssh_proxy_args: >-
+  -o ProxyCommand="ssh -i {{ hub_server_ssh_key }} -o IdentitiesOnly=yes
+  -W %h:%p -p 22 root@{{ hostvars['server'].ansible_host }}"
+
+hub_install_dir: /opt/8bitnews
+hub_repo_dir: "{{ hub_install_dir }}/repo"
+hub_deploy_dir: "{{ hub_install_dir }}/deploy"
+hub_env_file: "{{ hub_deploy_dir }}/.env"
+
+hub_postgres_image: "postgres:16-alpine"
+hub_postgres_mem_limit: "1g"
+hub_postgres_cpus: "1.0"
+
+hub_backup_dir: /var/backups/8bitnews
+hub_backup_scripts_dir: "{{ hub_install_dir }}/backup"
+hub_backup_local_retention_days: 14
+hub_backup_env_file: /etc/8bitnews-backup.env
+hub_restore_check_container: 8bitnews-restore-check
+
+# Restic repository: the backups bucket (r2_backup_bucket, group_vars/all.yml)
+# on the same R2 endpoint/credential pair as the media bucket (the owner's
+# R2 token is scoped to both buckets, not a separate pair per bucket).
+# Only the restic encryption password is backup-specific.
+restic_repository: "s3:{{ r2_endpoint }}/{{ r2_backup_bucket }}"
+restic_password: "{{ lookup('env', 'RESTIC_PASSWORD') }}"

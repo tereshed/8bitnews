@@ -1,0 +1,19 @@
+# Managed by deploy/ansible/hub_vm.yml. Do not edit by hand.
+#
+# Loads the nft table that fences off the VM user's outbound connections
+# before the VM itself can start (Before=/Requires= on the VM unit), and
+# tears it down on stop. Oneshot + RemainAfterExit so `systemctl status`
+# reflects whether the table is currently loaded.
+[Unit]
+Description=8bitnews hub VM network isolation (nft table {{ hub_nft_table }})
+Before=8bitnews-hub-vm.service
+PartOf=8bitnews-hub-vm.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f {{ hub_vm_dir }}/bitnews_hub.nft
+ExecStop=-/usr/sbin/nft delete table inet {{ hub_nft_table }}
+
+[Install]
+WantedBy=multi-user.target
