@@ -131,7 +131,7 @@
     "transcript": {
       "type": "string",
       "minLength": 1,
-      "description": "Full narration as voiced, scenes joined in order"
+      "description": "Full narration in the script's original spelling, scenes joined in order; pronunciation respellings go only to TTS and scenes[].narration"
     },
     "scenes": {
       "type": "array",

@@ -399,7 +399,8 @@ studio/                           тулкит генерации ролика: 
   studio/                         движок: engine.py (кадры), timeline.py, quantize.py, validate.py, video.py, cli.py
   tests/                          pytest (quantize, субтитры, тайминг AI-плашек, validate, детерминизм) — `make studio-test`
   Dockerfile                      Python 3.12 + ffmpeg (Kokoro добавит E2a-3)
-  [план, E2a-2] TTS-адаптер таймлайна, `studio build`, `package.json`, `studio validate` готового ролика
+  [план, E2a-2a] TTS-адаптер, таймлайн из голоса, `studio build`, `timeline.json`, `package.json`, базовые проверки `studio validate`
+  [план, E2a-2b] плашки до 3 строк, проверки картинки и текста `studio validate` (палитра, плашки AI, лицо ведущей, раскрытие)
   [план, E2a-3] голос Kokoro, музыка, сведение громкости, демо-ролик
 cmd/hub/                          Go: точка входа hub — `migrate up|down`, `sync-profiles`, `serve` (REST + MCP)
 internal/api/                     REST-транспорт (/api/v1) над internal/service
@@ -430,7 +431,7 @@ Diffusion Fast/Plus и GPT Image Mini: у Gemini чище формы и сраз
 |---|---|---|
 | E0. Фундамент | Go-модуль, структура, CI (lint, test), docker compose (Postgres), схема и валидатор профилей каналов | Dev Team |
 | E1. hub: ядро | Миграции, REST, MCP для агентов, S3, деплой | Dev Team |
-| E2. Studio | `studio` CLI: TTS-адаптер, ассеты, шаблоны как пакеты данных (первые — `nes-desk` и второй пример), сведение музыки, субтитры, обложка, ключевые кадры для Legal, `studio validate`, `studio template validate/preview` (E2a — тремя задачами: E2a-1 движок и шаблоны, E2a-2 `studio build` и `validate`, E2a-3 голос, музыка, громкость); провайдер картинок и спрайты ведущей (E2b); библиотека шаблонов в hub и `template_pick` (E2c); каталог `music/` и его валидатор | Dev Team |
+| E2. Studio | `studio` CLI: TTS-адаптер, ассеты, шаблоны как пакеты данных (первые — `nes-desk` и второй пример), сведение музыки, субтитры, обложка, ключевые кадры для Legal, `studio validate`, `studio template validate/preview` (E2a — четырьмя задачами: E2a-1 движок и шаблоны [сделано], E2a-2a `studio build`, E2a-2b проверки картинки и текста, E2a-3 голос, музыка, громкость); провайдер картинок и спрайты ведущей (E2b); библиотека шаблонов в hub и `template_pick` (E2c); каталог `music/` и его валидатор | Dev Team |
 | E3. Контент-команды | Newsroom / Research / Script / Legal / Video / QA / Design (шаблоны по расписанию): промпты и контракты в `newsroom/`, база знаний Legal (`countries/us/legal.md`, `platforms/*/rules.md`), настройка в PolyMaths, прогон end-to-end для 8BitNewsUS по ручному запуску | конфигурация + Dev Team |
 | E4. Модерация и публикация | Telegram-модерация с юридическим отчётом, публикация только на допущенные Legal площадки, «Снять с публикации»; описание по шаблону `metadata.md`, страницы источников, повторная проверка ссылок перед постингом; YouTube → TikTok → Instagram | Dev Team |
 | E5. Статистика и дашборд | Collector метрик и санкций площадок, перепроверка источников после публикации, представления, дашборды DataLens, включая здоровье аккаунтов | Dev Team |
