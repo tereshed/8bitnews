@@ -4,6 +4,13 @@
     "w": 64,
     "h": 96
   },
+  "face_rect": {
+    "x": 14,
+    "y": 8,
+    "w": 36,
+    "h": 42,
+    "$comment": "Covers hair/head/eyebrows/eyes/mouth (build_body/build_eyes/build_mouth in scripts/generate_assets.py) in canvas-local pixels, before studio.anchor.x/y/scale; template validate checks no plate or subtitle rect overlaps this rect scaled+offset by a template's anchor placement."
+  },
   "poses": {
     "normal": {
       "body": "body_normal.png"

@@ -35,3 +35,18 @@ def bad_palette_dir() -> Path:
 @pytest.fixture
 def missing_license_note_dir() -> Path:
     return FIXTURES_DIR / "missing-license-note"
+
+
+@pytest.fixture
+def bad_face_overlap_dir() -> Path:
+    return FIXTURES_DIR / "bad-face-overlap"
+
+
+@pytest.fixture
+def bad_plate_too_small_dir() -> Path:
+    return FIXTURES_DIR / "bad-plate-too-small"
+
+
+@pytest.fixture
+def bad_referenced_file_dir() -> Path:
+    return FIXTURES_DIR / "bad-referenced-file"

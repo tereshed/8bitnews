@@ -55,7 +55,11 @@
           "properties": {
             "x": { "type": "integer", "minimum": 0 },
             "y": { "type": "integer", "minimum": 0 },
-            "scale": { "type": "number", "exclusiveMinimum": 0 }
+            "scale": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Integer multiple only (no fractional resize): keeps every anchor sprite pixel an exact whole number of frame pixels wide, so it stays aligned with the engine's NES pixel grid."
+            }
           }
         },
         "screen": {

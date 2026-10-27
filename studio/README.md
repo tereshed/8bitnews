@@ -45,10 +45,20 @@ t_abs)` — same inputs always produce the same PNG bytes (`tests/test_determini
   (via `studio/text_render.py`, which rasterizes glyphs to a bilevel mask
   so there is no anti-aliased blend color) — only ever paints colors from
   `channels/8bitnews-us/palette.json`, so every frame is palette-pure by
-  construction, not by a final clean-up pass (serious mode is the one
-  exception: the whole frame is re-quantized to the template's muted
-  `serious_colors` subset at the end, which is the simplest way to
-  guarantee "приглушённая палитра" regardless of what was drawn).
+  construction, not by a final clean-up pass.
+- **Palette subset vs. the anchor** — studio background/foreground layers
+  and scene images are snapped to the *template's* `palette.colors` (or
+  `serious_colors` in serious mode) before anything else is drawn on top,
+  in both modes, not just serious mode. The anchor sprite is composited
+  **after** that and is never run through the template's palette at all —
+  its pixels stay exactly whatever `channels/8bitnews-us/anchor/*.png`
+  contains (skin/hair/suit tones that are deliberately not in every
+  template's muted subset). This is the fix for two review findings: (1)
+  serious mode used to re-quantize the *whole* frame, which turned the
+  anchor's skin grey; (2) normal mode never restricted scene art to the
+  template subset at all, which is why a no-asset scene in `night-report`
+  rendered its debug placeholder in `nes-desk`'s pink, not night-report's
+  muted colors.
 
 ### AI disclosure plates (`channels/8bitnews-us/format.md`, Legal R4/R5)
 
@@ -82,30 +92,67 @@ platform's current guide with a
 working fetch before this ships, and update the file (and the template
 rects that key off it) if the real numbers differ. `studio template
 validate` checks every plate/subtitle/cover rect against whatever is in
-the file today.
+the file today — and, separately, that none of them overlap the anchor's
+face (`channels/8bitnews-us/anchor/manifest.json`'s `face_rect`, mapped
+into frame coordinates by `studio.anchor.x/y/scale` via
+`ChannelAssets.face_rect_in_frame`).
 
 ### Subtitles
 
 `channels/8bitnews-us/format.md` caps subtitle lines at "up to 32
-characters" assuming the full 270px logical width. The channel's actual
-`common_safe_rect` is 190px wide, which at the 8px pixel font fits 23
-monospace characters after padding — so `MAX_SUBTITLE_CHARS_PER_LINE` in
-`studio/constants.py` is 23 (a tighter, still-compliant choice, documented
-there). The timeline wraps subtitles once, independently of which
-template renders them.
+characters" assuming the full 270px logical width. The timeline
+(`studio/timeline.py:uniform_timeline`) splits narration into cues once,
+independently of which template renders them, using the channel-wide
+`MAX_SUBTITLE_CHARS_PER_LINE`/`MAX_SUBTITLE_LINES` in `studio/constants.py`
+(23/2 — a tighter, still-compliant choice against the common safe
+rect's 190px width at the 8px font). At render time `engine.py:_render_core`
+**re-wraps** each cue's text using the *active template's*
+`subtitles.style.max_lines`/`max_chars_per_line` (schema fields that were
+previously validated but never read) — so a template that wants shorter or
+longer lines than the channel default actually gets them, without the
+timeline needing to know which template will render it.
 
 ### Motion
 
-Every scene has motion (`format.md`): `shot: scene` images zoom in by
-whole pixels over the scene's duration (`studio/engine.py:_zoom_crop` crops
-a shrinking border and rescales with `NEAREST`, so no new colors are
-introduced); `shot: anchor` scenes animate the anchor's blink and mouth
-(2-3 frames, driven by the timeline's volume envelope). A template's
-`motion_presets` can also declare `pan` and `parallax` entries (schema
-supports them, for backgrounds with multiple parallax layers) — the engine
-in this increment reads `zoom` and `element_appear` presets; `pan`/
-`parallax` are validated data today and are a natural follow-up once a
-template actually needs them.
+Every `shot: scene` picks one of its template's `pan`/`zoom` presets
+deterministically by the scene's ordinal position in the script, round-
+robin (`engine.py:_select_scene_motion`) — `studio template validate`
+requires at least one `pan` or `zoom` preset to exist, since a template
+with none would leave some scenes with no motion at all.
+
+- **`pan`** (`dx_px`/`dy_px`, `duration_s`): the scene's image is rendered
+  once at an oversized canvas (`LOGICAL_W + dx_px` × `LOGICAL_H + dy_px`),
+  and the visible window crops a `LOGICAL_W`×`LOGICAL_H` rectangle that
+  slides across it by whole pixels as the scene plays. No resize is ever
+  applied to produce the pan itself — only `Image.crop`.
+- **`zoom`** (`max_px`, `duration_s`): for the first half of the preset's
+  duration the plain frame is shown; for the second half, the scene is
+  rendered again at an integer multiple of the logical size -- 3× if
+  `max_px` is more than a sixth of the frame width, 2× otherwise -- and a
+  centered `LOGICAL_W`×`LOGICAL_H` window is cropped out of it. This is the
+  "целыми кратностями ... без нецелого ресайза" approach the review asked
+  for: the only resize involved is the deliberate integer-multiple render,
+  and the zoom step itself is a crop, never a resize-back-up (which is what
+  produced inconsistent pixel widths in the previous version). The
+  trade-off is a single discrete zoom step rather than a continuous ramp;
+  that was the simplest implementation that guarantees every logical pixel
+  of the output stays an exact 1:1 NES-grid pixel.
+- **`parallax`** (`layer_indices`, `shift_px`): while an anchor shot plays,
+  the studio's background/foreground layers whose index is in
+  `layer_indices` drift horizontally by `layer.parallax * shift_px`,
+  following a triangle wave that is exactly 0 at both ends of the scene
+  (so consecutive anchor shots never jump at the cut).
+- **Transitions** (`cut`/`wipe`/`pixelate`/`slide`, `duration_s`): picked
+  deterministically per scene boundary, round-robin over
+  `template.transitions` by the new scene's index. Each type blends the
+  previous scene's frozen last frame into the new scene's first
+  `duration_s` seconds using only crop/paste (never pixel blending), so
+  every pixel is always an exact color from one of the two source frames.
+  Transition sounds (`transitions[].sound`) ship in E2a-3.
+- `shot: anchor` scenes separately animate the anchor's blink and mouth
+  (2-3 frames, driven by the timeline's volume envelope) regardless of
+  which motion preset the *next* scene-shot (shown on her over-the-shoulder
+  screen) is using.
 
 ## Making a new template without writing code
 
@@ -128,11 +175,15 @@ is exactly this check against `templates/night-report/`.
 ## Replacing the placeholder anchor sprites
 
 `channels/8bitnews-us/anchor/manifest.json` declares two poses (`normal`,
-`serious`), two eye states (`open`, `closed`, for blinking) and three mouth
+`serious`), two eye states (`open`, `closed`, for blinking), three mouth
 frames (`0`/`1`/`2`, picked by `channels/8bitnews-us/anchor/manifest.json`'s
-`mouth.volume_thresholds` against the timeline's volume envelope). A future
-Design pass replaces the PNG files in place (same filenames, same canvas
-size) — no engine code changes.
+`mouth.volume_thresholds` against the timeline's volume envelope), and a
+`face_rect` (canvas-local `x`/`y`/`w`/`h` covering hair/eyes/mouth) that
+`studio template validate` maps into frame coordinates via each template's
+`studio.anchor.x`/`y`/`scale` to reject any plate or subtitle rect that
+would cover her face. A future Design pass replaces the PNG files in place
+(same filenames, same canvas size, same `face_rect`) — no engine code
+changes.
 
 ## Running things
 
@@ -155,12 +206,15 @@ in `channels/8bitnews-us/` and `templates/*/assets/`; it is not part of the
 shipped engine, just how the placeholders were made (documented so the
 next pass can regenerate or replace them deliberately).
 
-## Known gaps (left for E2a-2 / E2a-3)
+## Known gaps (left for E2a-2 / E2a-3, or explicitly deferred)
 
 - No TTS, no real voice volume envelope (the uniform timeline stands in).
 - No music, no loudness/ducking.
 - No `studio build`, no `package.json`, no end-to-end video assembly from a
   real script end to end — `template preview` only runs the built-in demo
   script.
-- `pan` / `parallax` motion presets are schema-valid data but not yet
-  consumed by the renderer (see "Motion" above).
+- Transition sounds (`transitions[].sound`) are validated as data but not
+  played — the sound files themselves ship in E2a-3.
+- The scene-title plate's rect height is fixed by the template (not shrunk
+  when the wrapped title only needs one line), so a single-line title can
+  leave an empty band under it. Cosmetic; not fixed in this pass.

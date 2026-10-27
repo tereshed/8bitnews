@@ -154,6 +154,15 @@ def build_anchor_set() -> None:
         "$comment": "Placeholder adult anchor sprite set; see studio/README.md "
         "for how a future Design pass swaps these files without touching engine code.",
         "canvas": {"w": ANCHOR_W, "h": ANCHOR_H},
+        "face_rect": {
+            "x": 14,
+            "y": 8,
+            "w": 36,
+            "h": 42,
+            "$comment": "Covers hair/head/eyebrows/eyes/mouth drawn by build_body/build_eyes/build_mouth "
+            "below, in canvas-local pixels; template validate uses this to reject plates/subtitles "
+            "that would cover the anchor's face.",
+        },
         "poses": {
             "normal": {"body": "body_normal.png"},
             "serious": {"body": "body_serious.png"},

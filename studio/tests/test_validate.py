@@ -4,7 +4,7 @@ import sys
 import pytest
 
 from studio.errors import TemplateValidationError
-from studio.validate import validate_template
+from studio.validate import _contrast_ratio, _hex_to_rgb, validate_template
 
 
 def test_nes_desk_is_valid(nes_desk_dir):
@@ -36,6 +36,43 @@ def test_missing_license_note_fails_with_readable_reason(missing_license_note_di
         validate_template(missing_license_note_dir)
     message = str(exc_info.value)
     assert "license_note" in message
+
+
+def test_bad_face_overlap_fails_with_readable_reason(bad_face_overlap_dir):
+    with pytest.raises(TemplateValidationError) as exc_info:
+        validate_template(bad_face_overlap_dir)
+    message = str(exc_info.value)
+    assert "face" in message
+    assert "ai_illustration" in message
+
+
+def test_bad_plate_too_small_fails_with_readable_reason(bad_plate_too_small_dir):
+    with pytest.raises(TemplateValidationError) as exc_info:
+        validate_template(bad_plate_too_small_dir)
+    message = str(exc_info.value)
+    assert "too small" in message
+    assert "ai_illustration" in message
+
+
+def test_bad_referenced_file_fails_with_readable_reason(bad_referenced_file_dir):
+    """A studio.layers[].file that isn't also declared in assets[] must still
+    be checked against the palette (review: the old code only checked
+    assets[], so an off-palette studio layer slipped through)."""
+    with pytest.raises(TemplateValidationError) as exc_info:
+        validate_template(bad_referenced_file_dir)
+    message = str(exc_info.value)
+    assert "palette" in message
+    assert "#ff00ff" in message
+
+
+def test_contrast_ratio_uses_wcag_srgb_linearization_not_naive_luma():
+    """#505050 text on #000000 looks borderline-readable under the naive
+    (non-linearized) luma formula the old code used (~7.3, a false pass
+    against the 4.5 AA floor); the correct WCAG relative-luminance ratio is
+    ~2.6, which must fail."""
+    ratio = _contrast_ratio(_hex_to_rgb("#505050"), _hex_to_rgb("#000000"))
+    assert ratio < 4.5
+    assert 2.0 < ratio < 3.0
 
 
 @pytest.mark.parametrize("fixture_name", ["nes-desk", "night-report"])

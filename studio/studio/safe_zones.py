@@ -26,3 +26,7 @@ def rect_within(rect: dict, container: dict) -> bool:
         and rect["x"] + rect["w"] <= container["x"] + container["w"]
         and rect["y"] + rect["h"] <= container["y"] + container["h"]
     )
+
+
+def rects_intersect(a: dict, b: dict) -> bool:
+    return a["x"] < b["x"] + b["w"] and b["x"] < a["x"] + a["w"] and a["y"] < b["y"] + b["h"] and b["y"] < a["y"] + a["h"]

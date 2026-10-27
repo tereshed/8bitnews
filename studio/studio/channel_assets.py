@@ -42,6 +42,20 @@ class AnchorSprites:
         phase = t_abs % period
         return phase < blink["duration_s"]
 
+    def face_rect_in_frame(self, anchor_cfg: dict) -> dict:
+        """The anchor's face rect (manifest `face_rect`, canvas-local) mapped
+        into frame coordinates for a template's `studio.anchor` placement
+        (x, y, integer scale). Used by `studio template validate` to reject
+        plates/subtitles that would cover the anchor's face."""
+        fr = self.manifest["face_rect"]
+        scale = anchor_cfg["scale"]
+        return {
+            "x": anchor_cfg["x"] + round(fr["x"] * scale),
+            "y": anchor_cfg["y"] + round(fr["y"] * scale),
+            "w": round(fr["w"] * scale),
+            "h": round(fr["h"] * scale),
+        }
+
 
 @dataclass(frozen=True)
 class ChannelAssets:
