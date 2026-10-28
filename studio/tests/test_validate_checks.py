@@ -420,12 +420,6 @@ def test_disclosures_fails_when_an_enabled_platform_has_no_ai_label(built_packag
     assert "platforms.tiktok.ai_label" in check["note"]
 
 
-def test_audio_checks_are_placeholders_until_e2a3(built_package):
-    by_id = {c["id"]: c for c in built_package["package"]["validate"]["checks"]}
-    for check_id in ("loudness", "true_peak", "silence", "music_under_voice", "video_no_music"):
-        assert by_id[check_id]["ok"] is True and by_id[check_id]["note"] == "not implemented (E2a-3)"
-
-
 
 def _logical_edit(copy_dir, rel, edit):
     """Edits a keyframe at 270x480 (edit(img) draws on an RGBA image) and

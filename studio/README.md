@@ -1,10 +1,10 @@
 # studio
 
-The frame engine and template toolkit for 8bitnews video rendering
-(`docs/architecture.md` §5 "Шаблоны: библиотека и выбор", §12). Python 3.12,
-Pillow + NumPy for drawing and quantization, ffmpeg for the final MP4.
-No Remotion, no paid image/voice APIs here — those are E2a-2 (TTS,
-`studio build`, `package.json`) and E2a-3 (Kokoro voice, music, demo reel).
+The frame engine, template toolkit, voice and sound mix for 8bitnews video
+rendering (`docs/architecture.md` §5 "Шаблоны: библиотека и выбор", §12).
+Python 3.12, Pillow + NumPy for drawing and quantization, Kokoro-82M (ONNX)
+for the voice, ffmpeg for the final MP4. No Remotion, no paid image/voice
+APIs; nothing needs the network once the image is built.
 
 ## What's in this package (E2a-1)
 
@@ -148,7 +148,7 @@ with none would leave some scenes with no motion at all.
   previous scene's frozen last frame into the new scene's first
   `duration_s` seconds using only crop/paste (never pixel blending), so
   every pixel is always an exact color from one of the two source frames.
-  Transition sounds (`transitions[].sound`) ship in E2a-3.
+  A transition may carry a `sound` (below, «Sound»).
 - `shot: anchor` scenes separately animate the anchor's blink and mouth
   (2-3 frames, driven by the timeline's volume envelope) regardless of
   which motion preset the *next* scene-shot (shown on her over-the-shoulder
@@ -188,9 +188,11 @@ changes.
 ## Running things
 
 ```sh
-make studio-image           # build the Docker image (Python 3.12 + ffmpeg)
+make studio-image           # build the Docker image (Python 3.12, ffmpeg, Kokoro model)
 make studio-test             # pytest, in Docker
 make studio-preview          # renders templates/nes-desk into out/studio-preview/
+make studio-build-sample     # the demo script, stub voice: quick, no model run
+make studio-demo             # the demo reel with the real voice, then studio validate
 ```
 
 Without Docker (needs a local Python 3.12 + the pinned `requirements.txt`):
@@ -209,24 +211,33 @@ next pass can regenerate or replace them deliberately).
 ## `studio build` (E2a-2a)
 
 `studio build --script <script.json> --channel <id> [--channels-dir <dir>]
-[--template <dir-or-id>] [--assets <dir>] [--tts stub] --out <dir>` turns a
+[--template <dir-or-id>] [--assets <dir>] [--tts kokoro|stub]
+[--music-file <file>] [--music-track <id>] --out <dir>` turns a
 `newsroom/contracts/script.schema.json` document into a self-contained
 `newsroom/contracts/video_package.schema.json` package: `video.mp4`,
-`subtitles.srt`, `cover.png`, `timeline.json`, a copy of `script.json` and
-of the template package used, every scene's `keyframes/<id>_first.png` /
-`_mid.png`, and `package.json` itself.
+`video_no_music.mp4` (a video with music longer than 60 s), `subtitles.srt`,
+`cover.png`, `timeline.json`, a copy of `script.json` and of the template
+package used, every scene's `keyframes/<id>_first.png` / `_mid.png`, the
+sound stems `stems/voice.flac` and `stems/music.flac`, and `package.json`
+itself.
 
 Pipeline (`studio/studio/build.py`): per-scene TTS (`studio/studio/tts.py`;
 `studio.pronunciation` applies/undoes `script.pronunciations` hints around
-it, general code so a future Kokoro adapter gets it for free) ->
-`timeline.timeline_from_voice` (real word timings + the template's
-`timing.scene_pause_s` gap between scenes, none at either end) ->
-`audio.mix_audio` (passthrough until E2a-3 adds music) -> frames rendered
-and written to disk one at a time (kept around after the build so a later
-pass can re-encode without music) -> `video.encode` (H.264+AAC, ×4
-nearest-neighbour to 1080×1920 @ 30fps) -> cover + keyframes -> a
-schema-validated `package.json` with `studio validate`'s result already
-attached in `validate`.
+it, general code, not the adapter's) -> `timeline.timeline_from_voice`
+(real word timings, each scene as long as its voice audio, plus the
+template's `timing.scene_pause_s` gap between scenes, none at either end)
+-> frames rendered and written to disk one at a time -> the picture,
+encoded once (`video.encode_video_only`: H.264, ×4 nearest-neighbour to
+1080×1920 @ 30fps) -> the soundtrack (`audio.mix`, below) muxed onto it as
+AAC, and for a long video with music a second soundtrack without music
+muxed onto the same picture -> cover + keyframes -> a schema-validated
+`package.json` with `studio validate`'s result already attached in
+`validate`.
+
+The TTS adapter comes from `--tts`, else the channel's
+`format.voice.provider`. Each adapter builds itself from its own settings
+in `config.json` (`tts.<name>`: the stub's `wpm`/`serious_wpm`, Kokoro's
+`speed`/`serious_speed`), so `build` never branches on its name.
 
 **Files in the container.** `studio-test` and `studio-build-sample` mount
 the repo root read-only at `/repo` and set `STUDIO_REPO_ROOT=/repo`: the
@@ -266,11 +277,11 @@ AI-illustration plate.
   palette at 270×480, or `cover.layout.background` without one, then the
   title.
 
-**Build scratch.** `frames/` (every logical frame) is deleted as the last
-step of the build; `--keep-work` keeps it for debugging. `voice.wav` stays —
-E2a-3 needs the voice apart from the music. `package.duration_s` is the
-measured length of `video.mp4` (ffprobe), and `package.script` is the
-script's path relative to the repo root when it lives inside it.
+**Build scratch.** `frames/` (every logical frame) and the `_*` work files
+are deleted at the end of the build; `--keep-work` keeps `frames/` for
+debugging. `package.duration_s` is the measured length of `video.mp4`
+(ffprobe), and `package.script` is the script's path relative to the repo
+root when it lives inside it.
 
 **Pronunciations** match single whole words. A hint that matches no word
 (e.g. a multi-word phrase) is not applied: `build` prints a warning and
@@ -308,13 +319,18 @@ check fails. Each check is a function registered under a fixed `id` with
 | `video_matches_keyframes` | each keyframe PNG against the video frame with the same number, per 4×4 cell: no cell's mean difference above `max_keyframe_cell_diff` (`studio/config.json`) |
 | `no_black_frames` | ffmpeg `blackdetect` (whole picture black, `pic_th=1.0`): no black frame anywhere; an unreadable video fails |
 | `disclosures` | `ai_voice`, `ai_visuals` true and `ai_label` true for every enabled platform |
-| `loudness`, `true_peak`, `silence`, `music_under_voice`, `video_no_music` | placeholders returning `ok` with "not implemented (E2a-3)"; E2a-3 replaces them by registering real functions under the same ids |
+| `loudness` | integrated loudness (EBU R128, ffmpeg `ebur128`) of `video.mp4` and `video_no_music.mp4`, measured on the encoded files: −14 ± 1 LUFS (channel policy, `studio/constants.py`, not a setting) |
+| `true_peak` | true peak of both files ≤ −1 dBTP (`constants.MAX_TRUE_PEAK_DBTP`) |
+| `silence` | ffmpeg `silencedetect`: no stretch below −50 dB longer than 1.5 s in either file (`constants.SILENCE_THRESHOLD_DB`, `MAX_SILENCE_S`) |
+| `music_under_voice` | with music, measured on `video.mp4` itself: over the word spans of `timeline.json`, the voice stem is fitted to each channel by least squares and subtracted; the voice must be at least 10 dB louder than what is left (`checks.min_voice_over_music_db`). The remainder is the music plus ~20–35 dB-down limiter and AAC error; channel by channel, so panned or out-of-phase music isn't lost in a mono sum; a stem that isn't the voice in the video leaves the voice in the remainder and fails |
+| `video_no_music` | a video with music longer than 60 s (`constants.YOUTUBE_MUSIC_MAX_S`) has `files.video_no_music`; when there is one, it carries the very same video stream as `video.mp4` (packet MD5) and the same length, and holds no music: the voice and music stems are fitted to both soundtracks channel by channel (outside the sound effects), and the music's gain in the cut must stay under 5 % of its gain in `video.mp4` (`checks.no_music_max_music_share`) — quiet music, enough for a Content ID match, is found by its shape — while sound neither stem explains may exceed what `video.mp4` itself leaves (limiter and AAC error) by at most 6 dB (`checks.no_music_max_other_rise_db`), which catches another track; and in the voice's pauses (outside the sound effects) the cut is at least 35 dB under the voice (`checks.no_music_max_pause_db`) — a real Kokoro cut measures about −53 dB there, any music shows |
 
 Keyframes taken mid-transition (only a scene shorter than its transition
 gets them) are skipped by `ai_plates` and `face_clear`: there the picture
 legitimately mixes two scenes.
 
-Negative tests in `tests/test_validate_checks.py` corrupt a copy of the
+Negative tests in `tests/test_validate_checks.py` and
+`tests/test_validate_audio.py` corrupt a copy of the
 session build with `corrupt_copy` (which re-hashes every file record unless
 `rehash=False`) and expect that one check to fail.
 - `duration` measures `video.mp4` with ffprobe: it must be inside the
@@ -329,19 +345,155 @@ the `validate` field a fresh `studio build` writes into its own
 `package.json`.
 
 ```sh
-make studio-build-sample   # builds newsroom/trials/2026-10-26-ninth-circuit
-                            # with the stub voice into out/studio-sample/
+make studio-build-sample   # builds tests/fixtures/scripts/demo.json with the
+                            # stub voice and the test loop into out/studio-sample/
 ```
 
-## Known gaps (left for E2a-3, or explicitly deferred)
+## Voice: Kokoro (E2a-3)
 
-- No real voice: `--tts stub` is a deterministic quiet tone; E2a-3 adds a
-  `kokoro` entry to `studio.tts.ADAPTERS` without changing the interface.
-- No music, no loudness ducking: `audio.mix_audio` is a passthrough and
-  `package.json`'s `music.enabled` is always `false` (E2a-3).
-- Audio checks are placeholders until E2a-3 (see the table above).
-- Transition sounds (`transitions[].sound`) are validated as data but not
-  played — the sound files themselves ship in E2a-3.
+`--tts kokoro` (the channel default, `channels/8bitnews-us/channel.yaml`
+`format.voice`) runs Kokoro-82M v1.0 (Apache-2.0) offline through
+onnxruntime: the onnx-community export that also outputs every phoneme
+token's duration. `docker build` downloads the model, its tokenizer and the
+voices listed in `models.json` from fixed Hugging Face URLs (one pinned
+revision) and checks each file's sha256 (`scripts/fetch_models.py`);
+espeak-ng 1.52 (the build the voice casting used) comes from the
+`espeakng-loader` wheel, installed with `--require-hashes`.
+
+**Changing the voice.** `format.voice.voice_id` in the channel profile
+(`af_sarah` now; `af_heart`, `af_bella`, `af_aoede` are in the image too).
+Another Kokoro voice: add its `voices/<id>.bin` entry from the same
+revision to `models.json` and rebuild the image. Speed: `config.json`
+`tts.kokoro.speed` (1.1) and `serious_speed` (1.0, format.md); pauses after
+a sentence and a clause: `sentence_pause_s` (0.25) and `clause_pause_s`
+(0.1).
+
+**Word timings: Kokoro's own, not forced alignment.** The model reports how
+many 25 ms frames it spends on every phoneme, and its audio follows those
+frames exactly, so word timings come from the same pass that made the
+sound — no second model, no extra dependency. Three corrections
+(`studio/studio/kokoro.py`):
+- espeak-ng phonemizes the whole scene at once (function words come out
+  reduced, as in speech) and sometimes joins words ("in the" -> `ɪnðə`), so
+  the phonemes are matched back to words character by character against
+  each word phonemized on its own;
+- the model folds silence into the edges of a phrase (half a second into a
+  scene's last vowel) and starts a word after a pause a few frames before
+  its token: each word's edges are snapped onto the audio (trimmed over
+  quiet, widened over sound by up to 0.1 s, never into a neighbour);
+- in running text the model pauses by itself (0.4–0.7 s after a full stop,
+  0.2–0.5 s after a comma), but not always — "Alpha. Bravo." runs on with
+  25 ms between — so the gap after a sentence is topped up to
+  `sentence_pause_s` by splicing silence into its middle, with 8 ms fades
+  on both sides; after a clause only where the model left a quiet gap (a
+  comma it ran straight through is one it didn't mean to stop on). With
+  this, the reading pace matches the voice casting the owner picked from:
+  the ca-ballots trial reads at 143 wpm (casting: 144), ninth-circuit at
+  150; at the serious speed 1.0, 136–143.
+- espeak misreads some written forms on its own: phonemizer cuts a line at
+  a "." between digits ("61.3 percent" lost "point three percent" and
+  shifted every later word), "$5" comes out "dollar five", "Oct." "ɑːkt".
+  `kokoro.spoken_forms` hands espeak a spoken form instead — decimals digit
+  by digit ("3.14" -> "3 point 1 4"), money with cents or its scale word
+  ("$2.50" -> "2 dollars and 50 cents", "$1.5 million" -> "1 point 5
+  million dollars"), ranges ("2-1" -> "2 to 1"), clock times ("10:05" ->
+  "10 oh 5"), titles, months and company abbreviations, "U.S.'s" -> "US's";
+  words and subtitles keep the original text. A word whose sounds still go
+  missing fails the build rather than shifting the timings after it.
+  Abbreviations ("Rep.", "Inc.") and initialisms ("U.S.") don't end a
+  sentence (no 0.25 s pause) — "U.S." does at the end of a scene, "No."
+  when no number follows; a mark inside closing quotes counts, and a
+  standalone dash gives the word before it a clause pause.
+
+`tests/test_kokoro.py` checks timings against an energy segmentation of the
+audio where one exists — words separated by full stops, plain and spelled
+out (a respelling, a number, a title): every edge within ±100 ms (measured
+while building this: within 30 ms at speeds 1.0–1.3). Inside connected
+speech there is no pause to check an edge against, so it checks
+attribution instead: long and short words alternate, and a timing shifted
+by one word fails.
+
+**Pronunciation hints** (`script.pronunciations[].say`, a respelling such as
+"ess-EYE-lee") are read by the respelling key (`kokoro._RESPELL`: "eye" ->
+aɪ, "ay" -> eɪ, "y" -> j, ...) syllable by syllable, the stress on the
+capitalized syllable and unstressed "uh" as ə — espeak alone reads "SAY" as
+the letters S-A-Y and "nyer" as "nigher". Only the hints' own words are
+read this way: `build` passes the adapter the positions of the tokens a
+hint put there (`pronunciation.hinted_tokens`), so "US-led" — or the same
+word elsewhere in the narration — stays espeak's.
+
+espeak-ng and phonemizer are GPL-3.0: fine for running our own pipeline,
+but the image must not be handed to anyone else as is.
+
+## Sound (E2a-3)
+
+`audio.mix` (numpy at 48 kHz, ffmpeg to decode, limit and measure):
+- **Music.** `--music-file`, else the catalog: `music/catalog.yaml`'s
+  approved track licensed (commercial) for every enabled platform whose
+  mood tags include `script.music.mood`, nearest in energy, ties by id
+  (`studio.music.select_track`); `--music-track <id>` takes a given catalog
+  track (hub `music_pick`). The track's file is
+  `$STUDIO_MUSIC_DIR/<audio.key>` and must match the catalog sha256 (track
+  audio isn't in git). `--music-file` alone is recorded as license
+  "unverified" — demos and tests, not for publishing. No music when
+  `script.music.enabled` is false; serious mode follows the script.
+- **Mix.** The track is looped or cut to length, faded in (1 s) and out
+  (2 s), set `music_bed_db` (−10 dB) under the voice's loudness and ducked
+  by `duck_db` (−8 dB) under every phrase. Ducking follows the word timings,
+  not a sidechain detector: the timeline already knows when the voice
+  speaks, so the music dips 0.12 s *before* a phrase and recovers 0.35 s
+  after; gaps under 0.8 s stay ducked so the bed doesn't pump.
+  `script.music.cue` is not followed (noted in the package).
+- **Transition sounds.** A template transition's `sound` plays at the start
+  of the scene it brings in, with the transition, `sfx_db` (−8 dB) under the
+  voice's peak; that scene's voice starts after it (the build puts that much
+  silence before it), so the sound never covers a word. None in serious
+  mode. `nes-desk`'s
+  `pixel-wipe` blip is synthesized in code (`scripts/generate_sounds.py`)
+  and its license note sits next to it (`<file>.license.txt`, required by
+  `studio template validate`).
+- **Loudness.** One gain to −14 LUFS (`constants.LOUDNESS_LUFS`), then a
+  true-peak limiter: ffmpeg
+  `alimiter` run at 4× the sample rate (its sample-peak ceiling then also
+  holds between the original samples), latency compensated so nothing
+  shifts against the picture. The limiter takes a little loudness off
+  peaks, so the gain is raised by what is missing and the pair re-run until
+  the result is within 0.2 LU. `loudnorm` isn't used: in linear mode it
+  refuses a gain that a peaky voice needs and silently falls back to
+  dynamic mode, under target. AAC encoding raises the true peak a little,
+  so it is measured on the encoded file; above −1.2 dBTP the ceiling comes
+  down by the overshoot and the soundtrack is redone.
+- **The YouTube cut.** A video with music longer than 60 s also gets
+  `video_no_music.mp4`: the same encoded picture (stream copy) with voice and
+  sound effects only, mastered the same way (format.md «Музыка и длина»).
+- **Stems.** `stems/voice.flac` is the voice as synthesized and
+  `stems/music.flac` the music bed as mixed in (looped, faded, ducked), both
+  before the master gain, so nothing clips. They are what `studio validate`
+  looks for in the shipped soundtracks; it never takes their levels on
+  trust.
+
+`studio music test-track --out <wav>` writes the synthesized 8-bit loop
+`studio-build-sample`, `studio-demo` (without `STUDIO_MUSIC_DIR`) and the
+tests use as music.
+
+**The demo.** `make studio-demo` builds `tests/fixtures/scripts/demo.json`
+(newsroom/trials/2026-10-24-ca-ballots cut to 187 words, S3–S6 with real
+people and the pronunciation hints kept) with Kokoro into
+`out/studio-demo/` and runs `studio validate`. `make studio-demo
+STUDIO_MUSIC_DIR=<folder holding music/tracks/...>` takes the music from
+the catalog instead of the test loop. The reel runs about 80 s; on an
+Apple-silicon Mac under OrbStack the build takes about 5.5 minutes, nearly
+all of it drawing frames (Kokoro reads the 187 words in well under a
+minute). A sandbox with fewer or slower cores takes proportionally longer.
+`make studio-test` takes about 8 minutes on the same Mac.
+
+## Known gaps
+
+- Pronunciation hints match single words only; a multi-word hint is
+  reported, not applied.
+- `script.music.cue` is not followed beyond fades and ducking.
+- Kokoro reads at most 510 phonemes per pass: a scene is split at sentence
+  ends, and one sentence longer than that fails the build.
 - The scene-title plate's rect height is fixed by the template (not shrunk
   when the wrapped title only needs one line), so a single-line title can
   leave an empty band under it. Cosmetic; not fixed in this pass.

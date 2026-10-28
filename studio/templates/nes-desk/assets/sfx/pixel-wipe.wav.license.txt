@@ -1,0 +1,1 @@
+pixel-wipe.wav: original sound synthesized for this repository by studio/scripts/generate_sounds.py (studio.music.synth_transition_sound), a square-wave arpeggio computed in code. No third-party material. Dedicated to the public domain under CC0-1.0; commercial use on every platform.

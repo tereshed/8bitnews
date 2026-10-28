@@ -99,6 +99,37 @@ def encode(frames_dir: Path, audio_path: Path, out_path: Path, fps: int = FPS) -
     subprocess.run(cmd, check=True, capture_output=True, text=True)
 
 
+def encode_video_only(frames_dir: Path, out_path: Path, fps: int = FPS) -> None:
+    """frame_%06d.png (logical 270x480) -> the H.264 1080x1920 picture with
+    no audio; `mux` then adds each soundtrack to this one picture, so
+    video.mp4 and video_no_music.mp4 carry the very same video stream."""
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "ffmpeg", "-y", "-framerate", str(fps), "-i", str(frames_dir / "frame_%06d.png"),
+        "-vf", f"scale={OUTPUT_W}:{OUTPUT_H}:flags=neighbor",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", str(out_path),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+
+def mux(video_path: Path, audio_path: Path, out_path: Path, bitrate: str = "192k", sample_rate: int = 48000) -> None:
+    """Copies the picture of `video_path` and encodes `audio_path` to AAC."""
+    cmd = [
+        "ffmpeg", "-y", "-i", str(video_path), "-i", str(audio_path),
+        "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
+        "-c:a", "aac", "-b:a", bitrate, "-ar", str(sample_rate), "-shortest", str(out_path),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+
+def video_stream_md5(path: Path) -> str:
+    """MD5 of the video packets (not the container): equal for two files
+    that share one encoded picture."""
+    cmd = ["ffmpeg", "-v", "error", "-i", str(path), "-map", "0:v:0", "-c", "copy", "-f", "md5", "-"]
+    out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout.strip()
+    return out.removeprefix("MD5=")
+
+
 def probe(path: Path) -> dict:
     """ffprobe's format + streams description of a media file."""
     cmd = ["ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", str(path)]

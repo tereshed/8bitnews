@@ -131,7 +131,7 @@
           "duration_s": { "type": "number", "minimum": 0 },
           "sound": {
             "type": ["string", "null"],
-            "description": "Relative path to a transition sound asset; sounds themselves ship in E2a-3, so this is null until then."
+            "description": "Relative path to the transition's sound (a short PCM wav under assets/, with its license in <file>.license.txt next to it), or null for none. Never played in serious mode."
           }
         }
       }

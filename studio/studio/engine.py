@@ -387,6 +387,15 @@ def _select_transition(template: TemplatePackage, scene_index: int) -> dict | No
     return transitions[scene_index % len(transitions)]
 
 
+def transition_sound(template: TemplatePackage, scene_index: int) -> Path | None:
+    """The sound the scene at `scene_index` enters with (its transition's
+    `sound`), or None. `studio build` drops it in serious mode."""
+    transition = _select_transition(template, scene_index)
+    if transition is None or not transition.get("sound"):
+        return None
+    return template.asset_path(transition["sound"])
+
+
 def scene_transition_duration(template: TemplatePackage, scene_index: int) -> float:
     """How long (seconds) the scene at `scene_index` spends blending in from
     the previous one -- 0 for the first scene, a `cut`, or a template with

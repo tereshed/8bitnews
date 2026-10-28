@@ -1,0 +1,5 @@
+# espeak-ng 1.52 (library + data) for Kokoro's phonemes, the same build the
+# voice casting used; installed with --require-hashes (Dockerfile).
+espeakng-loader==0.2.4 \
+    --hash=sha256:08721baf27d13d461f6be6eed9a65277e70d68234ff484fd8b9897b222cdcb6d \
+    --hash=sha256:d1e798141b46a050cdb75fcf3c17db969bb2c40394f3f4a48910655d547508b9

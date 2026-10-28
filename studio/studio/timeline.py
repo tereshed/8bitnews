@@ -83,8 +83,8 @@ _MIN_SCENE_DURATION_S = 1.0
 def uniform_timeline(script: dict, wpm: float | None = None) -> Timeline:
     """Builds a Timeline purely from each scene's narration word count and a
     fixed words-per-minute pace (no audio): format.md's own word budget is
-    defined this way (~165 wpm, ~2.4 words/s in serious mode), so this is
-    also the right stand-in for tests and template preview.
+    defined this way (144 wpm, 131 in serious mode -- the af_sarah pace), so
+    this is also the right stand-in for tests and template preview.
     """
     if wpm is None:
         wpm = SERIOUS_WPM if script.get("serious_mode") else DEFAULT_WPM
@@ -127,6 +127,11 @@ class SceneVoice:
     scene_id: str
     shot: str
     words: tuple[Word, ...]
+    duration_s: float | None = None
+    """Length of the scene's voice audio; None means it ends with the last
+    word. A real voice runs a little past its last word (a breath of tail),
+    and the scene has to last as long as its audio or every later scene
+    drifts off the voice track."""
 
 
 def timeline_from_voice(
@@ -147,6 +152,8 @@ def timeline_from_voice(
         start = t
         words = tuple(Word(text=w.text, start_s=start + w.start_s, end_s=start + w.end_s) for w in sv.words)
         end = words[-1].end_s if words else start
+        if sv.duration_s is not None:
+            end = max(end, start + sv.duration_s)
         subtitles = tuple(split_cues(words, max_lines, max_chars))
         scenes.append(SceneTiming(scene_id=sv.scene_id, shot=sv.shot, start_s=start, end_s=end, words=words, subtitles=subtitles))
         t = end

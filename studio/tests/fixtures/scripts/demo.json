@@ -1,0 +1,236 @@
+{
+  "cover": {
+    "text": "DOJ vs. California Ballots",
+    "frame": "custom",
+    "visual": "Stylized California map with a pulsing red alert over a ballot-box icon and a small DOJ seal stamp in the corner."
+  },
+  "music": {
+    "cue": "Low-volume tense chiptune enters under the hook, builds slightly through what's-new and known, ducks under every quoted line in the country and world segments, lifts briefly at the unknowns, then fades out under the anchor's final line.",
+    "mood": "tense",
+    "energy": 3,
+    "enabled": true
+  },
+  "scenes": [
+    {
+      "id": "S1",
+      "shot": "anchor",
+      "blocks": [
+        "hook"
+      ],
+      "visual": "Anchor at the studio desk; behind her a stylized California map pulses with a blinking red alert icon over a ballot-box icon.",
+      "fact_ids": [
+        "F13"
+      ],
+      "narration": "Federal prosecutors warn California officials: knowingly count noncitizens' ballots, face legal jeopardy.",
+      "duration_s": 5.8,
+      "word_count": 12,
+      "real_people": [],
+      "on_screen_text": "DOJ: knowingly count ballots, face charges"
+    },
+    {
+      "id": "S2",
+      "shot": "scene",
+      "blocks": [
+        "whats_new"
+      ],
+      "visual": "Camera pans across a pixel-art map of California as small envelope icons fly out from a federal building and land on scattered county pins; a 48-hour clock icon counts down in the corner.",
+      "fact_ids": [
+        "F12",
+        "F13",
+        "F14"
+      ],
+      "narration": "On Friday, DOJ sent letters to California counties, ordering ballots from alleged noncitizens set aside within 48 hours. Officials who knowingly process them risk prosecution.",
+      "duration_s": 11.7,
+      "word_count": 25,
+      "real_people": [],
+      "source_plate": "Source: Yahoo News (CBS/AP), NBC News · Oct 24",
+      "on_screen_text": "Letters to CA counties, 48-hr deadline"
+    },
+    {
+      "id": "S3",
+      "shot": "scene",
+      "blocks": [
+        "known"
+      ],
+      "visual": "A sealed thumb drive with a padlock icon sits untouched on a county office desk; nearby, Secretary Weber signs a letter at her own desk as a calendar flips its pages from Oct 13 to Oct 27 and a gavel icon appears.",
+      "fact_ids": [
+        "F1",
+        "F2",
+        "F3",
+        "F6",
+        "F8"
+      ],
+      "narration": "On October 13th, DOJ gave LA County a list of 20,000 names it calls likely noncitizens. Two days later, DOJ sued. Weber said the list is of no investigative use. A hearing is set for Tuesday.",
+      "duration_s": 16.7,
+      "word_count": 36,
+      "real_people": [
+        "Shirley Weber"
+      ],
+      "source_plate": "Source: DOJ complaint, Weber letter to DOJ · Oct 13-15",
+      "on_screen_text": "Hearing: Tuesday, Oct 27"
+    },
+    {
+      "id": "S4",
+      "shot": "scene",
+      "blocks": [
+        "local"
+      ],
+      "visual": "Bill Essayli stands at a podium with press microphones outside a federal building; a pixel speech bubble with his quote fades in above him.",
+      "fact_ids": [],
+      "group_ids": [
+        "L1"
+      ],
+      "narration": "The Trump administration says data matching found more than 20,000 likely noncitizens on California's rolls. First Assistant U.S. Attorney Bill Essayli said: 'We believe it's at a minimum of 20,000. That's the floor.'",
+      "duration_s": 15.3,
+      "word_count": 33,
+      "real_people": [
+        "Bill Essayli"
+      ],
+      "source_plate": "Source: Fox News · Oct 22",
+      "on_screen_text": "DOJ: 20,000+ 'likely noncitizens'"
+    },
+    {
+      "id": "S5",
+      "shot": "scene",
+      "blocks": [
+        "local"
+      ],
+      "visual": "Split screen: Dean Logan stands behind a county registrar's counter with stacked ballot boxes; Rep. DeSaulnier stands at a podium with the U.S. Capitol dome silhouette; speech bubbles appear in sequence.",
+      "fact_ids": [],
+      "group_ids": [
+        "L2",
+        "L3"
+      ],
+      "narration": "California election officials disagree. LA County Registrar Dean Logan called the new letters a 'posture of intimidation.' Rep. Mark DeSaulnier called it 'the escalating weaponization of the Justice Department.'",
+      "duration_s": 13.5,
+      "word_count": 29,
+      "real_people": [
+        "Dean Logan",
+        "Mark DeSaulnier"
+      ],
+      "source_plate": "Source: San Francisco Chronicle · Oct 23",
+      "on_screen_text": "Officials call it 'intimidation'"
+    },
+    {
+      "id": "S6",
+      "shot": "scene",
+      "blocks": [
+        "world"
+      ],
+      "visual": "A pixel globe rotates slowly; small newspaper icons pin themselves onto the UK, Spain and Canada. Governor Newsom appears briefly at a podium with a California flag as a dotted line animates toward a Canada icon.",
+      "fact_ids": [],
+      "narration": "Coverage abroad differs. The Guardian reports LA officials found many flagged voters born in the U.S. Governor Newsom told El País it is a desperate attempt to suppress Californians' votes.",
+      "duration_s": 13.9,
+      "word_count": 30,
+      "cluster_ids": [
+        "W1",
+        "W2"
+      ],
+      "real_people": [
+        "Gavin Newsom"
+      ],
+      "source_plate": "Source: El País · Oct 20",
+      "on_screen_text": "World press: federal overreach"
+    },
+    {
+      "id": "S7",
+      "shot": "scene",
+      "blocks": [
+        "unknown"
+      ],
+      "visual": "A pixel-art question mark hovers over the California map; two mismatched number tags flicker side by side, then a calendar page circled on Oct 27 spins slowly.",
+      "fact_ids": [
+        "F12",
+        "F11",
+        "F8"
+      ],
+      "narration": "Questions remain: the exact county count, and how Tuesday's hearing will end.",
+      "duration_s": 5.8,
+      "word_count": 12,
+      "real_people": [],
+      "on_screen_text": "Open questions: counties, ruling"
+    },
+    {
+      "id": "S8",
+      "shot": "anchor",
+      "blocks": [
+        "outro"
+      ],
+      "visual": "Anchor at the studio desk; behind her the screen switches to a plain 'Sources' label as the 8bitnews logo fades in beside it.",
+      "fact_ids": [],
+      "narration": "Sources are in the description. Follow for what happens next.",
+      "duration_s": 4.8,
+      "word_count": 10,
+      "real_people": [],
+      "on_screen_text": "Sources in the description"
+    }
+  ],
+  "dossier": "newsroom/trials/2026-10-24-ca-ballots/research_dossier.json",
+  "language": "en-US",
+  "metadata": {
+    "tiktok": {
+      "title": "DOJ Widens Noncitizen-Ballot Demand to California Counties",
+      "summary": "DOJ widened its noncitizen-ballot demand to at least 18 California counties, warning officials they risk prosecution if they knowingly count flagged ballots. This follows DOJ's lawsuit over a disputed list of roughly 20,000 names, with a hearing set for Tuesday.",
+      "hashtags": [
+        "#8BitNews",
+        "#California",
+        "#DOJ",
+        "#Midterms2026",
+        "#ElectionLaw"
+      ]
+    },
+    "youtube": {
+      "tags": [
+        "DOJ",
+        "California",
+        "noncitizen voting",
+        "Shirley Weber",
+        "Dean Logan",
+        "midterms 2026",
+        "voter rolls",
+        "election law",
+        "news analysis",
+        "Los Angeles County"
+      ],
+      "title": "DOJ Widens Noncitizen-Ballot Demand to California Counties",
+      "summary": "DOJ widened its noncitizen-ballot demand from one county to letters sent to at least 18 California counties, warning officials they risk prosecution if they knowingly count flagged ballots. The move follows DOJ's lawsuit against California over a disputed list of roughly 20,000 names, with a court hearing set for Tuesday, October 27th.",
+      "hashtags": [
+        "#8BitNews",
+        "#California",
+        "#DOJ",
+        "#Midterms2026",
+        "#ElectionLaw"
+      ]
+    },
+    "instagram": {
+      "title": "DOJ Widens Noncitizen-Ballot Demand to California Counties",
+      "summary": "DOJ widened its noncitizen-ballot demand to at least 18 California counties, warning officials they risk prosecution if they knowingly count flagged ballots. This follows DOJ's lawsuit over a disputed list of roughly 20,000 names, with a hearing set for Tuesday.",
+      "hashtags": [
+        "#8BitNews",
+        "#California",
+        "#DOJ",
+        "#Midterms2026",
+        "#ElectionLaw"
+      ]
+    }
+  },
+  "template": "nes-desk",
+  "hook_type": "new_fact",
+  "channel_id": "8bitnews-us",
+  "duration_s": 88,
+  "word_count": 187,
+  "serious_mode": false,
+  "pronunciations": [
+    {
+      "say": "eh-SAY-lee",
+      "text": "Essayli"
+    },
+    {
+      "say": "duh-SOHL-nyer",
+      "text": "DeSaulnier"
+    }
+  ],
+  "notes": [
+    "Studio demo fixture (E2a-3): newsroom/trials/2026-10-24-ca-ballots/script_team.json cut from 237 to 187 words so the Kokoro read at about 144 wpm stays under the channel's 90 s; scenes S3-S6 with real people and the pronunciation hints are kept. Not for publishing."
+  ]
+}

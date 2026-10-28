@@ -11,7 +11,7 @@ REF ?= main
 
 STUDIO_IMAGE := 8bitnews-studio
 
-.PHONY: lint test validate-profiles up down deploy-hub-vm deploy-hub deploy-hub-backup deploy-check studio-image studio-test studio-preview studio-build-sample
+.PHONY: lint test validate-profiles up down deploy-hub-vm deploy-hub deploy-hub-backup deploy-check studio-image studio-test studio-preview studio-build-sample studio-demo
 
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run ./...
@@ -60,12 +60,29 @@ studio-preview: studio-image
 	docker run --rm -v $(CURDIR)/out/studio-preview:/app/out $(STUDIO_IMAGE) \
 		template preview templates/nes-desk --out out
 
-# E2a-2a: studio build (studio/README.md). stub voice, --channels-dir reads
-# the real channel.yaml from the mounted repo root.
+# E2a-2a: studio build (studio/README.md) of the demo script with the stub
+# voice and the synthesized test loop as music: quick, no model run.
 studio-build-sample: studio-image
 	mkdir -p out/studio-sample
-	docker run --rm -v $(CURDIR):/repo:ro -e STUDIO_REPO_ROOT=/repo -v $(CURDIR)/out/studio-sample:/app/out $(STUDIO_IMAGE) \
-		build --script /repo/newsroom/trials/2026-10-26-ninth-circuit/script.json --channel 8bitnews-us --tts stub --out out
+	docker run --rm -v $(CURDIR):/repo:ro -e STUDIO_REPO_ROOT=/repo -v $(CURDIR)/out/studio-sample:/app/out \
+		--entrypoint sh $(STUDIO_IMAGE) -c 'python -m studio music test-track --out /tmp/track.wav \
+		&& python -m studio build --script tests/fixtures/scripts/demo.json --channel 8bitnews-us --tts stub \
+			--music-file /tmp/track.wav --out out'
+
+# E2a-3: the demo reel with the real voice (Kokoro, channel.yaml), music and
+# transition sounds, then studio validate. STUDIO_MUSIC_DIR=<folder holding
+# music/tracks/...> picks the track from music/catalog.yaml; without it the
+# music is the synthesized test loop.
+STUDIO_MUSIC_DIR ?=
+studio-demo: studio-image
+	mkdir -p out/studio-demo
+	docker run --rm -v $(CURDIR):/repo:ro -e STUDIO_REPO_ROOT=/repo -v $(CURDIR)/out/studio-demo:/app/out \
+		$(if $(STUDIO_MUSIC_DIR),-v $(abspath $(STUDIO_MUSIC_DIR)):/music:ro -e STUDIO_MUSIC_DIR=/music) \
+		--entrypoint sh $(STUDIO_IMAGE) -c 'set -e; \
+		if [ -n "$$STUDIO_MUSIC_DIR" ]; then music=""; else \
+			python -m studio music test-track --out /tmp/track.wav; music="--music-file /tmp/track.wav"; fi; \
+		python -m studio build --script tests/fixtures/scripts/demo.json --channel 8bitnews-us $$music --out out; \
+		python -m studio validate --package out/package.json'
 
 # Fully offline: ansible-playbook --syntax-check + ansible-lint on all three
 # playbooks, `caddy validate`/`nft -c -f` on rendered templates, and

@@ -79,3 +79,15 @@ def test_load_timeline_ignores_extra_top_level_keys(tmp_path):
 
     loaded = load_timeline(path)
     assert loaded.duration_s == timeline.duration_s
+
+
+def test_scene_lasts_as_long_as_its_voice_audio():
+    """A real voice runs past its last word; the next scene starts after the
+    audio, or every later scene drifts off the voice track."""
+    s1 = SceneVoice("S1", "anchor", (Word("One", 0.05, 0.6),), duration_s=0.72)
+    s2 = SceneVoice("S2", "scene", (Word("Two", 0.05, 0.5),), duration_s=0.62)
+    timeline = timeline_from_voice([s1, s2], pause_s=0.3, max_lines=2, max_chars=32)
+    assert timeline.scenes[0].end_s == 0.72
+    assert timeline.scenes[1].start_s == 0.72 + 0.3
+    assert timeline.scenes[1].words[0].start_s == 0.72 + 0.3 + 0.05
+    assert timeline.duration_s == 0.72 + 0.3 + 0.62

@@ -2,7 +2,7 @@
   "id": "nes-desk",
   "name": "NES Desk",
   "version": 1,
-  "license_note": "All PNG assets in assets/ are original placeholder pixel art drawn for this repository (studio/scripts/generate_assets.py); no third-party material.",
+  "license_note": "All PNG assets in assets/ are original placeholder pixel art drawn for this repository (studio/scripts/generate_assets.py); assets/sfx/ sounds are synthesized in code (studio/scripts/generate_sounds.py), each with its license next to it. No third-party material.",
   "studio": {
     "layers": [
       {
@@ -178,7 +178,7 @@
       "id": "pixel-wipe",
       "type": "pixelate",
       "duration_s": 0.4,
-      "sound": null
+      "sound": "assets/sfx/pixel-wipe.wav"
     }
   ],
   "cover": {
@@ -210,6 +210,7 @@
     "assets/background_layer0.png",
     "assets/background_layer1.png",
     "assets/screen_frame.png",
-    "assets/sample_scene.png"
+    "assets/sample_scene.png",
+    "assets/sfx/pixel-wipe.wav"
   ]
 }

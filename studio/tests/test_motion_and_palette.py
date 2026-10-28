@@ -104,7 +104,7 @@ def test_transition_at_scene_boundary_blends_into_the_first_frame(nes_desk_dir):
     pixelate reveal fraction grows with elapsed time."""
     template = load_template(nes_desk_dir)
     assets = load_channel_assets("8bitnews-us")
-    timeline = builtin_timeline()
+    timeline = builtin_timeline(wpm=165.0)  # a pace that ends S2's transition before 3 s
     s2 = next(s for s in timeline.scenes if s.scene_id == "S2")
     assert s2.start_s + 0.39 < 3.0  # stay on the same side of the ai_voice/ai_icon cutover
 
