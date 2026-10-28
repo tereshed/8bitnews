@@ -7,6 +7,7 @@
     "channel_id",
     "script",
     "template",
+    "anchor",
     "duration_s",
     "files",
     "render",
@@ -30,6 +31,28 @@
     "template": {
       "type": "string",
       "minLength": 1
+    },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "chosen_by"
+      ],
+      "description": "Which of the channel's anchors presents the video (studio/channels/<channel>/anchors/<id>); the voice is that anchor's.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "chosen_by": {
+          "enum": [
+            "argument",
+            "script"
+          ],
+          "description": "argument: given to studio build (hub anchor_pick); script: picked by the script's content when none was given"
+        }
+      }
     },
     "duration_s": {
       "type": "number",

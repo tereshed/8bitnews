@@ -10,8 +10,9 @@ APIs; nothing needs the network once the image is built.
 
 - `template.schema.json` — the JSON Schema a template package must satisfy.
 - `channels/8bitnews-us/` — assets shared by every template for this
-  channel: the OFL pixel font, the NES palette, the logo, the placeholder
-  anchor sprite set, and the platform safe-zone rectangles.
+  channel: the OFL pixel font, the NES palette, the logo, the anchors
+  (`anchors/`: the brief they are drawn from and one sprite set per anchor),
+  and the platform safe-zone rectangles.
 - `templates/nes-desk/`, `templates/night-report/` — two template packages
   (data only: `template.json` + PNGs), proving the engine draws any valid
   package without template-specific code.
@@ -51,8 +52,8 @@ t_abs)` — same inputs always produce the same PNG bytes (`tests/test_determini
   `serious_colors` in serious mode) before anything else is drawn on top,
   in both modes, not just serious mode. The anchor sprite is composited
   **after** that and is never run through the template's palette at all —
-  its pixels stay exactly whatever `channels/8bitnews-us/anchor/*.png`
-  contains (skin/hair/suit tones that are deliberately not in every
+  its pixels stay exactly whatever `channels/8bitnews-us/anchors/<id>/*.png`
+  contain (skin/hair/suit tones that are deliberately not in every
   template's muted subset). This is the fix for two review findings: (1)
   serious mode used to re-quantize the *whole* frame, which turned the
   anchor's skin grey; (2) normal mode never restricted scene art to the
@@ -92,10 +93,10 @@ platform's current guide with a
 working fetch before this ships, and update the file (and the template
 rects that key off it) if the real numbers differ. `studio template
 validate` checks every plate/subtitle/cover rect against whatever is in
-the file today — and, separately, that none of them overlap the anchor's
-face (`channels/8bitnews-us/anchor/manifest.json`'s `face_rect`, mapped
-into frame coordinates by `studio.anchor.x/y/scale` via
-`ChannelAssets.face_rect_in_frame`).
+the file today — and, separately, that none of them overlap the face of
+any active anchor (each `channels/8bitnews-us/anchors/<id>/manifest.json`
+`face_rect`, mapped into frame coordinates by `studio.anchor.x/y/scale`
+via `AnchorSprites.face_rect_in_frame`).
 
 ### Subtitles
 
@@ -151,7 +152,7 @@ with none would leave some scenes with no motion at all.
   A transition may carry a `sound` (below, «Sound»).
 - `shot: anchor` scenes separately animate the anchor's blink and mouth
   (2-3 frames, driven by the timeline's volume envelope) regardless of
-  which motion preset the *next* scene-shot (shown on her over-the-shoulder
+  which motion preset the *next* scene-shot (shown on the over-the-shoulder
   screen) is using.
 
 ## Making a new template without writing code
@@ -172,18 +173,82 @@ with none would leave some scenes with no motion at all.
 No change to any `.py` file is needed — `tests/test_render_second_template.py`
 is exactly this check against `templates/night-report/`.
 
-## Replacing the placeholder anchor sprites
+## Anchors (E2b-1)
 
-`channels/8bitnews-us/anchor/manifest.json` declares two poses (`normal`,
-`serious`), two eye states (`open`, `closed`, for blinking), three mouth
-frames (`0`/`1`/`2`, picked by `channels/8bitnews-us/anchor/manifest.json`'s
-`mouth.volume_thresholds` against the timeline's volume envelope), and a
-`face_rect` (canvas-local `x`/`y`/`w`/`h` covering hair/eyes/mouth) that
-`studio template validate` maps into frame coordinates via each template's
-`studio.anchor.x`/`y`/`scale` to reject any plate or subtitle rect that
-would cover her face. A future Design pass replaces the PNG files in place
-(same filenames, same canvas size, same `face_rect`) — no engine code
-changes.
+The channel has several anchors, women and men, and each video is presented
+by one of them (`channels/8bitnews-us/format.md`, "Ведущие";
+`docs/architecture.md` §5, "Ведущие: ротация"). Each anchor is a sprite set in
+`channels/8bitnews-us/anchors/<id>/`:
+
+- `manifest.json`: `status` (`active` anchors are picked for new videos; a
+  `retired` one stays loadable so an old package still validates),
+  `voice_id` (the anchor's own Kokoro voice: one face, one voice), the
+  `canvas` every anchor of the channel shares (`anchors/brief.json`, so any
+  template places any anchor), `face_rect`, the poses, blink and mouth
+  frames with their offsets, and `source`: the model, prompt and edits it
+  was drawn with;
+- `body.png` (the calm, neutral candidate itself: both the normal and the
+  serious pose, since format.md wants the anchor neither smiling nor
+  gesturing in serious mode), `eyes_open`/`eyes_closed` and
+  `mouth_0`/`1`/`2` patches pasted over it at the manifest's offsets.
+
+**Which anchor.** `studio build --anchor <id>`: in the pipeline hub picks it
+(`anchor_pick`, E2c: not one of the channel's last videos' anchors). Without
+it, the studio picks an active anchor from the script's content
+(rendezvous hashing: adding or retiring an anchor moves only the scripts
+it wins or held), so a rebuild keeps its anchor. A retired anchor is
+accepted only by `--anchor`, to rebuild a video it presented, and the
+package notes say so. `package.json` records `anchor.id` and
+`anchor.chosen_by` (`argument` or `script`); `voice.voice_id` is that
+anchor's voice.
+
+**Every voice keeps the channel's pace.** Kokoro voices read at different
+speeds at the same setting, and format.md's word budget assumes ~144 words
+a minute whoever reads, so each voice has its own `speed` and
+`serious_speed` in `config.json` `tts.kokoro.voices`, measured on the demo
+script (words over the audio's length, scene pauses included, as the voice
+casting measured). A voice without one fails the build.
+
+**Drawing a new anchor** is a one-off with a person choosing, not part of a
+video build (key: env `STUDIO_OPENROUTER_API_KEY`; every reply is cached
+under `STUDIO_IMAGE_CACHE`, so running again pays nothing):
+
+1. `studio anchor candidates --channel 8bitnews-us --out <dir> [--looks w1,m3]`
+   draws one picture per look of `anchors/brief.json` (Gemini Flash Image
+   through OpenRouter, about $0.07 each): an adult anchor, front view, on a
+   flat green background, from a prompt that carries format.md's rules (not
+   chibi, not a mascot, resembling no real person, no text or logos). Each
+   becomes a sprite (`studio/sprite.py`): the background, and any pocket of
+   it the figure encloses, is cut out; every picture pixel is snapped to the
+   NES palette *before* downscaling and each sprite pixel takes its block's
+   most common color, so outlines stay black instead of smearing into
+   halos; snapping weighs hue more for near-neutral colors, so a white
+   shirt stays white. `<dir>/<look>/studio.png` shows it in the default
+   template's studio; a head cut off by the top edge or a refusal is drawn
+   once more.
+2. A person picks faces and a voice for each.
+3. `studio anchor build --channel 8bitnews-us --from <dir>/<look> --id <id> --voice <voice>`
+   asks a vision model (`google/gemini-3.5-flash-lite`) for the head, eyes
+   and mouth boxes, has the image model edit the *same* picture three times
+   (eyes closed; mouth slightly open; mouth open), lines each edit up with
+   the original (image models redraw an edit a few pixels off) and cuts
+   only the eyes or mouth patch out of it. An edit that changed nothing
+   there, or redrew more than 15% of the rest of the face (the patch would
+   not fit), is drawn again, up to three times; so is a set of boxes that
+   doesn't make a face. About $0.21 an anchor. Before any paid call the
+   voice must be pinned in `models.json`, measured in `config.json` and not
+   another active anchor's. The set is built beside the roster
+   (`anchors/.<id>.building`) and checked (`anchors.anchor_problems`, also
+   run by the tests over the whole roster, with `roster_problems`: someone
+   to pick, no two active anchors sharing a voice): canvas, sizes, palette,
+   frames inside `face_rect`, opaque patches, the voice. Only a set that
+   passes replaces `anchors/<id>/`.
+   A replied refusal or an unreadable answer is never cached, so running
+   the command again asks again.
+
+`studio template validate` checks plates, subtitles and the cover title
+against the face of *every* active anchor, and that every anchor fits in the
+frame at the template's `studio.anchor` place.
 
 ## Running things
 
@@ -235,9 +300,10 @@ muxed onto the same picture -> cover + keyframes -> a schema-validated
 `validate`.
 
 The TTS adapter comes from `--tts`, else the channel's
-`format.voice.provider`. Each adapter builds itself from its own settings
-in `config.json` (`tts.<name>`: the stub's `wpm`/`serious_wpm`, Kokoro's
-`speed`/`serious_speed`), so `build` never branches on its name.
+`format.voice.provider`; the voice is the anchor's (`voice_id` in its
+manifest). Each adapter builds itself from its own settings in
+`config.json` (`tts.<name>`: the stub's `wpm`/`serious_wpm`, each Kokoro
+voice's `speed`/`serious_speed`), so `build` never branches on its name.
 
 **Files in the container.** `studio-test` and `studio-build-sample` mount
 the repo root read-only at `/repo` and set `STUDIO_REPO_ROOT=/repo`: the
@@ -272,7 +338,7 @@ AI-illustration plate.
   anchor), no scene title or source plate (the cover title replaces them),
   no AI-voice/AI-icon plate, no subtitles. The title is drawn at 270×480
   before the ×4 upscale and the frame is not re-quantized, so the anchor
-  keeps her colors.
+  keeps its colors.
 - `cover.frame: custom` — `<assets>/cover.png` quantized to the template's
   palette at 270×480, or `cover.layout.background` without one, then the
   title.
@@ -360,13 +426,11 @@ revision) and checks each file's sha256 (`scripts/fetch_models.py`);
 espeak-ng 1.52 (the build the voice casting used) comes from the
 `espeakng-loader` wheel, installed with `--require-hashes`.
 
-**Changing the voice.** `format.voice.voice_id` in the channel profile
-(`af_sarah` now; `af_heart`, `af_bella`, `af_aoede` are in the image too).
-Another Kokoro voice: add its `voices/<id>.bin` entry from the same
-revision to `models.json` and rebuild the image. Speed: `config.json`
-`tts.kokoro.speed` (1.1) and `serious_speed` (1.0, format.md); pauses after
-a sentence and a clause: `sentence_pause_s` (0.25) and `clause_pause_s`
-(0.1).
+**Voices.** Each anchor names its voice (`voice_id` in its manifest, see
+"Anchors"). Another Kokoro voice: add its `voices/<id>.bin` entry from the
+same revision to `models.json`, rebuild the image, and give it a measured
+`speed`/`serious_speed` in `config.json` `tts.kokoro.voices`. Pauses after a
+sentence and a clause: `sentence_pause_s` (0.25) and `clause_pause_s` (0.1).
 
 **Word timings: Kokoro's own, not forced alignment.** The model reports how
 many 25 ms frames it spends on every phoneme, and its audio follows those
@@ -388,8 +452,8 @@ sound — no second model, no extra dependency. Three corrections
   on both sides; after a clause only where the model left a quiet gap (a
   comma it ran straight through is one it didn't mean to stop on). With
   this, the reading pace matches the voice casting the owner picked from:
-  the ca-ballots trial reads at 143 wpm (casting: 144), ninth-circuit at
-  150; at the serious speed 1.0, 136–143.
+  the ca-ballots trial read at 143 wpm (casting: 144). Each voice's speed
+  is measured to that pace (see "Anchors": 144 wpm, 131 in serious mode).
 - espeak misreads some written forms on its own: phonemizer cuts a line at
   a "." between digits ("61.3 percent" lost "point three percent" and
   shifted every later word), "$5" comes out "dollar five", "Oct." "ɑːkt".

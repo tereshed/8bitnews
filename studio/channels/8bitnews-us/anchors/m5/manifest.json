@@ -1,0 +1,99 @@
+{
+  "status": "active",
+  "voice_id": "am_puck",
+  "look": {
+    "id": "m5",
+    "who": "a South Asian man in his mid 30s with neatly combed black hair",
+    "outfit": "a black suit, white shirt and a purple tie"
+  },
+  "canvas": {
+    "w": 120,
+    "h": 160
+  },
+  "face_rect": {
+    "x": 31,
+    "y": 8,
+    "w": 57,
+    "h": 74
+  },
+  "poses": {
+    "normal": {
+      "body": "body.png"
+    },
+    "serious": {
+      "body": "body.png"
+    }
+  },
+  "eyes": {
+    "offset": {
+      "x": 40,
+      "y": 43
+    },
+    "frames": {
+      "open": "eyes_open.png",
+      "closed": "eyes_closed.png"
+    }
+  },
+  "mouth": {
+    "offset": {
+      "x": 51,
+      "y": 65
+    },
+    "frames": {
+      "0": "mouth_0.png",
+      "1": "mouth_1.png",
+      "2": "mouth_2.png"
+    },
+    "volume_thresholds": {
+      "1": 0.15,
+      "2": 0.5
+    }
+  },
+  "blink": {
+    "period_s": 4.0,
+    "duration_s": 0.12
+  },
+  "source": {
+    "image_model": "google/gemini-3.1-flash-image",
+    "prompt": "Generate one image. NES 8-bit pixel art character sprite, bold black outlines, flat colors, limited NES palette, no gradients, no anti-aliasing. An adult TV news anchor: a South Asian man in his mid 30s with neatly combed black hair, wearing a black suit, white shirt and a purple tie. Front view, facing the viewer, head and upper torso only, cut off at mid-chest by the bottom edge of the image, arms down at the sides. Calm, neutral, professional expression, eyes open looking at the viewer, mouth closed. Adult proportions: realistic head-to-body ratio, normal-size eyes; not chibi, not anime, not a mascot, not a cartoon caricature. An original character who does not resemble any real person. The figure is centered and fills most of the frame height, with a small margin above the head. Background: one completely flat solid pure green color (#00FF00), no desk, no studio, no shadows, no other objects. No text, no letters, no logos, no badges, no flags, no microphones, no earpieces.",
+    "variant": 0,
+    "edits": {
+      "eyes_closed": {
+        "prompt": "Edit this image. Show the same person with both eyes fully closed, as in a natural blink. Change nothing else: keep exactly the same pose, framing, size and position in the image, the same face, hair, clothing, colors, pixel-art style and the same flat green background. No text.",
+        "variant": 0
+      },
+      "mouth_1": {
+        "prompt": "Edit this image. Show the same person with the mouth slightly open, as when speaking, lips just apart. Change nothing else: keep exactly the same pose, framing, size and position in the image, the same face, hair, clothing, colors, pixel-art style and the same flat green background. No text.",
+        "variant": 0
+      },
+      "mouth_2": {
+        "prompt": "Edit this image. Show the same person with the mouth open wider, as in the middle of saying 'ah', the teeth visible. Change nothing else: keep exactly the same pose, framing, size and position in the image, the same face, hair, clothing, colors, pixel-art style and the same flat green background. No text.",
+        "variant": 0
+      }
+    },
+    "landmarks": {
+      "model": "google/gemini-3.5-flash-lite",
+      "boxes": {
+        "head": [
+          110.0,
+          279.0,
+          539.0,
+          720.0
+        ],
+        "eyes": [
+          321.0,
+          358.0,
+          350.0,
+          642.0
+        ],
+        "mouth": [
+          449.0,
+          439.0,
+          461.0,
+          561.0
+        ]
+      }
+    }
+  },
+  "license": "Drawn for 8bitnews by the image model named in `source` from the prompts there, then cut into sprites by `studio anchor build`; no third-party artwork was given to the model."
+}

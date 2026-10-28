@@ -166,8 +166,14 @@ def test_serious_mode_does_not_recolor_the_anchor(nes_desk_dir):
     normal_frame = render_frame(normal_script, timeline, template, assets, mid_t)
     serious_frame = render_frame(serious_script, timeline, template, assets, mid_t)
 
-    skin = "#fce0a8"
-    normal_colors = {("#%02x%02x%02x" % rgb) for _c, rgb in normal_frame.getcolors(1_000_000)}
-    serious_colors = {("#%02x%02x%02x" % rgb) for _c, rgb in serious_frame.getcolors(1_000_000)}
-    assert skin in normal_colors
-    assert skin in serious_colors
+    # The anchor's own pixels are the same in both modes (the pose is the
+    # same calm one; nothing re-quantizes the sprite).
+    cfg = template.data["studio"]["anchor"]
+    w, h = assets.anchor.canvas[0] * cfg["scale"], assets.anchor.canvas[1] * cfg["scale"]
+    box = (cfg["x"], cfg["y"], cfg["x"] + w, cfg["y"] + h)
+    opaque = np.asarray(assets.anchor.bodies["normal"].resize((w, h), Image.NEAREST))[..., 3] > 0
+    normal_px = np.asarray(normal_frame.convert("RGB").crop(box))[opaque]
+    serious_px = np.asarray(serious_frame.convert("RGB").crop(box))[opaque]
+    assert (normal_px == serious_px).all()
+    anchor_colors = {"#%02x%02x%02x" % tuple(c) for c in normal_px}
+    assert anchor_colors - set(template.palette(serious=True).hex_colors), "anchor drawn only in serious colors"

@@ -33,7 +33,7 @@ format:
   duration_s: { min: 10, max: 30 }
   templates: [nes-desk]
   default_template: nes-desk
-  voice: { provider: stub, voice_id: stub-test-voice }
+  voice: { provider: stub }
   subtitles: burned_in
 
 sources: countries/us/sources.yaml

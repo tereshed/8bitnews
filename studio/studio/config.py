@@ -15,7 +15,7 @@ DEFAULT_MAX_KEYFRAME_CELL_DIFF = 32.0
 
 DEFAULT_TTS = {
     "stub": {"wpm": 144.0, "serious_wpm": 131.0},
-    "kokoro": {"speed": 1.1, "serious_speed": 1.0, "sentence_pause_s": 0.25, "clause_pause_s": 0.1},
+    "kokoro": {"voices": {}, "sentence_pause_s": 0.25, "clause_pause_s": 0.1},
 }
 
 DEFAULT_AUDIO = {
