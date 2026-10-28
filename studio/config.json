@@ -34,11 +34,15 @@
     "fade_out_s": 2.0,
     "sfx_db": -8.0
   },
+  "images": {
+    "model": "google/gemini-3.1-flash-image",
+    "check_model": "google/gemini-3.5-flash-lite"
+  },
   "checks": {
     "min_voice_over_music_db": 10.0,
     "no_music_max_music_share": 0.05,
     "no_music_max_other_rise_db": 6.0,
     "no_music_max_pause_db": -35.0
   },
-  "_comment": "max_file_size_bytes: 50 MiB ceiling for video.mp4 (file_size check). max_keyframe_cell_diff: video_matches_keyframes limit on the mean difference (0-255) inside any 4x4 cell between a keyframe PNG and its H.264 frame; H.264 noise on the sample stays near 10, a changed or missing plate reaches 150+. tts: each adapter's own settings (stub pace in words per minute; each Kokoro voice's speed, measured so every voice keeps the channel's 144 wpm (131 serious) on the demo script, and the pauses after a sentence and a clause), the serious_* value in serious mode. audio: the mix -- the limiter ceiling before AAC, the music bed under the voice's loudness, the ducking depth and ramps (a gap shorter than duck_hold_gap_s stays ducked), fades, the transition sound level under the voice's peak. checks: how far the music must stay under the voice, and how much of the music (as a share of its gain in video.mp4) or of sound neither stem explains (dB above what video.mp4 itself leaves) video_no_music.mp4 may hold, and how loud it may be in the voice's pauses (dB next to the voice). The loudness target, its tolerance, the true-peak limit and what counts as too long a silence are channel policy (studio/constants.py), not settings."
+  "_comment": "max_file_size_bytes: 50 MiB ceiling for video.mp4 (file_size check). max_keyframe_cell_diff: video_matches_keyframes limit on the mean difference (0-255) inside any 4x4 cell between a keyframe PNG and its H.264 frame; H.264 noise on the sample stays near 10, a changed or missing plate reaches 150+. tts: each adapter's own settings (stub pace in words per minute; each Kokoro voice's speed, measured so every voice keeps the channel's 144 wpm (131 serious) on the demo script, and the pauses after a sentence and a clause), the serious_* value in serious mode. images: the models that draw and check scene pictures (studio build --images openrouter). audio: the mix -- the limiter ceiling before AAC, the music bed under the voice's loudness, the ducking depth and ramps (a gap shorter than duck_hold_gap_s stays ducked), fades, the transition sound level under the voice's peak. checks: how far the music must stay under the voice, and how much of the music (as a share of its gain in video.mp4) or of sound neither stem explains (dB above what video.mp4 itself leaves) video_no_music.mp4 may hold, and how loud what is left in the voice's pauses once the voice stem is taken out may be (dB next to the voice). The loudness target, its tolerance, the true-peak limit and what counts as too long a silence are channel policy (studio/constants.py), not settings."
 }

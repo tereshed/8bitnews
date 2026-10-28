@@ -41,6 +41,9 @@ def channel_palette_set(channel_id: str = "8bitnews-us") -> set[str]:
     return {c.lower() for c in channel_palette_colors(channel_id)}
 
 
+_CHUNK = 65536  # pixels per pass of Palette.quantize_array
+
+
 class Palette:
     """A fixed, ordered list of RGB colors with nearest-color lookup."""
 
@@ -64,9 +67,13 @@ class Palette:
         """rgb_array: (H, W, 3) uint8 -> same shape, every pixel snapped to
         the nearest palette color (euclidean distance in RGB, no dithering)."""
         flat = rgb_array.reshape(-1, 3).astype(np.float64)
-        # (N, P) squared distances; small images (<=480x270) so this is fine.
-        d2 = ((flat[:, None, :] - self._rgb[None, :, :]) ** 2).sum(axis=2)
-        idx = np.argmin(d2, axis=1)
+        # (N, P) squared distances, a chunk of pixels at a time: a pan/zoom
+        # source is 540x960 or more, and against the whole 55-color palette
+        # one pass over it held about 1 GB.
+        idx = np.empty(len(flat), dtype=np.intp)
+        for start in range(0, len(flat), _CHUNK):
+            part = flat[start:start + _CHUNK]
+            idx[start:start + _CHUNK] = np.argmin(((part[:, None, :] - self._rgb[None, :, :]) ** 2).sum(axis=2), axis=1)
         out = self._rgb[idx].astype(np.uint8)
         return out.reshape(rgb_array.shape)
 

@@ -2,6 +2,7 @@
   "id": "nes-desk",
   "name": "NES Desk",
   "version": 1,
+  "image_style": "Daytime scenes in bright, saturated colors.",
   "license_note": "All PNG assets in assets/ are original placeholder pixel art drawn for this repository (studio/scripts/generate_assets.py); assets/sfx/ sounds are synthesized in code (studio/scripts/generate_sounds.py), each with its license next to it. No third-party material.",
   "studio": {
     "layers": [

@@ -1,0 +1,7 @@
+{
+  "$comment": "How this channel's scene pictures are asked for (studio/scene_images.py): the style, how people are drawn, and what no picture may contain. The rules come from channels/8bitnews-us/format.md ('Стиль', 'Текст в кадре') and countries/us/policy.md; the template may add its own look (template.json image_style).",
+  "style": "Generate one image. NES 8-bit pixel art illustration for a calm TV news segment, vertical 9:16, big visible pixels, bold black outlines, flat colors from a limited NES palette, no gradients, no anti-aliasing, no dithering. The whole frame is the scene, readable at a glance on a phone.",
+  "serious": "Serious mode: a somber, quiet scene in muted grey and dark blue tones, no bright colors, nothing playful.",
+  "people": "Any people are adults drawn as generic stylized pixel-art figures by their role, with simple faces that do not resemble any real person; nobody is shown as a criminal, a villain or a game character.",
+  "prohibitions": "No text anywhere: no letters, words, numbers or symbols on signs, screens, papers, labels, calendars or badges. No logos, no coats of arms, no seals, no emblems, and no flags of real countries, states or organizations (a plain one-color flag is fine). No elements of known video games: no question-mark blocks, pipes, coins, power-ups, health bars or game characters. No blood, wounds, bodies or violence. Not photorealistic."
+}

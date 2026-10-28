@@ -50,6 +50,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
             music_file=Path(args.music_file) if args.music_file else None,
             music_track=args.music_track,
             anchor_id=args.anchor,
+            images=args.images,
         )
     except (BuildError, RepoRootNotSet, FileNotFoundError) as e:
         print(f"build failed: {e}", file=sys.stderr)
@@ -166,6 +167,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_build.add_argument("--anchor", default=None,
                          help="which of the channel's anchors presents it (hub anchor_pick); default: one picked "
                               "by the script's content")
+    p_build.add_argument("--images", default=None, choices=["openrouter"],
+                         help="draw the scene pictures with the image provider (env STUDIO_OPENROUTER_API_KEY) "
+                              "instead of reading them from --assets")
     p_build.set_defaults(func=_cmd_build)
 
     music = sub.add_parser("music", help="music helpers")
