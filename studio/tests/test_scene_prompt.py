@@ -141,6 +141,23 @@ def test_every_trial_visual_cleans_to_something():
     ("Anchor at the studio desk; behind her a stylized California map pulses with an alert icon.",
      "a stylized California map pulses with an alert icon"),
     ("The anchor at the studio desk, looking toward camera.", None),
+    # abbreviations don't end the sentence
+    ("Anchor at the desk; the screen behind the anchor shows a magnifying glass over the U.S. map of districts.",
+     "a magnifying glass over the U.S. map of districts"),
+    ("Anchor at the desk; the screen behind the anchor shows Gov. Newsom at a podium.", "Gov. Newsom at a podium"),
+    # the studio itself is not what the screen shows
+    ("Anchor at the desk; behind them, the studio wall glows blue.", None),
+    ("Anchor at the desk; behind the anchor, the newsroom lights dim.", None),
+    # a phone's screen is not the studio screen
+    ("A phone whose screen shows a text alert; behind them a courthouse.", "a courthouse"),
+    # what the anchor does is not on the screen
+    ("Anchor at the desk; the screen behind the anchor shows a courthouse as the anchor leans forward.", "a courthouse"),
+    ("Host at the desk; the screen behind her shows a text card fading in as she delivers the closing line.",
+     "a text card fading in"),
+    ("Behind the anchor: a ballot box.", "a ballot box"),
+    ("Anchor at the desk; behind the anchor, a screen with a map of Ohio.", "a map of Ohio"),
+    ("Anchor at the desk; the big screen: a map of Texas counties.", "a map of Texas counties"),
+    ("Anchor at the desk. Screen shows a stack of ballots.", "a stack of ballots"),
 ])
 def test_screen_content_is_what_the_anchor_scene_puts_on_the_screen(visual, expected):
     from studio.scene_prompt import screen_content

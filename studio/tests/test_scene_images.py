@@ -25,10 +25,11 @@ class Client:
 
     def __init__(self, pictures):
         self.pictures = list(pictures)
-        self.prompts, self.checked = [], 0
+        self.prompts, self.aspects, self.checked = [], [], 0
 
     def generate_image(self, model, prompt, aspect_ratio, images=(), variant=0):
         self.prompts.append(prompt)
+        self.aspects.append(aspect_ratio)
         p = self.pictures.pop(0) if self.pictures else CLEAN
         if isinstance(p, Exception):
             raise p
@@ -283,13 +284,29 @@ def test_an_anchor_scene_gets_its_own_screen_picture(tmp_path, template):
     first = script["scenes"][0]
     assert first["shot"] == "anchor"
     first["visual"] = "The anchor at the studio desk; behind them, the screen shows a courthouse icon over a ledger."
+    last = script["scenes"][-1]
+    assert last["shot"] == "anchor"
+    last["visual"] = "The anchor at the studio desk; the screen behind the anchor shows a stack of ballots."
     client = Client([])
     images_dir, report = generate_scene_images(script, template, "8bitnews-us", tmp_path, client)
     assert (images_dir / f"{first['id']}.png").is_file()
-    screen_prompt = next(p for p in client.prompts if "TV screen behind a news anchor" in p)
+    screens = [(p, a) for p, a in zip(client.prompts, client.aspects) if "TV screen behind a news anchor" in p]
+    assert len(screens) == 1  # not the last anchor shot's: the outro shows the logo
+    screen_prompt, aspect = screens[0]
     assert "courthouse icon over a ledger" in screen_prompt and "studio desk" not in screen_prompt
-    last = script["scenes"][-1]
-    assert last["shot"] == "anchor" and not (images_dir / f"{last['id']}.png").exists()  # the outro shows the logo
+    assert aspect == "4:5"  # nes-desk's screen is 80x100
+    assert not (images_dir / f"{last['id']}.png").exists()
+
+
+def test_a_screen_picture_that_fails_the_check_becomes_a_screen_sized_card(tmp_path, template):
+    script = _script()
+    first = script["scenes"][0]
+    first["visual"] = "The anchor at the studio desk; the screen behind the anchor shows a courthouse icon."
+    client = Client([WITH_TEXT] * 3)  # the screen is drawn first, three times
+    images_dir, report = generate_scene_images(script, template, "8bitnews-us", tmp_path, client)
+    screen = template.data["studio"]["screen"]
+    assert Image.open(images_dir / f"{first['id']}.png").size == (screen["w"], screen["h"])
+    assert any(n.startswith(f"{first['id']} screen behind the anchor: no generated picture") for n in report.notes)
 
 
 def test_the_screen_shows_the_anchor_scenes_own_picture(tmp_path):

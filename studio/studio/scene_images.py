@@ -116,14 +116,15 @@ class ImagesReport:
                 "cost_usd": self.cost_usd, "scenes": self.scenes}
 
 
-def fallback_card(template: TemplatePackage, logo: Image.Image) -> Image.Image:
+def fallback_card(template: TemplatePackage, logo: Image.Image, size: tuple[int, int] = (LOGICAL_W, LOGICAL_H),
+                  scale: int = 2) -> Image.Image:
     """The neutral card that stands in for a picture no attempt passed: the
     channel logo on the template's darkest color."""
     colors = template.palette().hex_colors
     bg = min((hex_to_rgb(c) for c in colors), key=sum)
-    card = Image.new("RGB", (LOGICAL_W, LOGICAL_H), bg)
-    scaled = logo.resize((logo.width * 2, logo.height * 2), Image.NEAREST)
-    card.paste(scaled, ((LOGICAL_W - scaled.width) // 2, (LOGICAL_H - scaled.height) // 2), scaled)
+    card = Image.new("RGB", size, bg)
+    scaled = logo.resize((logo.width * scale, logo.height * scale), Image.NEAREST)
+    card.paste(scaled, ((size[0] - scaled.width) // 2, (size[1] - scaled.height) // 2), scaled)
     return card
 
 
@@ -197,12 +198,16 @@ def generate_scene_images(
         if accepted:
             shutil.copyfile(Path(out_dir) / accepted, target)
         else:
-            fallback_card(template, logo).save(target)
+            if kind == "screen":  # sized to the screen, so the logo isn't cropped down to a few pixels
+                fallback_card(template, logo, (screen["w"], screen["h"]), scale=1).save(target)
+            else:
+                fallback_card(template, logo).save(target)
             found_all = sorted({k for a in attempts for k in a.get("found", [])}
                                | {"refused" for a in attempts if "refused" in a}
                                | {"unusable image" for a in attempts if "unusable" in a})
+            what = f"{name} screen behind the anchor" if kind == "screen" else name
             report.notes.append(
-                f"{name}: no generated picture passed the check after {len(attempts)} attempt(s) "
+                f"{what}: no generated picture passed the check after {len(attempts)} attempt(s) "
                 f"({', '.join(found_all)}); a neutral card with the logo stands in -- see images/attempts/")
         report.scenes.append({"id": name, "file": f"images/{name}.png", "fallback": accepted is None,
                               "accepted": accepted, "attempts": attempts})

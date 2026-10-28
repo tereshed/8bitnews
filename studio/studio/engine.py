@@ -323,8 +323,8 @@ def active_plates(script: dict, scene_timing: SceneTiming, template: TemplatePac
 
     # ai_illustration must stay up for as long as a real person's likeness is
     # anywhere in frame -- including an anchor shot's over-the-shoulder screen,
-    # which _render_anchor_shot fills with the *next* scene-shot's image
-    # (_next_scene_shot), not the anchor scene's own real_people.
+    # which _render_anchor_shot fills with the anchor scene's own picture (its
+    # real_people) or the *next* scene-shot's image (_next_scene_shot): both count.
     real_person_in_frame = bool(scene.get("real_people"))
     if scene["shot"] == "anchor":
         screen_scene = _next_scene_shot(script, scene["id"])

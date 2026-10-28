@@ -80,7 +80,8 @@ timing, kept separate from pixel drawing so it is unit-testable
   anchor shot) the next scene shot's is — the over-the-shoulder screen shows
   the anchor scene's own picture when it has one, else the next scene
   shot's (`_next_scene_shot`), so both count — the plate holds for that
-  scene's entire duration either way.
+  scene's entire duration either way. With hand-made `--assets`, an
+  `<anchor scene id>.png` there is that anchor shot's screen picture.
 - `scene_title` / `source_plate` — straight from the scene's
   `on_screen_text` / `source_plate` fields, wrapped to fit the template's
   own plate rect width (`studio/engine.py:_max_chars_for_rect`).
@@ -263,7 +264,8 @@ frame at the template's `studio.anchor` place.
 the screen of every anchor shot whose `visual` says what the screen behind the
 anchor shows (`scene_prompt.screen_content`: "…; the screen behind the anchor
 shows X" → X, drawn to fill the screen; the last anchor shot keeps the channel
-logo), and a `custom` cover, with the image provider instead of reading them
+logo; if no screen picture passes the check, a screen-sized logo card stands in),
+and a `custom` cover, with the image provider instead of reading them
 from `--assets` (key: env `STUDIO_OPENROUTER_API_KEY`; models: `config.json`
 `images`, Gemini Flash Image to draw and Gemini Flash Lite to check). The
 frame engine then snaps each picture to the 270×480 grid and the template's

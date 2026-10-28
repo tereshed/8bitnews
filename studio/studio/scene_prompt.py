@@ -200,20 +200,39 @@ def clean_visual(visual: str, real_people: list[str]) -> str:
     return text
 
 
+# "U.S.", "D.C.", "Gov." do not end a sentence.
+_ABBREV = re.compile(r"\b(?:[A-Z]\.)+|\b(?:Gov|Sen|Rep|Dr|Mr|Mrs|Ms|St|Jr|Sr|No|vs|Lt|Gen|Col|Sgt|Prof|Rev|Mt|Ft|Inc|Co|Corp|Ltd)\.")
+# The studio screen ("the screen", "the big screen", a sentence's "Screen"), not a phone's or a laptop's.
 _SCREEN = re.compile(
-    r"\bscreen\b(?:\s+behind\s+(?:her|him|them|the\s+anchor))?[^.;]*?\b(?:shows|showing|displays|displaying|"
-    r"switches\s+to|lights\s+up\s+with|fills\s+with|flips\s+to|cuts\s+to)\s+(?P<what>.+?)(?:[.;](?:\s|$)|$)",
+    r"(?:^|\b(?:the|a)\s+(?:(?:big|large|main|wall|studio|tv|video|news)\s+)?)screen\b"
+    r"(?:\s+behind\s+(?:her|him|them|the\s+(?:anchor|host)))?"
+    r"(?:\s*:\s*|\s*,?\s+(?:with|showing|displaying)\s+|[^:]{0,60}?\b(?:shows|displays|switches\s+to|"
+    r"lights\s+up\s+with|fills\s+with|flips\s+to|cuts\s+to)\s+)(?P<what>.+)",
     re.I,
 )
-
-
-_BEHIND = re.compile(r"\bbehind\s+(?:her|him|them|the\s+anchor),?\s+(?!(?:a|the)\s+screen\b)(?P<what>.+?)(?:[.;](?:\s|$)|$)", re.I)
+# "behind her a stylized map pulses …": what is behind the anchor is the screen, unless it is the studio itself.
+_BEHIND = re.compile(
+    r"\bbehind\s+(?:her|him|them|the\s+(?:anchor|host))\s*[,:]?\s+"
+    r"(?!(?:the\s+|a\s+)?(?:studio|newsroom|wall|walls|desk|lights?|windows?|set|backdrop|camera|screen)\b)(?P<what>.+)",
+    re.I,
+)
+# "… as she delivers the closing line": the screen picture has no anchor in it.
+_ANCHOR_TAIL = re.compile(r",?\s+(?:as|while|when|and)\s+(?:the\s+(?:anchor|host)|she|he|they)\b.*$", re.I)
 
 
 def screen_content(visual: str) -> str | None:
     """What an anchor scene's `visual` says the screen behind the anchor
-    shows ("…; behind them, a screen shows a courthouse icon as …" -> "a
-    courthouse icon as …"; "…; behind her a stylized map pulses …" -> "a
-    stylized map pulses …"), or None when it doesn't say."""
-    m = _SCREEN.search(visual) or _BEHIND.search(visual)
-    return m.group("what").strip() if m else None
+    shows ("…; behind them, a screen shows a courthouse icon as she …" -> "a
+    courthouse icon"; "…; behind her a stylized map pulses …" -> "a stylized
+    map pulses …"), or None when it doesn't say."""
+    protected = _ABBREV.sub(lambda m: m.group(0).replace(".", "\0"), visual)
+    clauses = [c.strip() for c in re.split(r";|[.!?](?=\s|$)", protected) if c.strip()]
+    for pattern in (_SCREEN, _BEHIND):
+        for clause in clauses:
+            m = pattern.search(clause)
+            if not m:
+                continue
+            what = _ANCHOR_TAIL.sub("", m.group("what")).replace("\0", ".").strip(" ,:")
+            if len(what.split()) >= 2:
+                return what
+    return None
