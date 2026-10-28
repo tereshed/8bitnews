@@ -64,3 +64,35 @@ func TestPresignPut_CloudflareR2(t *testing.T) {
 		}
 	}
 }
+
+// TestPresignGet_CloudflareR2: the download URL is signed for the same
+// endpoint, bucket and region as uploads, as a GET.
+func TestPresignGet_CloudflareR2(t *testing.T) {
+	cfg := config.S3Config{
+		Endpoint:        "https://abc123.r2.cloudflarestorage.com",
+		Region:          "auto",
+		Bucket:          "8bitnews-media",
+		AccessKeyID:     "test-access-key",
+		SecretAccessKey: "test-secret-key",
+		UsePathStyle:    true,
+		PresignExpiry:   15 * time.Minute,
+	}
+	client, err := New(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	rawURL, err := client.PresignGet(context.Background(), "music/tracks/oga/x.ogg")
+	if err != nil {
+		t.Fatalf("PresignGet: %v", err)
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("parsing presigned URL: %v", err)
+	}
+	if u.Host != "abc123.r2.cloudflarestorage.com" || u.Path != "/8bitnews-media/music/tracks/oga/x.ogg" {
+		t.Errorf("url = %s, want the R2 host and the bucket path of the key", rawURL)
+	}
+	if u.Query().Get("X-Amz-Expires") != "900" {
+		t.Errorf("X-Amz-Expires = %q, want 900", u.Query().Get("X-Amz-Expires"))
+	}
+}

@@ -100,6 +100,11 @@
         "type": "string",
         "minLength": 1
       }
+    },
+    "video_package": {
+      "type": "string",
+      "minLength": 1,
+      "description": "final mode: id of the video_package artifact reviewed (the video_package_id newsroom/tools/video_review_kit.py printed); release_submit refuses a review of another build"
     }
   },
   "$defs": {
@@ -227,6 +232,21 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "final"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "video_package"
+        ]
+      },
+      "description": "A final review names the build it looked at"
+    },
     {
       "if": {
         "properties": {

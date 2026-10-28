@@ -69,6 +69,13 @@
         "reported_at": {
           "type": "string",
           "description": "When the development was first reported, UTC ISO 8601"
+        },
+        "hub_development_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "development_id from hub story_register: the Video team uploads media and the release is submitted under it"
         }
       }
     },

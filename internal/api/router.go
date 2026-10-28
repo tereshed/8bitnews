@@ -39,6 +39,7 @@ func NewRouter(svc *service.Service, mcpHandler http.Handler, metrics *observabi
 	mux.HandleFunc("POST /api/v1/stories/register", h.handleStoryRegister)
 	mux.HandleFunc("POST /api/v1/experiments/assign", h.handleExperimentAssign)
 	mux.HandleFunc("POST /api/v1/media/upload-url", h.handleMediaUploadURL)
+	mux.HandleFunc("POST /api/v1/media/download-url", h.handleMediaDownloadURL)
 	mux.HandleFunc("POST /api/v1/releases", h.handleReleaseSubmit)
 	mux.HandleFunc("GET /api/v1/releases/{release_id}", h.handleReleaseGet)
 	mux.Handle("/mcp", mcpHandler)

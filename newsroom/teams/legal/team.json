@@ -13,19 +13,28 @@
       "name": "legal_counsel",
       "role": "legal_counsel",
       "prompt": "legal_counsel.md",
-      "role_description": "Как юрист возможного истца проверяет сценарий или готовый ролик по праву страны канала (countries/<cc>/legal.md) и редакционным правилам (policy.md): клевета, приватность, несовершеннолетние, уголовные дела, образ и голос, выборы, копирайт и музыка, раскрытие AI. Сдаёт law_report."
+      "role_description": "Как юрист возможного истца проверяет сценарий или готовый ролик по праву страны канала (countries/<cc>/legal.md) и редакционным правилам (policy.md): клевета, приватность, несовершеннолетние, уголовные дела, образ и голос, выборы, копирайт и музыка, раскрытие AI. Сдаёт law_report.",
+      "skills": [
+        "hub-access"
+      ]
     },
     {
       "name": "platform_reviewer",
       "role": "platform_reviewer",
       "prompt": "platform_reviewer.md",
-      "role_description": "Как модератор Trust & Safety и ревьюер монетизации проверяет сценарий или готовый ролик по правилам каждой включённой площадки (platforms/<platform>/rules.md): правила сообщества, маркировка AI, монетизация, охват, копирайт и музыка, метаданные. Сдаёт platform_report."
+      "role_description": "Как модератор Trust & Safety и ревьюер монетизации проверяет сценарий или готовый ролик по правилам каждой включённой площадки (platforms/<platform>/rules.md): правила сообщества, маркировка AI, монетизация, охват, копирайт и музыка, метаданные. Сдаёт platform_report.",
+      "skills": [
+        "hub-access"
+      ]
     },
     {
       "name": "legal_lead",
       "role": "legal_lead",
       "prompt": "legal_lead.md",
-      "role_description": "Сводит law_report и platform_report в legal_review: ищет пропущенные риски на стыке текста, визуала и музыки, ставит итог по каждой площадке (pass / fix_required / exclude) и общий итог (pass / fix_required / kill), даёт правки с адресатом и сводку для модератора. Итог команды."
+      "role_description": "Сводит law_report и platform_report в legal_review: ищет пропущенные риски на стыке текста, визуала и музыки, ставит итог по каждой площадке (pass / fix_required / exclude) и общий итог (pass / fix_required / kill), даёт правки с адресатом и сводку для модератора. Итог команды.",
+      "skills": [
+        "hub-access"
+      ]
     }
   ],
   "deactivate": [],

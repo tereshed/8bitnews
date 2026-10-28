@@ -312,6 +312,26 @@ scene shots costs about $0.41, more with redraws; `package.json`
 `images.cost_usd` has the exact figure. Replies are cached by request
 (`STUDIO_IMAGE_CACHE`): rebuilding the same script pays nothing.
 
+## Picking template, anchor and track (`studio pick`)
+
+`studio pick --script s.json --channel 8bitnews-us --recent recent.json` prints what the
+video is made with (`studio/pick.py`), chosen by code against the channel's last videos
+(`recent.json`: hub `releases_recent`'s answer, or a list of `package.json`, newest first):
+
+- **template** — among the channel's `format.templates` that fit the script
+  (`fit.serious_mode`: `required` only for serious scripts, which then prefer such
+  templates; `fit.moods` must include `script.music.mood` when there is music), not one
+  of the last 3 videos' templates; `script.template` (an experiment arm) wins;
+- **anchor** — an active anchor not used by the last 2 videos;
+- **track** — approved, licensed for every enabled platform, the script's mood, energy
+  within 1 of the nearest, not one of the last 5 videos' tracks; also its `music_key` in
+  the store.
+
+Among what is left, the one used least recently wins (never used first), ties by a hash
+of the script, so the same script and history always give the same pick.
+`newsroom/tools/video_build.py` runs it and passes the result to `studio build`
+(`--template`, `--anchor`, `--music-track`).
+
 ## Running things
 
 ```sh

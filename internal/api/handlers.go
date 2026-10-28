@@ -94,6 +94,20 @@ func (h *handler) handleMediaUploadURL(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func (h *handler) handleMediaDownloadURL(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeJSON[service.MediaDownloadURLRequest](r)
+	if err != nil {
+		writeErrorMessage(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
+		return
+	}
+	resp, err := h.svc.MediaDownloadURL(r.Context(), req)
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 func (h *handler) handleReleaseSubmit(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeJSON[service.ReleaseManifest](r)
 	if err != nil {

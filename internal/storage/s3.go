@@ -1,7 +1,7 @@
 // Package storage talks to the S3-compatible object store (MinIO locally,
 // any S3-compatible provider in production) that holds release media:
-// presigned uploads for media_upload_url and existence checks for
-// release_submit.
+// presigned uploads for media_upload_url, presigned downloads for
+// media_download_url and existence checks for release_submit.
 package storage
 
 import (
@@ -62,6 +62,19 @@ func (c *Client) PresignPut(ctx context.Context, key, contentType string) (strin
 	}, s3.WithPresignExpires(c.presignExpiry))
 	if err != nil {
 		return "", fmt.Errorf("presigning PUT for %s: %w", key, err)
+	}
+	return req.URL, nil
+}
+
+// PresignGet returns a presigned GET URL for key, valid for the configured
+// expiry, used by media_download_url.
+func (c *Client) PresignGet(ctx context.Context, key string) (string, error) {
+	req, err := c.presign.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	}, s3.WithPresignExpires(c.presignExpiry))
+	if err != nil {
+		return "", fmt.Errorf("presigning GET for %s: %w", key, err)
 	}
 	return req.URL, nil
 }

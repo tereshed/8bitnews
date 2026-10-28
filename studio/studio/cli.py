@@ -134,6 +134,24 @@ def _cmd_anchor_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_pick(args: argparse.Namespace) -> int:
+    from .pick import pick
+
+    try:
+        script = json.loads(Path(args.script).read_text())
+        profile = repo.load_channel_profile(args.channel, channels_dir=Path(args.channels_dir) if args.channels_dir else None)
+        recent = json.loads(Path(args.recent).read_text()) if args.recent else []
+        if isinstance(recent, dict):  # hub releases_recent's answer
+            recent = [r.get("video_package") if isinstance(r, dict) else None for r in recent.get("releases") or []]
+        exclude = json.loads(Path(args.exclude).read_text()) if args.exclude else {}
+        result = pick(script, profile, recent, exclude=exclude)
+    except (BuildError, RepoRootNotSet, FileNotFoundError, json.JSONDecodeError, AttributeError, TypeError) as e:
+        print(f"pick failed: {e}", file=sys.stderr)
+        return 1
+    print(json.dumps(result.to_dict(), indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="studio")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -201,6 +219,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_abuild.add_argument("--model", default=None)
     p_abuild.add_argument("--vision-model", default=None)
     p_abuild.set_defaults(func=_cmd_anchor_build)
+
+    p_pick = sub.add_parser("pick", help="the template, anchor and music track for a script, avoiding what the "
+                            "channel's last videos used (hub releases_recent)")
+    p_pick.add_argument("--script", required=True)
+    p_pick.add_argument("--channel", required=True)
+    p_pick.add_argument("--channels-dir", default=None)
+    p_pick.add_argument("--recent", default=None, help="hub releases_recent's answer, or a JSON list of package.json, newest first")
+    p_pick.add_argument("--exclude", default=None, help='JSON file {"anchor": [...], "template": [...], "music_track": [...]} to leave out')
+    p_pick.set_defaults(func=_cmd_pick)
 
     p_pkg_validate = sub.add_parser("validate", help="run studio validate's checks against a built package")
     p_pkg_validate.add_argument("--package", required=True)

@@ -96,6 +96,14 @@ func NewServer(svc *service.Service) *mcp.Server {
 	})
 
 	addTool(server, &mcp.Tool{
+		Name:        "media_download_url",
+		Description: "Get a presigned S3 GET URL for a release's media (releases/...) or a music catalog track (music/...).",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in service.MediaDownloadURLRequest) (*mcp.CallToolResult, service.MediaDownloadURLResponse, error) {
+		out, err := svc.MediaDownloadURL(ctx, in)
+		return nil, out, err
+	})
+
+	addTool(server, &mcp.Tool{
 		Name:        "release_submit",
 		Description: "Submit a release manifest: validates media, QA and legal verdicts, checks and archives sources, and creates the release in status submitted.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in service.ReleaseManifest) (*mcp.CallToolResult, service.ReleaseSubmitResponse, error) {

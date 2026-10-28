@@ -36,7 +36,7 @@ def load_catalog(path: Path | None = None) -> list[dict]:
         return yaml.safe_load(f).get("tracks", [])
 
 
-def _licensed_for(track: dict, platforms: list[str]) -> bool:
+def licensed_for(track: dict, platforms: list[str]) -> bool:
     lic = track.get("license", {})
     return track.get("status") == "approved" and lic.get("commercial") is True and set(platforms) <= set(
         lic.get("platforms", [])
@@ -51,11 +51,11 @@ def select_track(music_cfg: dict, platforms: list[str], catalog: list[dict], tra
         track = next((t for t in catalog if t["id"] == track_id), None)
         if track is None:
             raise BuildError(f"music track {track_id!r} is not in the catalog")
-        if not _licensed_for(track, platforms):
+        if not licensed_for(track, platforms):
             raise BuildError(f"music track {track_id!r} is not approved and licensed for {', '.join(platforms)}")
         return track
     mood, energy = music_cfg.get("mood"), music_cfg.get("energy", 3)
-    fits = [t for t in catalog if _licensed_for(t, platforms) and mood in t.get("tags", {}).get("mood", [])]
+    fits = [t for t in catalog if licensed_for(t, platforms) and mood in t.get("tags", {}).get("mood", [])]
     if not fits:
         raise BuildError(f"no approved track for mood {mood!r} licensed for {', '.join(platforms)} in the catalog")
     return min(fits, key=lambda t: (abs(t.get("tags", {}).get("energy", 3) - energy), t["id"]))
