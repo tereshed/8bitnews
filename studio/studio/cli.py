@@ -49,6 +49,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
             keep_work=args.keep_work,
             music_file=Path(args.music_file) if args.music_file else None,
             music_track=args.music_track,
+            anchor_id=args.anchor,
         )
     except (BuildError, RepoRootNotSet, FileNotFoundError) as e:
         print(f"build failed: {e}", file=sys.stderr)
@@ -90,6 +91,48 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     return 0 if result["passed"] else 1
 
 
+def _cmd_anchor_candidates(args: argparse.Namespace) -> int:
+    from .anchors import DEFAULT_IMAGE_MODEL, make_candidates
+    from .channel_assets import load_channel_logo
+    from .openrouter import OpenRouterClient
+    from .template_pkg import load_template
+
+    try:
+        profile = repo.load_channel_profile(args.channel)
+        template = load_template(Path(args.template) if args.template else
+                                 Path(__file__).resolve().parent.parent / "templates" / profile["format"]["default_template"])
+        made = make_candidates(
+            args.channel, Path(args.out), OpenRouterClient(), template, load_channel_logo(args.channel),
+            looks=args.looks.split(",") if args.looks else None, n=args.n, model=args.model or DEFAULT_IMAGE_MODEL,
+        )
+    except (BuildError, RepoRootNotSet, FileNotFoundError) as e:
+        print(f"anchor candidates failed: {e}", file=sys.stderr)
+        return 1
+    for c in made:
+        print(f"{c.id}: {c.dir} (${c.cost_usd:.3f})")
+    print(f"{len(made)} candidate(s), ${sum(c.cost_usd for c in made):.2f}; side by side: {Path(args.out) / 'candidates.png'}")
+    return 0 if made else 1
+
+
+def _cmd_anchor_build(args: argparse.Namespace) -> int:
+    from .anchors import DEFAULT_IMAGE_MODEL, DEFAULT_VISION_MODEL, build_anchor
+    from .channel_assets import anchors_dir
+    from .openrouter import OpenRouterClient
+
+    out = Path(args.out) if args.out else anchors_dir(args.channel) / args.id
+    try:
+        manifest = build_anchor(
+            args.channel, Path(args.from_dir), args.id, args.voice, out, OpenRouterClient(),
+            image_model=args.model or DEFAULT_IMAGE_MODEL, vision_model=args.vision_model or DEFAULT_VISION_MODEL,
+        )
+    except (BuildError, FileNotFoundError) as e:
+        print(f"anchor build failed: {e}", file=sys.stderr)
+        return 1
+    print(f"wrote {out} (voice {manifest['voice_id']}, ${manifest['_cost_usd']:.2f}); "
+          f"frames: {Path(args.from_dir) / ('build-' + args.id) / 'frames.png'}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="studio")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -120,6 +163,9 @@ def build_parser() -> argparse.ArgumentParser:
                               "--music-track it must be that catalog track's audio")
     p_build.add_argument("--music-track", default=None,
                          help="catalog track id (hub music_pick) instead of picking by script.music")
+    p_build.add_argument("--anchor", default=None,
+                         help="which of the channel's anchors presents it (hub anchor_pick); default: one picked "
+                              "by the script's content")
     p_build.set_defaults(func=_cmd_build)
 
     music = sub.add_parser("music", help="music helpers")
@@ -128,6 +174,29 @@ def build_parser() -> argparse.ArgumentParser:
                                    "--music-file without --music-track as unverified)")
     p_track.add_argument("--out", required=True)
     p_track.set_defaults(func=_cmd_music_test_track)
+
+    anchor = sub.add_parser("anchor", help="draw the channel's anchors (a one-off, not part of a video build)")
+    anchor_sub = anchor.add_subparsers(dest="anchor_command", required=True)
+    p_cand = anchor_sub.add_parser("candidates", help="one candidate per look of the channel's anchors/brief.json, "
+                                   "as a sprite in the studio, for a person to choose from")
+    p_cand.add_argument("--channel", required=True)
+    p_cand.add_argument("--out", required=True)
+    p_cand.add_argument("--n", type=int, default=None, help="only the first N looks")
+    p_cand.add_argument("--looks", default=None, help="comma-separated look ids from the brief")
+    p_cand.add_argument("--template", default=None, help="studio to show them in (default: the channel's default template)")
+    p_cand.add_argument("--model", default=None)
+    p_cand.set_defaults(func=_cmd_anchor_candidates)
+
+    p_abuild = anchor_sub.add_parser("build", help="a chosen candidate -> the anchor's sprite set (blink and mouth "
+                                     "frames drawn by editing the same picture)")
+    p_abuild.add_argument("--channel", required=True)
+    p_abuild.add_argument("--from", dest="from_dir", required=True, help="the candidate's directory")
+    p_abuild.add_argument("--id", required=True, help="anchor id (directory name under the channel's anchors/)")
+    p_abuild.add_argument("--voice", required=True, help="the anchor's Kokoro voice id")
+    p_abuild.add_argument("--out", default=None, help="default: studio/channels/<channel>/anchors/<id>")
+    p_abuild.add_argument("--model", default=None)
+    p_abuild.add_argument("--vision-model", default=None)
+    p_abuild.set_defaults(func=_cmd_anchor_build)
 
     p_pkg_validate = sub.add_parser("validate", help="run studio validate's checks against a built package")
     p_pkg_validate.add_argument("--package", required=True)

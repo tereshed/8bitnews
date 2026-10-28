@@ -1,6 +1,9 @@
 """Kokoro voice (studio.kokoro). Needs the model files the Docker image
 fetches (make studio-image); skipped elsewhere."""
+import json
+import tempfile
 import wave
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -8,6 +11,8 @@ import pytest
 from studio.errors import BuildError
 from studio.kokoro import KokoroTtsAdapter, _ends_sentence, _label_chars, kokoro_available, spoken_forms
 from studio.tts import ADAPTERS
+
+STUDIO_DIR = Path(__file__).resolve().parent.parent
 
 needs_model = pytest.mark.skipif(not kokoro_available(), reason="Kokoro model files not installed")
 
@@ -290,10 +295,17 @@ def test_speed_changes_the_duration():
 
 
 @needs_model
-def test_settings_pick_the_serious_speed():
-    settings = {"speed": 1.1, "serious_speed": 1.0}
-    assert ADAPTERS["kokoro"].from_settings(settings, serious=False).speed == 1.1
-    assert ADAPTERS["kokoro"].from_settings(settings, serious=True).speed == 1.0
+def test_settings_pick_the_voice_and_serious_speed():
+    settings = {"voices": {"af_sarah": {"speed": 1.125, "serious_speed": 1.023}, "am_puck": {"speed": 1.15, "serious_speed": 1.05}}}
+    assert ADAPTERS["kokoro"].from_settings(settings, serious=False, voice_id="af_sarah").speed == 1.125
+    assert ADAPTERS["kokoro"].from_settings(settings, serious=True, voice_id="af_sarah").speed == 1.023
+    assert ADAPTERS["kokoro"].from_settings(settings, serious=False, voice_id="am_puck").speed == 1.15
+
+
+def test_a_voice_without_a_measured_speed_fails():
+    """Every voice keeps the channel's pace only at its own measured speed."""
+    with pytest.raises(BuildError, match="no calibrated speed"):
+        ADAPTERS["kokoro"].from_settings({"voices": {"af_sarah": {"speed": 1.1, "serious_speed": 1.0}}}, voice_id="am_echo")
 
 
 @needs_model
@@ -327,3 +339,32 @@ def test_scene_longer_than_one_pass_is_split_at_sentences(kokoro):
     ends = [w for w in result.words if w.text == "morning."]
     nexts = [result.words[result.words.index(w) + 1] for w in ends[:-1]]
     assert all(n.start_s - e.end_s >= kokoro.sentence_pause_s - 0.01 for e, n in zip(ends, nexts))
+
+
+@needs_model
+@pytest.mark.parametrize("voice_id", sorted({json.loads(p.read_text())["voice_id"]
+                                             for p in (STUDIO_DIR / "channels" / "8bitnews-us" / "anchors").glob("*/manifest.json")}))
+def test_every_anchor_voice_keeps_the_channel_pace(voice_id):
+    """Each anchor's voice at its own measured speed reads at the pace
+    format.md's word budget assumes (144 wpm, 131 in serious mode): words
+    over the audio, scene pauses included, on three scenes of the demo."""
+    from studio.audio import concat_wavs_with_silence
+    from studio.config import tts_settings
+    from studio.constants import DEFAULT_WPM, SERIOUS_WPM
+    from studio.pronunciation import build_synthesis_text, hinted_tokens
+
+    script = json.loads((STUDIO_DIR / "tests" / "fixtures" / "scripts" / "demo.json").read_text())
+    scenes = [s for s in script["scenes"] if s["id"] in ("S2", "S3", "S5")]
+    prons = script.get("pronunciations", [])
+    words = sum(len(s["narration"].split()) for s in scenes)
+    for serious, target in ((False, DEFAULT_WPM), (True, SERIOUS_WPM)):
+        adapter = ADAPTERS["kokoro"].from_settings(tts_settings("kokoro"), serious=serious, voice_id=voice_id)
+        wavs = []
+        for s in scenes:
+            text, groups = build_synthesis_text(s["narration"], prons)
+            wavs.append(adapter.synthesize(text, voice_id, hinted_tokens(groups, s["narration"], prons)).wav_path)
+        out = Path(tempfile.mkdtemp()) / "pace.wav"
+        concat_wavs_with_silence(wavs, 0.3, out)
+        with wave.open(str(out)) as w:
+            pace = words * 60 / (w.getnframes() / w.getframerate())
+        assert abs(pace - target) <= 4, (voice_id, serious, round(pace, 1))

@@ -32,7 +32,7 @@ from .audio import (
     prepend_silence,
     write_audio,
 )
-from .channel_assets import ChannelAssets, load_channel_assets
+from .channel_assets import ChannelAssets, anchor_ids, load_channel_assets, pick_anchor
 from .checks import run_checks
 from .config import audio_settings, tts_settings
 from .constants import (
@@ -250,6 +250,7 @@ def _assemble_package(
     music: dict,
     channel_profile: dict,
     extra_notes: list[str],
+    anchor: dict,
 ) -> dict:
     total_words = 0
     total_span = 0.0
@@ -292,6 +293,7 @@ def _assemble_package(
         "channel_id": channel_id,
         "script": script_artifact,
         "template": template.id,
+        "anchor": anchor,
         "duration_s": duration_s,
         "files": files,
         "render": {
@@ -359,9 +361,12 @@ def build_package(
     music_catalog: Path | None = None,
     music_dir: Path | None = None,
     audio_overrides: dict | None = None,
+    anchor_id: str | None = None,
 ) -> Path:
     """`keep_work` keeps frames/ (every rendered logical frame) after the
     build for debugging; by default it is deleted once nothing needs it.
+    `anchor_id`: which of the channel's anchors presents the video (hub
+    `anchor_pick`); without it, one picked by the script's content.
     `music_file`/`music_track`: see `studio.music.choose_music`;
     `audio_overrides` replaces mix levels from config.json (tests)."""
     script_path = Path(script_path)
@@ -374,7 +379,18 @@ def build_package(
 
     template_dir = _resolve_template_dir(template_dir_arg, script, channel_profile)
     template = load_template(template_dir)
-    assets = load_channel_assets(channel_id)
+    anchor_notes = []
+    if anchor_id is None:
+        anchor_id, chosen_by = pick_anchor(channel_id, script), "script"
+    else:
+        chosen_by = "argument"
+        if anchor_id not in anchor_ids(channel_id, include_retired=True):
+            have = ", ".join(anchor_ids(channel_id)) or "none"
+            raise BuildError(f"anchor {anchor_id!r} is not an anchor of {channel_id} (active: {have})")
+        if anchor_id not in anchor_ids(channel_id):
+            # Rebuilding an old video keeps its anchor; a new one never gets a retired anchor from hub.
+            anchor_notes.append(f"anchor {anchor_id!r} is retired: only for rebuilding a video it already presented")
+    assets = load_channel_assets(channel_id, anchor_id)
     # Fail before TTS and rendering, not after them, if plate text, the cover
     # title or the music can't work out.
     check_plate_text(script, template)
@@ -383,9 +399,10 @@ def build_package(
     audio_cfg = audio_settings(audio_overrides)
 
     tts_name_resolved = _resolve_tts_name(tts_name, channel_profile)
-    voice_cfg = channel_profile["format"]["voice"]
-    voice_id = voice_cfg["voice_id"]
-    adapter = ADAPTERS[tts_name_resolved].from_settings(tts_settings(tts_name_resolved), serious=serious)
+    # Each anchor speaks with its own voice (format.md, 'Ведущие').
+    voice_id = assets.anchor.voice_id
+    adapter = ADAPTERS[tts_name_resolved].from_settings(tts_settings(tts_name_resolved), serious=serious,
+                                                        voice_id=voice_id)
 
     sub_style = template.data["subtitles"]["style"]
     max_lines = sub_style.get("max_lines", MAX_SUBTITLE_LINES)
@@ -393,7 +410,7 @@ def build_package(
     pause_s = template.data.get("timing", {}).get("scene_pause_s", 0.3)
 
     pronunciations = script.get("pronunciations", [])
-    extra_notes = []
+    extra_notes = list(anchor_notes)
     for text in unused_pronunciations([s["narration"] for s in script["scenes"]], pronunciations):
         note = (
             f"pronunciation hint {text!r} matched no narration word and was not applied "
@@ -550,6 +567,7 @@ def build_package(
         music=music_out,
         channel_profile=channel_profile,
         extra_notes=extra_notes,
+        anchor={"id": anchor_id, "chosen_by": chosen_by},
     )
 
     schema = repo.load_contract_schema("video_package.schema.json")

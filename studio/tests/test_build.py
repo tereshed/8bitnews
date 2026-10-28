@@ -331,7 +331,7 @@ def test_scene_cover_is_the_scene_frame_plus_title_only(built_package):
     out_dir = built_package["out_dir"]
     script = json.loads((out_dir / "script.json").read_text())
     template = load_template(out_dir / "template")
-    assets = load_channel_assets("8bitnews-us")
+    assets = load_channel_assets("8bitnews-us", built_package["package"]["anchor"]["id"])
     timeline = load_timeline(out_dir / "timeline.json")
     st = next(s for s in timeline.scenes if s.scene_id == script["cover"]["frame"])
     base = np.array(render_cover_frame(script, timeline, template, assets, (st.start_s + st.end_s) / 2))

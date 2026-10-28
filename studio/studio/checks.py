@@ -319,7 +319,7 @@ class _Context:
         self.script = json.loads((package_dir / package["files"]["script"]["path"]).read_text())
         self.timeline = load_timeline(package_dir / package["files"]["timeline"]["path"])
         self.template = load_template(_template_dir(package_dir, package))
-        self.assets = load_channel_assets(package["channel_id"])
+        self.assets = load_channel_assets(package["channel_id"], package["anchor"]["id"])
         self.scenes = {s["id"]: s for s in self.script["scenes"]}
 
     def timing(self, scene_id: str):
@@ -334,7 +334,7 @@ class _Context:
     def real_person_in_frame(self, scene_id: str) -> bool:
         """format.md's rule, stated independently of the engine: a real person
         in the scene, or -- for an anchor shot -- in the next `scene` shot,
-        which the screen behind her shows."""
+        which the screen behind the anchor shows."""
         order = self.script["scenes"]
         i = next(k for k, s in enumerate(order) if s["id"] == scene_id)
         if order[i].get("real_people"):
@@ -410,7 +410,7 @@ def _check_ai_plates(package_dir: Path, package: dict, channel_profile: dict) ->
 @register("face_clear")
 def _check_face_clear(package_dir: Path, package: dict, channel_profile: dict) -> dict:
     """On anchor keyframes (and an anchor cover) the anchor's face is exactly
-    her sprite for that moment: nothing drawn over it."""
+    the sprite for that moment: nothing drawn over it."""
     ctx = _Context(package_dir, package)
     anchor = ctx.assets.anchor
     cfg = ctx.template.data["studio"]["anchor"]

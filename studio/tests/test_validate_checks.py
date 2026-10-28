@@ -370,7 +370,8 @@ def test_face_clear_fails_when_the_face_is_covered(built_package, test_channels_
     from studio.channel_assets import load_channel_assets
 
     def corrupt(copy_dir, package):
-        face = load_channel_assets("8bitnews-us").anchor.face_rect_in_frame(_template(copy_dir)["studio"]["anchor"])
+        anchor = load_channel_assets("8bitnews-us", package["anchor"]["id"]).anchor
+        face = anchor.face_rect_in_frame(_template(copy_dir)["studio"]["anchor"])
         _paint(copy_dir, "keyframes/S1_mid.png", {"x": face["x"], "y": face["y"] + 20, "w": face["w"], "h": 12}, "#000000")
 
     check = _check(built_package, test_channels_dir, corrupt_copy, "face_clear", corrupt)

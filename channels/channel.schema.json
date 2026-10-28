@@ -133,10 +133,10 @@
         "voice": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["provider", "voice_id"],
+          "description": "The TTS provider. Each anchor speaks with its own voice: studio/channels/<id>/anchors/<anchor>/manifest.json voice_id.",
+          "required": ["provider"],
           "properties": {
-            "provider": { "type": "string", "minLength": 1 },
-            "voice_id": { "type": "string", "minLength": 1 }
+            "provider": { "type": "string", "minLength": 1 }
           }
         },
         "subtitles": { "type": "string", "minLength": 1 }

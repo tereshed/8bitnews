@@ -152,8 +152,8 @@ def test_worst_case_title_lines_agrees_with_brute_force():
 
 
 def test_validate_rejects_cover_rect_over_the_face(nes_desk_dir, tmp_path):
-    d = _edited_template(nes_desk_dir, tmp_path, lambda d: d["cover"]["layout"]["text_rect"].update(y=240))
-    assert "cover.layout.text_rect" in _problems(d) and "overlaps the anchor's face" in _problems(d)
+    d = _edited_template(nes_desk_dir, tmp_path, lambda d: d["cover"]["layout"]["text_rect"].update(y=170))
+    assert "cover.layout.text_rect" in _problems(d) and "overlaps the face of anchor" in _problems(d)
 
 
 def test_validate_rejects_cover_rect_over_the_ai_illustration_plate(nes_desk_dir, tmp_path):

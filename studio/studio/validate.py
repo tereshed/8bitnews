@@ -10,8 +10,8 @@ from pathlib import Path
 
 import jsonschema
 
-from .channel_assets import load_channel_assets
-from .constants import FONT_PX
+from .channel_assets import anchor_ids, load_anchor, load_channel_assets
+from .constants import FONT_PX, LOGICAL_H, LOGICAL_W
 from .cover_title import COVER_TEXT_MAX_CHARS, cover_text_capacity, worst_case_title_lines
 from .errors import TemplateValidationError
 from .palette import channel_palette_set, image_colors_in_palette
@@ -187,7 +187,22 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
 
     assets = load_channel_assets(channel_id)
     font = assets.font(FONT_PX)
-    face_rect = assets.anchor.face_rect_in_frame(data["studio"]["anchor"])
+    # Any active anchor may present a video in any template: nothing may
+    # cover any of their faces, and every one must fit in the frame.
+    anchor_cfg = data["studio"]["anchor"]
+    faces = {}
+    for anchor_id in anchor_ids(channel_id):
+        anchor = load_anchor(channel_id, anchor_id)
+        faces[anchor_id] = anchor.face_rect_in_frame(anchor_cfg)
+        w, h = anchor.canvas[0] * anchor_cfg["scale"], anchor.canvas[1] * anchor_cfg["scale"]
+        if anchor_cfg["x"] < 0 or anchor_cfg["y"] < 0 or anchor_cfg["x"] + w > LOGICAL_W or anchor_cfg["y"] + h > LOGICAL_H:
+            problems.append(f"studio.anchor {anchor_cfg} puts anchor {anchor_id!r} ({w}x{h}) outside the "
+                            f"{LOGICAL_W}x{LOGICAL_H} frame")
+
+    def covered_faces(rect: dict) -> str:
+        """'' when `rect` clears every anchor's face, else which faces it covers."""
+        hit = [f"{anchor_id} {face}" for anchor_id, face in faces.items() if rects_intersect(rect, face)]
+        return ", ".join(hit)
 
     safe_rect = common_safe_rect(channel_id)
     for plate_name, plate in data.get("plates", {}).items():
@@ -197,10 +212,10 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
                 f"plates.{plate_name}.rect {rect} is outside the common safe zone {safe_rect} "
                 f"(channels/{channel_id}/safe_zones.json)"
             )
-        if rects_intersect(rect, face_rect):
+        if covered := covered_faces(rect):
             problems.append(
-                f"plates.{plate_name}.rect {rect} overlaps the anchor's face {face_rect} "
-                f"(channels/{channel_id}/anchor/manifest.json face_rect, scaled/offset by studio.anchor)"
+                f"plates.{plate_name}.rect {rect} overlaps the face of anchor {covered} "
+                f"(channels/{channel_id}/anchors/<id>/manifest.json face_rect, scaled/offset by studio.anchor)"
             )
         if plate_name in _TEXT_PLATES:
             n = plate.get("max_lines", _DEFAULT_PLATE_MAX_LINES)
@@ -225,8 +240,8 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
     if sub_rect is not None:
         if not rect_within(sub_rect, safe_rect):
             problems.append(f"subtitles.rect {sub_rect} is outside the common safe zone {safe_rect}")
-        if rects_intersect(sub_rect, face_rect):
-            problems.append(f"subtitles.rect {sub_rect} overlaps the anchor's face {face_rect}")
+        if covered := covered_faces(sub_rect):
+            problems.append(f"subtitles.rect {sub_rect} overlaps the face of anchor {covered}")
     sub_style = data.get("subtitles", {}).get("style", {})
     if sub_style:
         ratio = _contrast_ratio(_hex_to_rgb(sub_style["color"]), _hex_to_rgb(sub_style["outline_color"]))
@@ -242,8 +257,8 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
             problems.append(f"cover.layout.text_rect {cover_rect} is outside the common safe zone {safe_rect}")
         # The title is drawn over S* covers too: anchor frames keep the face
         # and the AI-illustration plate, so it must clear both.
-        if rects_intersect(cover_rect, face_rect):
-            problems.append(f"cover.layout.text_rect {cover_rect} overlaps the anchor's face {face_rect}")
+        if covered := covered_faces(cover_rect):
+            problems.append(f"cover.layout.text_rect {cover_rect} overlaps the face of anchor {covered}")
         ai_rect = data["plates"]["ai_illustration"]["rect"]
         if rects_intersect(cover_rect, ai_rect):
             problems.append(f"cover.layout.text_rect {cover_rect} overlaps plates.ai_illustration {ai_rect}")

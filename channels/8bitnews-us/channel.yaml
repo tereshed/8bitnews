@@ -34,10 +34,11 @@ format:
   # раз в 3 дня, hub подбирает шаблон под ролик (docs/architecture.md §5, «Шаблоны»). default_template — запасной.
   templates: [nes-desk]
   default_template: nes-desk
-  # Спокойный женский голос. Kokoro af_sarah — выбор владельца 26.10 из прослушивания Kokoro (около 144 слов
-  # в минуту на скорости 1.1). Бюджет слов format.md откалиброван под этот темп 27.10; платных провайдеров
-  # ещё не слушали — при смене голоса пересчитать.
-  voice: { provider: kokoro, voice_id: af_sarah }
+  # Голос у каждого ведущего свой: voice_id в studio/channels/8bitnews-us/anchors/<id>/manifest.json
+  # (format.md, «Ведущие»; ведущие и голоса — выбор владельца 28.10). Все голоса подогнаны к темпу около
+  # 144 слов в минуту (своя скорость у каждого, studio/config.json tts.kokoro.voices): под этот темп
+  # откалиброван бюджет слов format.md.
+  voice: { provider: kokoro }
   subtitles: burned_in
 
 sources: countries/us/sources.yaml

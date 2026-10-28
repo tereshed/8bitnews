@@ -25,7 +25,7 @@ format:
   duration_s: { min: 45, max: 90 }
   templates: []
   default_template: demo
-  voice: { provider: demo, voice_id: demo }
+  voice: { provider: demo }
   subtitles: burned_in
 
 sources: countries/us/does-not-exist.yaml

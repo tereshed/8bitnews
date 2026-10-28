@@ -3,7 +3,23 @@
   "max_keyframe_cell_diff": 32.0,
   "tts": {
     "stub": { "wpm": 144, "serious_wpm": 131 },
-    "kokoro": { "speed": 1.1, "serious_speed": 1.0, "sentence_pause_s": 0.25, "clause_pause_s": 0.1 }
+    "kokoro": {
+      "sentence_pause_s": 0.25,
+      "clause_pause_s": 0.1,
+      "voices": {
+        "af_alloy": { "speed": 0.995, "serious_speed": 0.854 },
+        "af_aoede": { "speed": 1.157, "serious_speed": 0.987 },
+        "af_bella": { "speed": 1.202, "serious_speed": 1.058 },
+        "af_heart": { "speed": 1.185, "serious_speed": 1.023 },
+        "af_kore": { "speed": 1.181, "serious_speed": 1.024 },
+        "af_sarah": { "speed": 1.134, "serious_speed": 0.964 },
+        "am_echo": { "speed": 1.004, "serious_speed": 0.849 },
+        "am_eric": { "speed": 0.912, "serious_speed": 0.813 },
+        "am_fenrir": { "speed": 1.173, "serious_speed": 1.015 },
+        "am_michael": { "speed": 1.266, "serious_speed": 1.152 },
+        "am_puck": { "speed": 1.162, "serious_speed": 1.028 }
+      }
+    }
   },
   "audio": {
     "sample_rate": 48000,
@@ -24,5 +40,5 @@
     "no_music_max_other_rise_db": 6.0,
     "no_music_max_pause_db": -35.0
   },
-  "_comment": "max_file_size_bytes: 50 MiB ceiling for video.mp4 (file_size check). max_keyframe_cell_diff: video_matches_keyframes limit on the mean difference (0-255) inside any 4x4 cell between a keyframe PNG and its H.264 frame; H.264 noise on the sample stays near 10, a changed or missing plate reaches 150+. tts: each adapter's own settings (stub pace in words per minute; Kokoro speed, and the pauses it gets after a sentence and a clause), the serious_* value in serious mode. audio: the mix -- the limiter ceiling before AAC, the music bed under the voice's loudness, the ducking depth and ramps (a gap shorter than duck_hold_gap_s stays ducked), fades, the transition sound level under the voice's peak. checks: how far the music must stay under the voice, and how much of the music (as a share of its gain in video.mp4) or of sound neither stem explains (dB above what video.mp4 itself leaves) video_no_music.mp4 may hold, and how loud it may be in the voice's pauses (dB next to the voice). The loudness target, its tolerance, the true-peak limit and what counts as too long a silence are channel policy (studio/constants.py), not settings."
+  "_comment": "max_file_size_bytes: 50 MiB ceiling for video.mp4 (file_size check). max_keyframe_cell_diff: video_matches_keyframes limit on the mean difference (0-255) inside any 4x4 cell between a keyframe PNG and its H.264 frame; H.264 noise on the sample stays near 10, a changed or missing plate reaches 150+. tts: each adapter's own settings (stub pace in words per minute; each Kokoro voice's speed, measured so every voice keeps the channel's 144 wpm (131 serious) on the demo script, and the pauses after a sentence and a clause), the serious_* value in serious mode. audio: the mix -- the limiter ceiling before AAC, the music bed under the voice's loudness, the ducking depth and ramps (a gap shorter than duck_hold_gap_s stays ducked), fades, the transition sound level under the voice's peak. checks: how far the music must stay under the voice, and how much of the music (as a share of its gain in video.mp4) or of sound neither stem explains (dB above what video.mp4 itself leaves) video_no_music.mp4 may hold, and how loud it may be in the voice's pauses (dB next to the voice). The loudness target, its tolerance, the true-peak limit and what counts as too long a silence are channel policy (studio/constants.py), not settings."
 }

@@ -69,7 +69,7 @@ studio-build-sample: studio-image
 		&& python -m studio build --script tests/fixtures/scripts/demo.json --channel 8bitnews-us --tts stub \
 			--music-file /tmp/track.wav --out out'
 
-# E2a-3: the demo reel with the real voice (Kokoro, channel.yaml), music and
+# E2a-3: the demo reel with the real voice (Kokoro, the anchor's own), music and
 # transition sounds, then studio validate. STUDIO_MUSIC_DIR=<folder holding
 # music/tracks/...> picks the track from music/catalog.yaml; without it the
 # music is the synthesized test loop.

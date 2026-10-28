@@ -12,7 +12,9 @@ import yaml
 from conftest import FIXTURES_DIR, build_with_music
 from studio.audio import decode, write_audio
 from studio.build import build_package
+from studio.channel_assets import load_anchor
 from studio.checks import CHECKS, run_checks
+from studio.config import tts_settings
 from studio.kokoro import kokoro_available
 
 PROFILE = yaml.safe_load((FIXTURES_DIR / "channels" / "8bitnews-us" / "channel.yaml").read_text())
@@ -280,7 +282,7 @@ def kokoro_music_package(tmp_path_factory, test_track):
         pytest.skip("Kokoro model files not installed")
     tmp_path = tmp_path_factory.mktemp("kokoro-music")
     profile = dict(PROFILE)
-    profile["format"] = {**PROFILE["format"], "voice": {"provider": "kokoro", "voice_id": "af_sarah"}}
+    profile["format"] = {**PROFILE["format"], "voice": {"provider": "kokoro"}}
     channels = tmp_path / "channels" / "8bitnews-us"
     channels.mkdir(parents=True)
     (channels / "channel.yaml").write_text(yaml.safe_dump(profile))
@@ -293,7 +295,10 @@ def test_kokoro_build_with_music_passes_validate(kokoro_music_package, short_you
     pkg = kokoro_music_package
     package = pkg["package"]
     assert "video_no_music" in package["files"]
-    assert package["voice"]["provider"] == "kokoro" and package["voice"]["speed"] == 1.1
+    voice_id = package["voice"]["voice_id"]
+    assert voice_id == load_anchor(package["channel_id"], package["anchor"]["id"]).voice_id
+    assert package["voice"]["provider"] == "kokoro"
+    assert package["voice"]["speed"] == tts_settings("kokoro")["voices"][voice_id]["speed"]
     timeline = json.loads((pkg["out_dir"] / "timeline.json").read_text())
     words = sum(len(s["words"]) for s in timeline["scenes"])
     span = sum(s["words"][-1]["end_s"] - s["words"][0]["start_s"] for s in timeline["scenes"])

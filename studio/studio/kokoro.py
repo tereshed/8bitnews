@@ -363,9 +363,17 @@ class KokoroTtsAdapter:
         self._voices: dict[str, np.ndarray] = {}
 
     @classmethod
-    def from_settings(cls, settings: dict, serious: bool = False) -> "KokoroTtsAdapter":
+    def from_settings(cls, settings: dict, serious: bool = False, voice_id: str | None = None) -> "KokoroTtsAdapter":
+        """Each voice reads at its own speed, set so that every voice keeps
+        the channel's pace (config.json `tts.kokoro.voices`): format.md's
+        word budget assumes that pace whichever anchor reads."""
+        voices = settings.get("voices", {})
+        key = "serious_speed" if serious else "speed"
+        if not isinstance(voices.get(voice_id), dict) or not isinstance(voices[voice_id].get(key), (int, float)):
+            raise BuildError(f"Kokoro voice {voice_id!r} has no calibrated {key} in config.json tts.kokoro.voices "
+                             f"(have: {', '.join(sorted(voices)) or 'none'})")
         return cls(
-            speed=settings["serious_speed" if serious else "speed"],
+            speed=voices[voice_id][key],
             sentence_pause_s=settings.get("sentence_pause_s", 0.25),
             clause_pause_s=settings.get("clause_pause_s", 0.1),
         )
