@@ -49,6 +49,22 @@
         "$ref": "#/$defs/disclosure"
       }
     },
+    "publish_notes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Instructions for the publish step (not issues; legal_lead merges them)"
+    },
+    "final_checks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "script mode: what only the rendered video can show (not issues)"
+    },
     "notes": {
       "type": "array",
       "items": {

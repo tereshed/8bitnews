@@ -60,8 +60,8 @@ tester, merger, reviewer) в команде нет — не вызывай их.
   с готовой командой (из корня репозитория) `python3 newsroom/tools/pm_artifact.py <id> > /tmp/<kind>.json`:
   - `story_brief` — свой артефакт, всем командам;
   - `research_dossier` у Script и Legal; `script` у Legal, Video и QA; `video_package` у QA и у Legal `mode: final`;
-    `validation_report` у Legal `mode: final`; при доработке — прошлые артефакты и замечания: полные id из summary
-    `stage_report` (часть `ids:`);
+    `validation_report` и последний `legal_review` по сценарию (его `final_checks`) у Legal `mode: final`; при
+    доработке — прошлые артефакты и замечания: полные id из summary `stage_report` (часть `ids:`);
 - там же строка: «Не скачивается — заверши прогон с ошибкой, не пиши по памяти»;
 - при доработке — замечания, которые надо исправить, с id их отчёта (часть `fix:` из `stage_report`);
 - expected_result: что вернуть (вид артефакта и условие: «одобрен fact_checker», «одобрен script_editor»,

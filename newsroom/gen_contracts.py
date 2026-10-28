@@ -269,6 +269,10 @@ def risk_report(title, desc, prefix):
          "issues": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/risk_issue"},
                     {"properties": {"id": {"pattern": f"^{prefix}[0-9]+$"}}}]}},
          "required_disclosures": {"type": "array", "items": {"$ref": "#/$defs/disclosure"}},
+         "publish_notes": {"type": "array", "items": str1,
+                           "description": "Instructions for the publish step (not issues; legal_lead merges them)"},
+         "final_checks": {"type": "array", "items": str1,
+                          "description": "script mode: what only the rendered video can show (not issues)"},
          "notes": {"type": "array", "items": str1}},
         {"risk_issue": risk_issue, "disclosure": disclosure})
 
@@ -295,6 +299,12 @@ lr = schema("legal_review",
      "kill_reason": {"type": "string", "minLength": 10},
      "summary_ru": {"type": "string", "minLength": 20, "description": "For the human moderator, Russian, <= 80 words"},
      "checked_against": {"type": "array", "minItems": 1, "items": str1},
+     "publish_notes": {"type": "array", "items": str1,
+                       "description": "Instructions for the moderator and the publisher at release (no paid promotion, "
+                                      "platform AI flags, cover frame): not issues, they block nothing"},
+     "final_checks": {"type": "array", "items": str1,
+                      "description": "script mode: what only the rendered video can show and Legal final must verify "
+                                     "(plates rendered, track, cover): not issues, they block nothing"},
      "video_package": {"type": "string", "minLength": 1,
                        "description": "final mode: id of the video_package artifact reviewed (the video_package_id "
                                       "newsroom/tools/video_review_kit.py printed); release_submit refuses a review "

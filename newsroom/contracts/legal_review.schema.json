@@ -101,6 +101,22 @@
         "minLength": 1
       }
     },
+    "publish_notes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Instructions for the moderator and the publisher at release (no paid promotion, platform AI flags, cover frame): not issues, they block nothing"
+    },
+    "final_checks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "script mode: what only the rendered video can show and Legal final must verify (plates rendered, track, cover): not issues, they block nothing"
+    },
     "video_package": {
       "type": "string",
       "minLength": 1,
