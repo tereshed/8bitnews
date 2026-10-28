@@ -1,5 +1,28 @@
 {
   "max_file_size_bytes": 52428800,
   "max_keyframe_cell_diff": 32.0,
-  "_comment": "max_file_size_bytes: 50 MiB ceiling for video.mp4 (file_size check). max_keyframe_cell_diff: video_matches_keyframes limit on the mean difference (0-255) inside any 4x4 cell between a keyframe PNG and its H.264 frame; H.264 noise on the sample stays near 10, a changed or missing plate reaches 150+."
+  "tts": {
+    "stub": { "wpm": 144, "serious_wpm": 131 },
+    "kokoro": { "speed": 1.1, "serious_speed": 1.0, "sentence_pause_s": 0.25, "clause_pause_s": 0.1 }
+  },
+  "audio": {
+    "sample_rate": 48000,
+    "aac_bitrate": "192k",
+    "true_peak_ceiling_dbtp": -1.5,
+    "music_bed_db": -10.0,
+    "duck_db": -8.0,
+    "duck_attack_s": 0.12,
+    "duck_release_s": 0.35,
+    "duck_hold_gap_s": 0.8,
+    "fade_in_s": 1.0,
+    "fade_out_s": 2.0,
+    "sfx_db": -8.0
+  },
+  "checks": {
+    "min_voice_over_music_db": 10.0,
+    "no_music_max_music_share": 0.05,
+    "no_music_max_other_rise_db": 6.0,
+    "no_music_max_pause_db": -35.0
+  },
+  "_comment": "max_file_size_bytes: 50 MiB ceiling for video.mp4 (file_size check). max_keyframe_cell_diff: video_matches_keyframes limit on the mean difference (0-255) inside any 4x4 cell between a keyframe PNG and its H.264 frame; H.264 noise on the sample stays near 10, a changed or missing plate reaches 150+. tts: each adapter's own settings (stub pace in words per minute; Kokoro speed, and the pauses it gets after a sentence and a clause), the serious_* value in serious mode. audio: the mix -- the limiter ceiling before AAC, the music bed under the voice's loudness, the ducking depth and ramps (a gap shorter than duck_hold_gap_s stays ducked), fades, the transition sound level under the voice's peak. checks: how far the music must stay under the voice, and how much of the music (as a share of its gain in video.mp4) or of sound neither stem explains (dB above what video.mp4 itself leaves) video_no_music.mp4 may hold, and how loud it may be in the voice's pauses (dB next to the voice). The loudness target, its tolerance, the true-peak limit and what counts as too long a silence are channel policy (studio/constants.py), not settings."
 }

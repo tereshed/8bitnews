@@ -1,6 +1,7 @@
-"""Registry of `studio validate` checks, keyed by a fixed `id` so this
-task's four checks and E2a-2b/E2a-3's later additions all show up the same
-way in `package.json`'s `validate.checks` (video_package.schema.json)."""
+"""Registry of `studio validate` checks, keyed by a fixed `id`; each shows
+up the same way in `package.json`'s `validate.checks`
+(video_package.schema.json). A new check is one more `@register` function
+here (studio/README.md, «studio validate»)."""
 from __future__ import annotations
 
 import hashlib
@@ -14,9 +15,10 @@ import jsonschema
 import numpy as np
 from PIL import Image
 
-from . import repo
+from . import constants, repo
+from .audio import decode, fit, measure, silences, voice_over_rest_db
 from .channel_assets import load_channel_assets
-from .config import max_file_size_bytes, max_keyframe_cell_diff
+from .config import audio_settings, check_settings, max_file_size_bytes, max_keyframe_cell_diff
 from .constants import FONT_PX, FPS, LOGICAL_H, LOGICAL_W, OUTPUT_H, OUTPUT_W, SCALE
 from .engine import _compose_anchor_sprite, _draw_plate, active_plates, cover_plates, scene_transition_duration
 from .errors import TemplateValidationError
@@ -25,7 +27,7 @@ from .srt import parse_srt
 from .template_pkg import load_template
 from .timeline import load_timeline
 from .validate import validate_template
-from .video import probe, probe_duration_s
+from .video import probe, probe_duration_s, video_stream_md5
 
 # How far package.duration_s may drift from the measured video.mp4 length.
 DURATION_TOLERANCE_S = 0.1
@@ -504,18 +506,175 @@ def _check_disclosures(package_dir: Path, package: dict, channel_profile: dict) 
     return _result("disclosures", problems, f"AI voice and visuals disclosed; ai_label on {', '.join(enabled)}")
 
 
-def _not_implemented(check_id: str):
-    @register(check_id)
-    def _stub(package_dir: Path, package: dict, channel_profile: dict) -> dict:
-        return {"id": check_id, "ok": True, "note": "not implemented (E2a-3)"}
+def _audio_files(package_dir: Path, package: dict) -> list[tuple[str, Path]]:
+    files = package["files"]
+    out = [("video.mp4", package_dir / files["video"]["path"])]
+    if "video_no_music" in files:
+        out.append(("video_no_music.mp4", package_dir / files["video_no_music"]["path"]))
+    return out
 
-    return _stub
+
+@register("loudness")
+def _check_loudness(package_dir: Path, package: dict, channel_profile: dict) -> dict:
+    """Integrated loudness (EBU R128) of every soundtrack, on the encoded
+    file: architecture §8, about -14 LUFS."""
+    target, tol = constants.LOUDNESS_LUFS, constants.LOUDNESS_TOLERANCE_LU
+    value, problems = {}, []
+    for name, path in _audio_files(package_dir, package):
+        lufs = measure(path).lufs
+        value[name] = lufs
+        if abs(lufs - target) > tol:
+            problems.append(f"{name}: {lufs:.1f} LUFS, outside {target} ± {tol}")
+    return _result("loudness", problems, ", ".join(f"{k} {v:.1f} LUFS" for k, v in value.items()),
+                   value=value, expected={"lufs": target, "tolerance_lu": tol})
 
 
-# Audio checks land in E2a-3 (README «studio validate»): replace these stubs
-# by registering real functions under the same ids.
-for _id in ("loudness", "true_peak", "silence", "music_under_voice", "video_no_music"):
-    _not_implemented(_id)
+@register("true_peak")
+def _check_true_peak(package_dir: Path, package: dict, channel_profile: dict) -> dict:
+    limit = constants.MAX_TRUE_PEAK_DBTP
+    value, problems = {}, []
+    for name, path in _audio_files(package_dir, package):
+        peak = measure(path).true_peak_dbtp
+        value[name] = peak
+        if peak > limit:
+            problems.append(f"{name}: true peak {peak:.1f} dBTP above {limit} dBTP")
+    return _result("true_peak", problems, ", ".join(f"{k} {v:.1f} dBTP" for k, v in value.items()),
+                   value=value, expected={"max_dbtp": limit})
+
+
+@register("silence")
+def _check_silence(package_dir: Path, package: dict, channel_profile: dict) -> dict:
+    """No stretch of silence longer than the limit in any soundtrack."""
+    threshold, max_s = constants.SILENCE_THRESHOLD_DB, constants.MAX_SILENCE_S
+    longest, problems = 0.0, []
+    for name, path in _audio_files(package_dir, package):
+        for start, end in silences(path, threshold, max_s):
+            end = min(end, probe_duration_s(path))
+            longest = max(longest, end - start)
+            problems.append(f"{name}: silent from {start:.2f}s to {end:.2f}s")
+    return _result("silence", problems, f"no silence over {max_s}s below {threshold} dB",
+                   value=round(longest, 2), expected={"max_s": max_s})
+
+
+def _speech(timeline) -> list[tuple[float, float]]:
+    return [(w.start_s, w.end_s) for s in timeline.scenes for w in s.words if w.end_s > w.start_s]
+
+
+@register("music_under_voice")
+def _check_music_under_voice(package_dir: Path, package: dict, channel_profile: dict) -> dict:
+    """While the voice speaks, everything else in video.mp4 -- the music --
+    stays at least the configured number of dB under it. Measured on what
+    shipped: the voice stem (the voice as synthesized) is fitted to the
+    soundtrack by least squares over the word spans and subtracted; what is
+    left is the music (plus a little limiter and AAC error, ~25 dB down). A
+    stem that isn't the voice in the video leaves the voice in the remainder
+    and fails too."""
+    if not package.get("music", {}).get("enabled"):
+        return _result("music_under_voice", [], "no music")
+    files = package["files"]
+    if "voice_stem" not in files:
+        return _result("music_under_voice", ["music is enabled but files.voice_stem is missing"], "")
+    sr = int(audio_settings()["sample_rate"])
+    shipped = decode(package_dir / files["video"]["path"], sr, channels=2)
+    voice = decode(package_dir / files["voice_stem"]["path"], sr, channels=1)[:, 0]
+    speech = _speech(load_timeline(package_dir / files["timeline"]["path"]))
+    gap = voice_over_rest_db(shipped, voice, sr, speech)
+    if gap is None:
+        return _result("music_under_voice", ["the voice stem is not the voice in video.mp4"], "")
+    need = check_settings()["min_voice_over_music_db"]
+    problems = []
+    if gap < need:
+        problems.append(f"music only {gap:.1f} dB under the voice while it speaks (need {need} dB)")
+    return _result("music_under_voice", problems, f"voice {gap:.1f} dB over the music while it speaks",
+                   value=round(gap, 1), expected={"min_db": need})
+
+
+def _outside(intervals: list[tuple[float, float]], n: int, sample_rate: int) -> np.ndarray:
+    keep = np.ones(n, dtype=bool)
+    for a, b in intervals:
+        keep[max(0, int(a * sample_rate)):min(n, int(b * sample_rate))] = False
+    return keep
+
+
+@register("video_no_music")
+def _check_video_no_music(package_dir: Path, package: dict, channel_profile: dict) -> dict:
+    """format.md «Музыка и длина»: a video with music longer than 60 s also
+    ships video_no_music.mp4 -- the same picture (same encoded stream) with
+    nothing but voice and sound effects. The music is looked for by its
+    shape, not by its level: the voice and music stems are fitted to both
+    soundtracks by least squares (outside the sound effects), so even quiet
+    music -- enough for a Content ID match -- shows up as a music gain. A
+    different track shows up as sound neither stem explains, and, plainest,
+    as sound in the voice's pauses, where the cut should be silent."""
+    files = package["files"]
+    music_on = package.get("music", {}).get("enabled")
+    limit = constants.YOUTUBE_MUSIC_MAX_S
+    if "video_no_music" not in files:
+        if music_on and package["duration_s"] > limit:
+            return _result("video_no_music", [f"{package['duration_s']:.1f}s with music: files.video_no_music "
+                                              f"is required over {limit:g}s"], "")
+        return _result("video_no_music", [], "not needed" + ("" if music_on else ": no music"))
+    missing = [k for k in ("voice_stem", "music_stem") if k not in files]
+    if missing:
+        return _result("video_no_music", [f"files.{', files.'.join(missing)} missing: can't tell what is in "
+                                          "video_no_music.mp4"], "")
+    path = package_dir / files["video_no_music"]["path"]
+    video = package_dir / files["video"]["path"]
+    problems = []
+    if video_stream_md5(path) != video_stream_md5(video):
+        problems.append("video_no_music.mp4 does not carry the same picture as video.mp4")
+    if abs(probe_duration_s(path) - probe_duration_s(video)) > DURATION_TOLERANCE_S:
+        problems.append("video_no_music.mp4 and video.mp4 differ in length")
+
+    sr = int(audio_settings()["sample_rate"])
+    voice = decode(package_dir / files["voice_stem"]["path"], sr, channels=1)[:, 0]
+    music = decode(package_dir / files["music_stem"]["path"], sr, channels=2)
+    full, cut = decode(video, sr, channels=2), decode(path, sr, channels=2)
+    sfx = json.loads((package_dir / files["timeline"]["path"]).read_text()).get("sfx", [])
+    n = min(len(voice), len(music), len(full), len(cut))
+    mask = _outside([(ev["t_s"] - 0.02, ev["t_s"] + ev.get("duration_s", 0.0) + 0.05) for ev in sfx]
+                    + [(0, 0.05), (n / sr - 0.05, n / sr)], n, sr)
+    # Channel by channel: music panned or out of phase between them would
+    # cancel out of a mono sum.
+    shares, other_full, other_cut = [], [], []
+    for c in range(2):
+        (_, music_full), rest_full = fit(full[:, c], [voice, music[:, c]], mask)
+        (_, music_cut), rest_cut = fit(cut[:, c], [voice, music[:, c]], mask)
+        if music_full <= 0:
+            problems.append("files.music_stem is not the music in video.mp4")
+            break
+        shares.append(abs(music_cut / music_full))
+        other_full.append(rest_full)
+        other_cut.append(rest_cut)
+    cfg = check_settings()
+    share = max(shares) if shares else None
+    rise = max((cut_db - full_db for cut_db, full_db in zip(other_cut, other_full)), default=0.0)
+    if share is not None and share > cfg["no_music_max_music_share"]:
+        problems.append(f"the music is in video_no_music.mp4 at {share:.0%} of its level in video.mp4: "
+                        "there is music in it")
+    if rise > cfg["no_music_max_other_rise_db"]:
+        problems.append(f"video_no_music.mp4 holds sound neither stem explains, {rise:.1f} dB more than "
+                        "video.mp4 does: there is music in it")
+    # The voice's pauses (and not the sound effects'): silent in a cut
+    # without music, whatever the voice.
+    speech = _speech(load_timeline(package_dir / files["timeline"]["path"]))
+    in_speech = ~_outside(speech, n, sr)
+    pauses = mask & _outside([(a - 0.03, b + 0.08) for a, b in speech], n, sr)
+    pause_db = None
+    if pauses.sum() >= 0.3 * sr and in_speech.any():
+        pause_db = float(10 * np.log10((np.mean(cut[:n][pauses] ** 2) + 1e-20) / (np.mean(cut[:n][in_speech] ** 2) + 1e-20)))
+        if pause_db > cfg["no_music_max_pause_db"]:
+            problems.append(f"video_no_music.mp4 is not silent in the voice's pauses ({pause_db:.1f} dB next to the "
+                            "voice): there is music in it")
+    share_note = f"music at {share:.1%} of video.mp4's" if share is not None else "music not found in video.mp4"
+    pause_note = f", pauses {pause_db:.1f} dB" if pause_db is not None else ""
+    return _result("video_no_music", problems,
+                   f"same picture, no music ({share_note}, unexplained {rise:+.1f} dB{pause_note})",
+                   value={"music_share": None if share is None else round(share, 4), "other_rise_db": round(rise, 1),
+                          "pause_db": None if pause_db is None else round(pause_db, 1)},
+                   expected={"max_music_share": cfg["no_music_max_music_share"],
+                             "max_other_rise_db": cfg["no_music_max_other_rise_db"],
+                             "max_pause_db": cfg["no_music_max_pause_db"]})
 
 
 def run_checks(package_dir: Path, package: dict, channel_profile: dict) -> dict:

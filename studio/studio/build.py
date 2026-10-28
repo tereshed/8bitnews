@@ -1,10 +1,11 @@
 """`studio build`: script.json + channel profile + template package -> a
 self-contained video_package directory (studio/README.md). Pipeline:
-voice (per scene TTS) -> timeline from those word timings -> mix_audio
-(no-op until E2a-3 adds music) -> frames (written to disk as they render,
-kept around so a later pass can re-encode without music) -> encode ->
-cover + keyframes -> package.json (schema-validated, with `studio validate`
-run against the fresh package and recorded in it).
+voice (per scene TTS) -> timeline from those word timings -> frames ->
+the picture, encoded once -> soundtrack (voice, ducked music, transition
+sounds; mastered to the loudness target) muxed onto it, and a second one
+without music for a long video -> cover + keyframes -> package.json
+(schema-validated, with `studio validate` run against the fresh package and
+recorded in it).
 """
 from __future__ import annotations
 
@@ -13,24 +14,34 @@ import json
 import math
 import shutil
 import sys
+import wave
 from pathlib import Path
 
 import jsonschema
 from PIL import Image
 
-from . import repo
-from .audio import concat_wavs_with_silence, measure_loudness_lufs, mix_audio
+from . import constants, repo
+from .audio import (
+    Loudness,
+    MixResult,
+    SfxEvent,
+    concat_wavs_with_silence,
+    decode,
+    measure,
+    mix,
+    prepend_silence,
+    write_audio,
+)
 from .channel_assets import ChannelAssets, load_channel_assets
 from .checks import run_checks
+from .config import audio_settings, tts_settings
 from .constants import (
-    DEFAULT_WPM,
     FONT_PX,
     FPS,
     LOGICAL_H,
     LOGICAL_W,
     MAX_SUBTITLE_CHARS_PER_LINE,
     MAX_SUBTITLE_LINES,
-    SERIOUS_WPM,
 )
 from .engine import (
     active_plates,
@@ -39,20 +50,22 @@ from .engine import (
     render_cover_frame,
     render_frame,
     scene_transition_duration,
+    transition_sound,
 )
 from .cover_title import cover_title_layout, fit_cover_title
 from .errors import BuildError
+from .music import choose_music
 from .palette import hex_to_rgb, quantize_image
 from .paths import TEMPLATES_DIR
-from .pronunciation import build_synthesis_text, regroup_words, unused_pronunciations
+from .pronunciation import build_synthesis_text, hinted_tokens, regroup_words, unused_pronunciations
 from .quantize import quantize
 from .srt import write_srt
 from .subtitles import wrap_words
 from .template_pkg import TemplatePackage, load_template
 from .text_render import draw_text
-from .timeline import SceneVoice, Timeline, timeline_from_voice, timeline_to_dict
+from .timeline import SceneVoice, Timeline, Word, timeline_from_voice, timeline_to_dict
 from .tts import ADAPTERS
-from .video import OUTPUT_H, OUTPUT_W, encode, probe_duration_s, upscale_nearest
+from .video import OUTPUT_H, OUTPUT_W, encode_video_only, mux, probe_duration_s, upscale_nearest
 
 
 def _sha256_and_size(path: Path) -> tuple[str, int]:
@@ -229,17 +242,12 @@ def _assemble_package(
     template: TemplatePackage,
     timeline: Timeline,
     out_dir: Path,
-    video_entry: dict,
-    srt_entry: dict,
-    cover_entry: dict,
-    timeline_entry: dict,
-    template_entry: dict,
-    script_entry: dict,
-    tts_name: str,
-    voice_id: str,
+    files: dict,
+    voice: dict,
     synth_narrations: dict[str, str],
-    loudness: float,
+    loudness: Loudness,
     duration_s: float,
+    music: dict,
     channel_profile: dict,
     extra_notes: list[str],
 ) -> dict:
@@ -285,37 +293,56 @@ def _assemble_package(
         "script": script_artifact,
         "template": template.id,
         "duration_s": duration_s,
-        "files": {
-            "video": video_entry,
-            "subtitles": srt_entry,
-            "cover": cover_entry,
-            "timeline": timeline_entry,
-            "template": template_entry,
-            "script": script_entry,
-        },
+        "files": files,
         "render": {
             "width": OUTPUT_W,
             "height": OUTPUT_H,
             "fps": float(FPS),
             "video_codec": "h264",
             "audio_codec": "aac",
-            "loudness_lufs": loudness,
+            "loudness_lufs": loudness.lufs,
+            "true_peak_dbtp": loudness.true_peak_dbtp,
             "engine": "studio-engine",
             "template_dir": "template",
         },
-        "voice": {"provider": tts_name, "voice_id": voice_id, "wpm": wpm},
+        "voice": {**voice, "wpm": wpm},
         "transcript": " ".join(s["narration"] for s in script["scenes"]),
         "scenes": scenes_out,
-        "music": {"enabled": False},
+        "music": music,
         "disclosures": disclosures,
-        "notes": [
-            "music.enabled is always false in this build pipeline: mixing a real music bed (catalog pick, "
-            "ducking under narration) is E2a-3's job, not this one's (studio/README.md E2a-2a scope).",
-            *extra_notes,
-        ],
+        "notes": extra_notes,
     }
     package["validate"] = run_checks(out_dir, package, channel_profile)
     return package
+
+
+def _soundtrack(
+    picture: Path, out_path: Path, work_wav: Path, voice_raw: Path, timeline: Timeline, audio_cfg: dict,
+    music_path: Path | None, sfx: list[SfxEvent],
+) -> MixResult:
+    """Mixes and masters one soundtrack and muxes it onto `picture`. AAC
+    encoding raises the true peak a little, so it is measured on the encoded
+    file; above the check's limit (less a margin) the limiter ceiling comes
+    down by the overshoot and the soundtrack is redone."""
+    words = [(w.start_s, w.end_s) for s in timeline.scenes for w in s.words]
+    allowed = constants.MAX_TRUE_PEAK_DBTP - _TRUE_PEAK_MARGIN_DB
+    ceiling = audio_cfg["true_peak_ceiling_dbtp"]
+    result = None
+    for _ in range(_TRUE_PEAK_ROUNDS):
+        result = mix(voice_raw, timeline.duration_s, words, audio_cfg, music_path=music_path, sfx=sfx,
+                     ceiling_db=ceiling)
+        write_audio(work_wav, result.master, int(audio_cfg["sample_rate"]))
+        mux(picture, work_wav, out_path, audio_cfg["aac_bitrate"], int(audio_cfg["sample_rate"]))
+        peak = measure(out_path).true_peak_dbtp
+        if peak <= allowed:
+            break
+        ceiling -= peak - allowed + 0.1
+    work_wav.unlink(missing_ok=True)
+    return result
+
+
+_TRUE_PEAK_MARGIN_DB = 0.2
+_TRUE_PEAK_ROUNDS = 4
 
 
 def build_package(
@@ -327,28 +354,38 @@ def build_package(
     assets_dir: Path | None = None,
     tts_name: str | None = None,
     keep_work: bool = False,
+    music_file: Path | None = None,
+    music_track: str | None = None,
+    music_catalog: Path | None = None,
+    music_dir: Path | None = None,
+    audio_overrides: dict | None = None,
 ) -> Path:
     """`keep_work` keeps frames/ (every rendered logical frame) after the
-    build for debugging; by default it is deleted once nothing needs it."""
+    build for debugging; by default it is deleted once nothing needs it.
+    `music_file`/`music_track`: see `studio.music.choose_music`;
+    `audio_overrides` replaces mix levels from config.json (tests)."""
     script_path = Path(script_path)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     script = _load_script_validated(script_path)
     channel_profile = repo.load_channel_profile(channel_id, channels_dir=channels_dir)
+    serious = bool(script.get("serious_mode"))
 
     template_dir = _resolve_template_dir(template_dir_arg, script, channel_profile)
     template = load_template(template_dir)
     assets = load_channel_assets(channel_id)
-    # Fail before TTS and rendering, not after them, if plate text or the cover title can't fit.
+    # Fail before TTS and rendering, not after them, if plate text, the cover
+    # title or the music can't work out.
     check_plate_text(script, template)
     fit_cover_title(script["cover"]["text"], template.data["cover"]["layout"]["text_rect"], assets.font(FONT_PX))
+    music_choice = choose_music(script, channel_profile, music_file, music_track, music_catalog, music_dir)
+    audio_cfg = audio_settings(audio_overrides)
 
     tts_name_resolved = _resolve_tts_name(tts_name, channel_profile)
     voice_cfg = channel_profile["format"]["voice"]
     voice_id = voice_cfg["voice_id"]
-    wpm = SERIOUS_WPM if script.get("serious_mode") else DEFAULT_WPM
-    adapter = ADAPTERS[tts_name_resolved](wpm=wpm)
+    adapter = ADAPTERS[tts_name_resolved].from_settings(tts_settings(tts_name_resolved), serious=serious)
 
     sub_style = template.data["subtitles"]["style"]
     max_lines = sub_style.get("max_lines", MAX_SUBTITLE_LINES)
@@ -367,24 +404,33 @@ def build_package(
     scene_voices: list[SceneVoice] = []
     scene_wavs: list[Path] = []
     synth_narrations: dict[str, str] = {}
-    for scene in script["scenes"]:
+    # Transition sounds: none in serious mode (format.md). A scene that
+    # enters with one gets that much silence before its voice, so the sound
+    # plays with the transition and never over a word.
+    sounds = {i: transition_sound(template, i) for i in range(len(script["scenes"]))} if not serious else {}
+    sounds = {i: p for i, p in sounds.items() if p is not None}
+    for i, scene in enumerate(script["scenes"]):
         synth_text, group_sizes = build_synthesis_text(scene["narration"], pronunciations)
         synth_narrations[scene["id"]] = synth_text
-        tts_result = adapter.synthesize(synth_text, voice_id)
+        hinted = hinted_tokens(group_sizes, scene["narration"], pronunciations)
+        tts_result = adapter.synthesize(synth_text, voice_id, hinted)
         words = regroup_words(scene["narration"], group_sizes, tts_result.words)
-        scene_voices.append(SceneVoice(scene_id=scene["id"], shot=scene["shot"], words=words))
+        duration = tts_result.duration_s
+        if i in sounds:
+            lead = prepend_silence(tts_result.wav_path, _wav_length(sounds[i]))
+            words = tuple(Word(w.text, w.start_s + lead, w.end_s + lead) for w in words)
+            duration = (duration if duration is not None else words[-1].end_s - lead) + lead
+        scene_voices.append(SceneVoice(scene_id=scene["id"], shot=scene["shot"], words=words, duration_s=duration))
         scene_wavs.append(tts_result.wav_path)
 
     timeline = timeline_from_voice(scene_voices, pause_s, max_lines, max_chars)
 
     voice_raw_path = out_dir / "_voice_raw.wav"
-    concat_wavs_with_silence(scene_wavs, pause_s, voice_raw_path)
+    voice_sr = concat_wavs_with_silence(scene_wavs, pause_s, voice_raw_path)
     for p in scene_wavs:
         Path(p).unlink(missing_ok=True)
 
-    voice_wav_path = out_dir / "voice.wav"
-    mix_audio(voice_raw_path, script["music"], voice_wav_path)
-    voice_raw_path.unlink(missing_ok=True)
+    sfx = [SfxEvent(t_s=timeline.scenes[i].start_s, path=p, duration_s=_wav_length(p)) for i, p in sorted(sounds.items())]
 
     frames_dir = out_dir / "frames"
     if frames_dir.exists():
@@ -409,8 +455,29 @@ def build_package(
                 {"path": str(kf_path.relative_to(out_dir)), "scene_id": scene_id, "kind": kind, "frame": i, "t_s": t}
             )
 
+    picture_path = out_dir / "_picture.mp4"
+    encode_video_only(frames_dir, picture_path)
+    work_wav = out_dir / "_master.wav"
     video_path = out_dir / "video.mp4"
-    encode(frames_dir, voice_wav_path, video_path)
+    mixed = _soundtrack(picture_path, video_path, work_wav, voice_raw_path, timeline, audio_cfg,
+                        music_choice.path if music_choice else None, sfx)
+    duration_s = probe_duration_s(video_path)
+
+    # The voice alone, as synthesized, and the music bed as mixed in, both
+    # before the master gain (nothing clips): the checks look for them in
+    # the shipped soundtracks.
+    stems_dir = out_dir / "stems"
+    if stems_dir.exists():
+        shutil.rmtree(stems_dir)
+    write_audio(stems_dir / "voice.flac", decode(voice_raw_path, voice_sr, channels=1), voice_sr, codec="flac")
+    no_music_path = out_dir / "video_no_music.mp4"
+    no_music_path.unlink(missing_ok=True)
+    if music_choice is not None:
+        write_audio(stems_dir / "music.flac", mixed.music, int(audio_cfg["sample_rate"]), codec="flac")
+        if duration_s > constants.YOUTUBE_MUSIC_MAX_S:
+            _soundtrack(picture_path, no_music_path, work_wav, voice_raw_path, timeline, audio_cfg, None, sfx)
+    picture_path.unlink(missing_ok=True)
+    voice_raw_path.unlink(missing_ok=True)
 
     all_cues = [cue for scene_timing in timeline.scenes for cue in scene_timing.subtitles]
     srt_path = out_dir / "subtitles.srt"
@@ -422,6 +489,10 @@ def build_package(
     timeline_path = out_dir / "timeline.json"
     timeline_dict = timeline_to_dict(timeline)
     timeline_dict["keyframes"] = keyframe_records
+    timeline_dict["sfx"] = [
+        {"t_s": ev.t_s, "duration_s": ev.duration_s, "sound": str(Path(ev.path).relative_to(template.dir))}
+        for ev in sfx
+    ]
     timeline_path.write_text(json.dumps(timeline_dict, indent=2))
 
     script_out_path = out_dir / "script.json"
@@ -432,12 +503,37 @@ def build_package(
         shutil.rmtree(template_out_dir)
     shutil.copytree(template_dir, template_out_dir)
 
-    loudness = measure_loudness_lufs(video_path)
-    duration_s = probe_duration_s(video_path)
+    loudness = measure(video_path)
     try:
         root = repo.repo_root()
     except repo.RepoRootNotSet:
         root = None
+
+    files = {
+        "video": _media_entry(video_path, out_dir),
+        "subtitles": _media_entry(srt_path, out_dir),
+        "cover": _media_entry(cover_path, out_dir),
+        "timeline": _media_entry(timeline_path, out_dir),
+        "template": _media_entry(template_out_dir / "template.json", out_dir),
+        "script": _media_entry(script_out_path, out_dir),
+        "voice_stem": _media_entry(stems_dir / "voice.flac", out_dir),
+    }
+    music_out: dict = {"enabled": False}
+    if music_choice is not None:
+        files["music_stem"] = _media_entry(stems_dir / "music.flac", out_dir)
+        if no_music_path.is_file():
+            files["video_no_music"] = _media_entry(no_music_path, out_dir)
+        music_out = {"enabled": True, "track_id": music_choice.track_id, "license": music_choice.license,
+                     "duck_db": float(audio_cfg["duck_db"])}
+        if music_choice.attribution:
+            music_out["attribution"] = music_choice.attribution
+        if music_choice.note:
+            extra_notes.append(music_choice.note)
+        if script["music"].get("cue"):
+            extra_notes.append("script.music.cue is not followed: the studio fades the track in and out and ducks "
+                               "it under every phrase")
+    if serious and template_has_sounds(template):
+        extra_notes.append("serious mode: the template's transition sounds were left out (format.md)")
 
     package = _assemble_package(
         script=script,
@@ -446,17 +542,12 @@ def build_package(
         template=template,
         timeline=timeline,
         out_dir=out_dir,
-        video_entry=_media_entry(video_path, out_dir),
-        srt_entry=_media_entry(srt_path, out_dir),
-        cover_entry=_media_entry(cover_path, out_dir),
-        timeline_entry=_media_entry(timeline_path, out_dir),
-        template_entry=_media_entry(template_out_dir / "template.json", out_dir),
-        script_entry=_media_entry(script_out_path, out_dir),
-        tts_name=tts_name_resolved,
-        voice_id=voice_id,
+        files=files,
+        voice={"provider": tts_name_resolved, "voice_id": voice_id, **adapter.describe()},
         synth_narrations=synth_narrations,
         loudness=loudness,
         duration_s=duration_s,
+        music=music_out,
         channel_profile=channel_profile,
         extra_notes=extra_notes,
     )
@@ -476,8 +567,16 @@ def build_package(
 
     package_path = out_dir / "package.json"
     package_path.write_text(json.dumps(package, indent=2))
-    # Last step, after the last encode: frames/ is only build scratch
-    # (voice.wav stays -- E2a-3 needs the voice apart from the music).
+    # Last step: frames/ is only build scratch.
     if not keep_work:
         shutil.rmtree(frames_dir, ignore_errors=True)
     return package_path
+
+
+def template_has_sounds(template: TemplatePackage) -> bool:
+    return any(t.get("sound") for t in template.data.get("transitions", []))
+
+
+def _wav_length(path: Path) -> float:
+    with wave.open(str(path), "rb") as wf:
+        return wf.getnframes() / wf.getframerate()

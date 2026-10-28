@@ -83,6 +83,66 @@ def built_package(tmp_path_factory) -> dict:
     return {"out_dir": out_dir, "package_path": package_path, "package": json.loads(package_path.read_text())}
 
 
+# A video counts as "long" (gets video_no_music.mp4) above this in the music
+# fixtures, so a 15 s test build exercises the YouTube cut.
+SHORT_YOUTUBE_LIMIT_S = 5.0
+
+
+def music_script(tmp_dir: Path, **music) -> Path:
+    """short.json with music switched on (mood/energy overridable)."""
+    import json
+
+    script = json.loads((FIXTURES_DIR / "scripts" / "short.json").read_text())
+    script["music"] = {"enabled": True, "mood": "neutral", "energy": 2,
+                       "cue": "Soft bed under the whole piece, fades out at the end.", **music}
+    path = Path(tmp_dir) / "short_music.json"
+    path.write_text(json.dumps(script, indent=2))
+    return path
+
+
+@pytest.fixture(scope="session")
+def test_track(tmp_path_factory) -> Path:
+    from studio.music import synth_test_track
+
+    return synth_test_track(tmp_path_factory.mktemp("music") / "track.wav")
+
+
+def build_with_music(tmp_dir: Path, track: Path, **kwargs) -> dict:
+    """A build of short.json with music (stub voice unless `tts_name` says
+    otherwise), counted as a long video (SHORT_YOUTUBE_LIMIT_S) so it also
+    gets video_no_music.mp4."""
+    import json
+
+    from studio import constants
+
+    out_dir = Path(tmp_dir) / "out"
+    options = {"channels_dir": FIXTURES_DIR / "channels", "tts_name": "stub", **kwargs}
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(constants, "YOUTUBE_MUSIC_MAX_S", SHORT_YOUTUBE_LIMIT_S)
+        package_path = build_package(
+            script_path=music_script(tmp_dir),
+            channel_id="8bitnews-us",
+            out_dir=out_dir,
+            music_file=track,
+            **options,
+        )
+    return {"out_dir": out_dir, "package_path": package_path, "package": json.loads(package_path.read_text())}
+
+
+@pytest.fixture(scope="session")
+def music_package(tmp_path_factory, test_track) -> dict:
+    """short.json with music: video.mp4, video_no_music.mp4 and both stems."""
+    return build_with_music(tmp_path_factory.mktemp("studio-build-music"), test_track)
+
+
+@pytest.fixture
+def short_youtube_limit(monkeypatch):
+    """Checks see the music fixtures' 15 s build as a long video too."""
+    from studio import constants
+
+    monkeypatch.setattr(constants, "YOUTUBE_MUSIC_MAX_S", SHORT_YOUTUBE_LIMIT_S)
+
+
 def _corrupt_copy(pkg: dict, fn, rehash: bool = True) -> Path:
     """Copies the built package directory, applies `fn(copy_dir, package)`
     to corrupt it, and recomputes sha256/bytes of every file record (`files`

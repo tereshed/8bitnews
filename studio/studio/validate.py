@@ -5,6 +5,7 @@ result into a non-zero exit."""
 from __future__ import annotations
 
 import json
+import wave
 from pathlib import Path
 
 import jsonschema
@@ -83,6 +84,7 @@ def _referenced_files(data: dict) -> list[str]:
     cover_bg = data.get("cover", {}).get("layout", {}).get("background")
     if cover_bg:
         files.append(cover_bg)
+    files.extend(t["sound"] for t in data.get("transitions", []) if t.get("sound"))
     seen: set[str] = set()
     ordered: list[str] = []
     for f in files:
@@ -90,6 +92,27 @@ def _referenced_files(data: dict) -> list[str]:
             seen.add(f)
             ordered.append(f)
     return ordered
+
+
+_MAX_SOUND_S = 1.0
+
+
+def _sound_problems(rel: str, path: Path) -> list[str]:
+    """A transition sound: a readable PCM wav no longer than _MAX_SOUND_S,
+    with its license in `<file>.license.txt` next to it (format.md: our own
+    or CC0 sounds only)."""
+    problems = []
+    try:
+        with wave.open(str(path), "rb") as wf:
+            length = wf.getnframes() / wf.getframerate()
+        if length > _MAX_SOUND_S:
+            problems.append(f"{rel}: sound lasts {length:.2f}s, longer than {_MAX_SOUND_S}s")
+    except (wave.Error, EOFError) as e:
+        problems.append(f"{rel}: not a readable PCM wav ({e})")
+    note = path.with_name(path.name + ".license.txt")
+    if not note.is_file() or not note.read_text().strip():
+        problems.append(f"{rel}: no license note next to it ({note.name})")
+    return problems
 
 
 def _min_plate_size(plate_name: str, font) -> tuple[int, int]:
@@ -159,6 +182,8 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
                     f"{rel}: has colors outside the NES palette "
                     f"(channels/{channel_id}/palette.json): {', '.join(bad_colors)}"
                 )
+        elif asset_path.suffix.lower() == ".wav":
+            problems.extend(_sound_problems(rel, asset_path))
 
     assets = load_channel_assets(channel_id)
     font = assets.font(FONT_PX)

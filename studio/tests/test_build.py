@@ -56,7 +56,7 @@ def test_resolve_tts_name_explicit_arg_wins():
 
 def test_resolve_tts_name_unimplemented_provider_hints_stub():
     with pytest.raises(BuildError) as exc_info:
-        _resolve_tts_name(None, {"format": {"voice": {"provider": "kokoro"}}})
+        _resolve_tts_name(None, {"format": {"voice": {"provider": "elevenlabs"}}})
     assert "--tts stub" in str(exc_info.value)
 
 
@@ -156,7 +156,7 @@ def test_build_package_matches_schema(built_package):
 
 
 def test_build_duration_within_expected_range(built_package):
-    # Fixture script sums to roughly 33 words at 165 wpm plus 3 scene-pause
+    # Fixture script sums to roughly 33 words at 144 wpm plus 3 scene-pause
     # gaps -- comfortably inside the test channel's 10-30s range isn't
     # guaranteed, so just check it's a sane positive number matching the
     # package's own files.
@@ -411,10 +411,11 @@ def test_build_duration_is_the_measured_video_length(built_package):
     assert abs(built_package["package"]["duration_s"] - measured) <= 0.1
 
 
-def test_build_removes_frames_scratch_but_keeps_voice(built_package):
+def test_build_removes_scratch_but_keeps_the_voice_stem(built_package):
     out_dir = built_package["out_dir"]
     assert not (out_dir / "frames").exists()
-    assert (out_dir / "voice.wav").is_file()
+    assert not list(out_dir.glob("_*"))  # _voice_raw.wav, _picture.mp4, _master.wav
+    assert (out_dir / built_package["package"]["files"]["voice_stem"]["path"]).is_file()
 
 
 def test_build_notes_an_unmatched_pronunciation_hint(built_package):

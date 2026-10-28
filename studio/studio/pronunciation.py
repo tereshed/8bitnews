@@ -56,6 +56,18 @@ def build_synthesis_text(narration: str, pronunciations: list[dict] | None) -> t
     return " ".join(synth_tokens), group_sizes
 
 
+def hinted_tokens(group_sizes: list[int], narration: str, pronunciations: list[dict] | None) -> frozenset[int]:
+    """Indexes of the synthesis tokens a pronunciation hint put there (the
+    `say` respelling), so an adapter can read exactly those its own way."""
+    lookup = {p["text"] for p in pronunciations or []}
+    out, idx = set(), 0
+    for word, size in zip(narration.split(), group_sizes):
+        if _split_word(word)[1] in lookup:
+            out.update(range(idx, idx + size))
+        idx += size
+    return frozenset(out)
+
+
 def regroup_words(narration: str, group_sizes: list[int], synth_words: tuple[Word, ...]) -> tuple[Word, ...]:
     """Collapses `synth_words` (timed per synthesis token) back to one `Word`
     per original word of `narration`, each spanning its whole group's first
