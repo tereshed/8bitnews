@@ -75,11 +75,12 @@ timing, kept separate from pixel drawing so it is unit-testable
 - `ai_voice` — the whole video's first 3 seconds (`AI_VOICE_PLATE_S` in
   `studio/constants.py`), top of frame.
 - `ai_icon` — every frame after that (mutually exclusive with `ai_voice`).
-- `ai_illustration` — any frame where a real person's likeness is in frame:
-  either the current scene's own `real_people` is non-empty, or (for an
-  anchor shot) the scene shown on the over-the-shoulder screen
-  (`_next_scene_shot`) has non-empty `real_people` — the plate holds for
-  that scene's entire duration either way.
+- `ai_illustration` — any frame where a real person's likeness may be in
+  frame: the current scene's own `real_people` is non-empty, or (for an
+  anchor shot) the next scene shot's is — the over-the-shoulder screen shows
+  the anchor scene's own picture when it has one, else the next scene
+  shot's (`_next_scene_shot`), so both count — the plate holds for that
+  scene's entire duration either way.
 - `scene_title` / `source_plate` — straight from the scene's
   `on_screen_text` / `source_plate` fields, wrapped to fit the template's
   own plate rect width (`studio/engine.py:_max_chars_for_rect`).
@@ -157,8 +158,9 @@ with none would leave some scenes with no motion at all.
   A transition may carry a `sound` (below, «Sound»).
 - `shot: anchor` scenes separately animate the anchor's blink and mouth
   (2-3 frames, driven by the timeline's volume envelope) regardless of
-  which motion preset the *next* scene-shot (shown on the over-the-shoulder
-  screen) is using.
+  which motion preset the scene shown on the over-the-shoulder screen is
+  using (the anchor scene's own picture `<assets>/<id>.png`, else the next
+  scene shot's; the last anchor shot shows the channel logo).
 
 ## Making a new template without writing code
 
@@ -257,9 +259,12 @@ frame at the template's `studio.anchor` place.
 
 ## Scene pictures (E2b-2)
 
-`studio build --images openrouter` draws the picture of every `shot: scene`
-(and a `custom` cover) with the image provider instead of reading them from
-`--assets` (key: env `STUDIO_OPENROUTER_API_KEY`; models: `config.json`
+`studio build --images openrouter` draws the picture of every `shot: scene`,
+the screen of every anchor shot whose `visual` says what the screen behind the
+anchor shows (`scene_prompt.screen_content`: "…; the screen behind the anchor
+shows X" → X, drawn to fill the screen; the last anchor shot keeps the channel
+logo), and a `custom` cover, with the image provider instead of reading them
+from `--assets` (key: env `STUDIO_OPENROUTER_API_KEY`; models: `config.json`
 `images`, Gemini Flash Image to draw and Gemini Flash Lite to check). The
 frame engine then snaps each picture to the 270×480 grid and the template's
 NES palette, like any scene asset.

@@ -131,3 +131,17 @@ def test_every_trial_visual_cleans_to_something():
         for scene in script.get("scenes", []):
             out = clean_visual(scene["visual"], everyone)
             assert len(out) > 20 and leaked_names(out, everyone) == [], (path.name, scene["id"], out)
+
+
+@pytest.mark.parametrize("visual,expected", [
+    ("The anchor at the studio desk; behind them, a screen shows a courthouse icon as a glass slides across a ledger.",
+     "a courthouse icon as a glass slides across a ledger"),
+    ("Host at the desk; the screen behind her lights up with a courthouse icon that pulses once.",
+     "a courthouse icon that pulses once"),
+    ("Anchor at the studio desk; behind her a stylized California map pulses with an alert icon.",
+     "a stylized California map pulses with an alert icon"),
+    ("The anchor at the studio desk, looking toward camera.", None),
+])
+def test_screen_content_is_what_the_anchor_scene_puts_on_the_screen(visual, expected):
+    from studio.scene_prompt import screen_content
+    assert screen_content(visual) == expected

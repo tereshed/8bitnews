@@ -25,7 +25,7 @@ from .errors import BuildError
 from .openrouter import NoImageError, OpenRouterClient
 from .palette import hex_to_rgb
 from .paths import channel_dir
-from .scene_prompt import clean_visual, leaked_names
+from .scene_prompt import clean_visual, leaked_names, screen_content
 from .template_pkg import TemplatePackage
 
 DEFAULT_MODEL = "google/gemini-3.1-flash-image"
@@ -71,14 +71,22 @@ def load_style(channel_id: str) -> dict:
         return json.load(f)
 
 
-def scene_prompt(style: dict, template: TemplatePackage, visual: str, stronger: list[str] = (), serious: bool = False) -> str:
+SCREEN_PROMPT = ("This picture fills the TV screen behind a news anchor: show only what is on the screen, filling the "
+                 "whole frame; no anchor, no desk, no studio, no TV frame around it.")
+
+
+def scene_prompt(style: dict, template: TemplatePackage, visual: str, stronger: list[str] = (), serious: bool = False,
+                 screen: bool = False) -> str:
     """In serious mode the channel's serious look replaces the template's
-    (nes-desk's "bright, saturated" day has no place in a tragedy)."""
+    (nes-desk's "bright, saturated" day has no place in a tragedy); a
+    `screen` picture is what an anchor shot shows behind the anchor."""
     parts = [style["style"]]
     if serious:
         parts.append(style["serious"])
     elif template.data.get("image_style"):
         parts.append(template.data["image_style"])
+    if screen:
+        parts.append(SCREEN_PROMPT)
     parts.append("Scene: " + visual)
     parts.append(style["people"])
     parts.append(style["prohibitions"])
@@ -138,26 +146,35 @@ def generate_scene_images(
         shutil.rmtree(images_dir)
     (images_dir / "attempts").mkdir(parents=True)
     report = ImagesReport(model, check_model)
-    jobs = [(s["id"], s["visual"], s.get("real_people", [])) for s in script["scenes"] if s["shot"] == "scene"]
+    # (name, visual, kind): every scene shot; the screen of an anchor shot whose `visual` says what it shows,
+    # except the last one, which shows the channel logo (engine._render_anchor_shot); a custom cover.
+    jobs = []
+    for i, s in enumerate(script["scenes"]):
+        if s["shot"] == "scene":
+            jobs.append((s["id"], s["visual"], "scene"))
+        elif any(later["shot"] == "scene" for later in script["scenes"][i + 1:]) and screen_content(s["visual"]):
+            jobs.append((s["id"], screen_content(s["visual"]), "screen"))
     if script["cover"]["frame"] == "custom":
-        jobs.append(("cover", script["cover"]["visual"], [p for s in script["scenes"] for p in s.get("real_people", [])]))
+        jobs.append(("cover", script["cover"]["visual"], "scene"))
     logo = load_channel_logo(channel_id)
     serious = bool(script.get("serious_mode"))
     # Every scene is cleaned of everyone in the script: `real_people` lists
     # who a scene shows, and a scene can still mention someone else.
     everyone = sorted({p for s in script["scenes"] for p in s.get("real_people", [])})
-    for name, visual, _shown in jobs:
+    screen = template.data["studio"]["screen"]
+    screen_aspect = "4:5" if screen["w"] / screen["h"] <= 0.9 else ("1:1" if screen["w"] / screen["h"] <= 1.15 else "5:4")
+    for name, visual, kind in jobs:
         cleaned = clean_visual(visual, everyone)
         stronger: list[str] = []
         attempts: list[dict] = []
         accepted = None
         for n in range(1 + MAX_REDRAWS):
-            prompt = scene_prompt(style, template, cleaned, stronger, serious)
+            prompt = scene_prompt(style, template, cleaned, stronger, serious, screen=kind == "screen")
             leaked = leaked_names(prompt, everyone)
             if leaked:  # clean_visual's job; this is the last line before the network
                 raise BuildError(f"{name}: the image prompt still names {', '.join(leaked)}; not sent")
             try:
-                reply = client.generate_image(model, prompt, "9:16", variant=n)
+                reply = client.generate_image(model, prompt, screen_aspect if kind == "screen" else "9:16", variant=n)
             except NoImageError as e:
                 attempts.append({"n": n, "prompt": prompt, "refused": str(e)[:300], "cost_usd": round(e.cost_usd, 4)})
                 continue

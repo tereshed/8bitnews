@@ -228,7 +228,10 @@ def _render_anchor_shot(
         frame.alpha_composite(img, (layer["x"] + dx, layer["y"]))
 
     screen = template.data["studio"]["screen"]
-    screen_scene = _next_scene_shot(script, scene["id"])
+    # The anchor scene's own picture when it has one (its `visual` says what the screen shows: the hook's screen
+    # is what Legal reviewed on it and on an S1 cover), else the next scene shot's, else the channel logo.
+    own = _scene_image_path(assets_dir, scene["id"]) is not None and _next_scene_shot(script, scene["id"]) is not None
+    screen_scene = scene if own else _next_scene_shot(script, scene["id"])
     if screen_scene is not None:
         content = _render_scene_base(screen_scene, assets_dir, palette, font, screen["w"], screen["h"])
     else:

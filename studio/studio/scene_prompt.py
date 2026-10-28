@@ -198,3 +198,22 @@ def clean_visual(visual: str, real_people: list[str]) -> str:
     text = re.sub(r"\s+([,.;:])", r"\1", text)
     text = re.sub(r"\s{2,}", " ", text).strip()
     return text
+
+
+_SCREEN = re.compile(
+    r"\bscreen\b(?:\s+behind\s+(?:her|him|them|the\s+anchor))?[^.;]*?\b(?:shows|showing|displays|displaying|"
+    r"switches\s+to|lights\s+up\s+with|fills\s+with|flips\s+to|cuts\s+to)\s+(?P<what>.+?)(?:[.;](?:\s|$)|$)",
+    re.I,
+)
+
+
+_BEHIND = re.compile(r"\bbehind\s+(?:her|him|them|the\s+anchor),?\s+(?!(?:a|the)\s+screen\b)(?P<what>.+?)(?:[.;](?:\s|$)|$)", re.I)
+
+
+def screen_content(visual: str) -> str | None:
+    """What an anchor scene's `visual` says the screen behind the anchor
+    shows ("…; behind them, a screen shows a courthouse icon as …" -> "a
+    courthouse icon as …"; "…; behind her a stylized map pulses …" -> "a
+    stylized map pulses …"), or None when it doesn't say."""
+    m = _SCREEN.search(visual) or _BEHIND.search(visual)
+    return m.group("what").strip() if m else None

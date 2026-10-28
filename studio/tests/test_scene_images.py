@@ -276,3 +276,42 @@ def test_scene_colors_narrow_what_pictures_snap_to(tmp_path, monkeypatch):
     template.data["palette"]["scene_colors"] = ["#000000", "#fcfcfc", "#f0d0b0"]
     assert scene_palette(template, False, "8bitnews-us").hex_colors == ["#000000", "#fcfcfc", "#f0d0b0"]
     assert scene_palette(template, True, "8bitnews-us").hex_colors == template.palette(serious=True).hex_colors
+
+
+def test_an_anchor_scene_gets_its_own_screen_picture(tmp_path, template):
+    script = _script()
+    first = script["scenes"][0]
+    assert first["shot"] == "anchor"
+    first["visual"] = "The anchor at the studio desk; behind them, the screen shows a courthouse icon over a ledger."
+    client = Client([])
+    images_dir, report = generate_scene_images(script, template, "8bitnews-us", tmp_path, client)
+    assert (images_dir / f"{first['id']}.png").is_file()
+    screen_prompt = next(p for p in client.prompts if "TV screen behind a news anchor" in p)
+    assert "courthouse icon over a ledger" in screen_prompt and "studio desk" not in screen_prompt
+    last = script["scenes"][-1]
+    assert last["shot"] == "anchor" and not (images_dir / f"{last['id']}.png").exists()  # the outro shows the logo
+
+
+def test_the_screen_shows_the_anchor_scenes_own_picture(tmp_path):
+    from studio.builtin_script import BUILTIN_SCRIPT, builtin_timeline
+    from studio.channel_assets import load_channel_assets
+    from studio.engine import render_frame
+
+    template = load_template(TEMPLATES_DIR / "nes-desk")
+    timeline = builtin_timeline()
+    s1 = next(s for s in timeline.scenes if s.scene_id == "S1")
+    screen = template.data["studio"]["screen"]
+    box = (screen["x"] + 4, screen["y"] + 4, screen["x"] + screen["w"] - 4, screen["y"] + screen["h"] - 4)
+
+    def screen_colors(with_own):
+        assets = tmp_path / ("own" if with_own else "next")
+        assets.mkdir()
+        if with_own:
+            (assets / "S1.png").write_bytes(_skin_picture())
+        frame = render_frame(BUILTIN_SCRIPT, timeline, template, load_channel_assets("8bitnews-us"),
+                             (s1.start_s + s1.end_s) / 2, assets)
+        counts = {"#%02x%02x%02x" % c: n for n, c in frame.crop(box).getcolors(1 << 20)}
+        return counts.get("#f0d0b0", 0) / sum(counts.values())  # the anchor's shoulder may reach into the screen
+
+    assert screen_colors(True) > 0.8
+    assert screen_colors(False) == 0
