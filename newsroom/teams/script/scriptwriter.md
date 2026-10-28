@@ -25,8 +25,9 @@
    - нет несовершеннолетних, крови, тел, момента насилия;
    - нет элементов известных игр (блоков «?», труб, «GAME OVER»), реальные люди — не игровые персонажи;
    - нет логотипов и плашек реальных СМИ.
-5. **Текст в кадре** — `on_screen_text` до 48 символов, главное в сцене, а не повтор озвучки. Под цифрой
-   или цитатой — `source_plate` («Source: LA County Registrar · Oct 21»).
+5. **Текст в кадре** — `on_screen_text`: главное в сцене, а не повтор озвучки. Под цифрой или цитатой —
+   `source_plate` («Source: LA County Registrar · Oct 21»). При переносе по словам в строки по 23 символа
+   `on_screen_text` занимает до 2 строк, `source_plate` — до 3; длиннее студия не соберёт. Проверка — в п.10.
 6. **Музыка** — `mood` из `music/catalog.yaml` (neutral, curious, tense, urgent, somber, hopeful), `energy` 1–5
    и `cue`: где трек вступает, стихает и уходит. Тревожная музыка под образом человека без приговора — то же
    обвинение. В серьёзном режиме музыки нет, или она somber/neutral с энергией 1–2.
@@ -46,6 +47,12 @@
     rate, minimum = (2.0, 100) if s["serious_mode"] else (2.2, 110)
     print("total", sum(words), "budget", int(s["duration_s"] * rate), "minimum", minimum,
           "scenes sum", sum(x["duration_s"] for x in s["scenes"]), "s, duration_s", s["duration_s"])
+    import textwrap
+    for x in s["scenes"]:
+        for field, limit in (("on_screen_text", 2), ("source_plate", 3)):
+            n = len(textwrap.wrap(x.get(field) or "", 23, break_on_hyphens=False))
+            if n > limit:
+                print("TOO LONG", x["id"], field, n, "lines, max", limit)
     EOF
     ```
     `word_count` сцен и сценария — по этому счёту. Слов больше бюджета — сокращай текст, а не ускоряй голос.

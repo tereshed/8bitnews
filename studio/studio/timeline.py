@@ -63,12 +63,18 @@ class Timeline:
         return self.scenes[-1].end_s if self.scenes else 0.0
 
     def scene_at(self, t_abs: float) -> SceneTiming | None:
+        """The scene on screen at `t_abs`: the last one that has started. The
+        pause between two scenes (template `timing.scene_pause_s`) holds the
+        previous scene's picture -- its words are over, so the mouth is shut
+        and no subtitle shows -- instead of falling through to a black frame."""
+        if not self.scenes:
+            return None
+        current = self.scenes[0]
         for scene in self.scenes:
-            if scene.start_s <= t_abs < scene.end_s:
-                return scene
-        if self.scenes and t_abs >= self.scenes[-1].end_s:
-            return self.scenes[-1]
-        return None
+            if scene.start_s > t_abs:
+                break
+            current = scene
+        return current
 
 
 _MIN_SCENE_DURATION_S = 1.0

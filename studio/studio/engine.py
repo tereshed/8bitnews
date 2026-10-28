@@ -247,6 +247,20 @@ def _max_chars_for_rect(rect_w: int, pad: int = 2) -> int:
     return max(1, (rect_w - 2 * pad) // FONT_PX)
 
 
+DEFAULT_PLATE_MAX_LINES = 2  # template.schema.json plate_style.max_lines default
+
+
+def plate_lines(template: TemplatePackage, plate_name: str, text: str) -> list[str]:
+    """Scene text (`on_screen_text`, `source_plate`) word-wrapped to its
+    plate's width, never truncated: `studio build` refuses a script whose
+    text needs more than `plate_max_lines` before anything is rendered."""
+    return wrap_words(text.split(), _max_chars_for_rect(template.plate(plate_name)["rect"]["w"]))
+
+
+def plate_max_lines(template: TemplatePackage, plate_name: str) -> int:
+    return template.plate(plate_name).get("max_lines", DEFAULT_PLATE_MAX_LINES)
+
+
 def _draw_plate(frame: Image.Image, plate_cfg: dict, lines: list[str], font) -> None:
     rect = plate_cfg["rect"]
     bg = hex_to_rgb(plate_cfg["bg_color"])
@@ -320,17 +334,15 @@ def _draw_content_plates(frame: Image.Image, scene: dict, plates: set[str], temp
     frame render (`_render_core`) and the untimed cover render
     (`render_cover_frame`), which skips the AI-voice/AI-icon plate and
     subtitles a still cover doesn't need."""
+    # [:max_lines] only guards `template preview`'s built-in script; `studio
+    # build` has already rejected text that doesn't fit (build.check_plate_text).
     if "scene_title" in plates:
-        title_cfg = template.plate("scene_title")
-        max_chars = _max_chars_for_rect(title_cfg["rect"]["w"])
-        lines = wrap_words(scene["on_screen_text"].split(), max_chars)[:2]
-        _draw_plate(frame, title_cfg, lines, font)
+        lines = plate_lines(template, "scene_title", scene["on_screen_text"])
+        _draw_plate(frame, template.plate("scene_title"), lines[: plate_max_lines(template, "scene_title")], font)
 
     if "source_plate" in plates:
-        source_cfg = template.plate("source_plate")
-        max_chars = _max_chars_for_rect(source_cfg["rect"]["w"])
-        lines = wrap_words(scene["source_plate"].split(), max_chars)[:2]
-        _draw_plate(frame, source_cfg, lines, font)
+        lines = plate_lines(template, "source_plate", scene["source_plate"])
+        _draw_plate(frame, template.plate("source_plate"), lines[: plate_max_lines(template, "source_plate")], font)
 
     if "ai_illustration" in plates:
         _draw_plate(frame, template.plate("ai_illustration"), ["AI illustration"], font)

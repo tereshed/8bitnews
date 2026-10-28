@@ -1,4 +1,5 @@
 {
   "max_file_size_bytes": 52428800,
-  "_comment": "50 MiB ceiling for video.mp4, checked by studio validate's file_size check (studio/studio/checks.py)."
+  "max_keyframe_cell_diff": 32.0,
+  "_comment": "max_file_size_bytes: 50 MiB ceiling for video.mp4 (file_size check). max_keyframe_cell_diff: video_matches_keyframes limit on the mean difference (0-255) inside any 4x4 cell between a keyframe PNG and its H.264 frame; H.264 noise on the sample stays near 10, a changed or missing plate reaches 150+."
 }

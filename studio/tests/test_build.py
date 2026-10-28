@@ -77,16 +77,15 @@ def test_fit_cover_title_fits_when_there_is_room():
     assert lines
 
 
-def test_fit_cover_title_fits_two_lines_on_night_reports_real_rect(night_report_dir):
-    """night-report's cover.layout.text_rect was raised to h=22 specifically
-    so a realistic schema-valid 2-line custom-cover title fits (task п.7):
-    guard the real rect geometry, not just a synthetic one."""
+def test_fit_cover_title_fits_three_lines_on_night_reports_real_rect(night_report_dir):
+    """night-report's cover.layout.text_rect holds the 3 lines a 30-character
+    title can wrap to at 23 characters per line (studio template validate
+    enforces it): guard the real rect geometry."""
     template = load_template(night_report_dir)
     font = load_channel_assets("8bitnews-us").font(FONT_PX)
     text_rect = template.data["cover"]["layout"]["text_rect"]
-    assert text_rect["h"] == 22
-    lines = fit_cover_title("Ninth Circuit Hearing Tonight", text_rect, font)
-    assert len(lines) == 2
+    lines = fit_cover_title("Voter disenfranchisement fears", text_rect, font)
+    assert len(lines) == 3
 
 
 def test_fit_cover_title_still_rejects_text_needing_three_lines_on_night_report(night_report_dir):

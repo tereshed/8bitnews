@@ -32,7 +32,15 @@ from .constants import (
     MAX_SUBTITLE_LINES,
     SERIOUS_WPM,
 )
-from .engine import active_plates, render_cover_frame, render_frame, scene_transition_duration
+from .engine import (
+    active_plates,
+    plate_lines,
+    plate_max_lines,
+    render_cover_frame,
+    render_frame,
+    scene_transition_duration,
+)
+from .cover_title import cover_title_layout, fit_cover_title
 from .errors import BuildError
 from .palette import hex_to_rgb, quantize_image
 from .paths import TEMPLATES_DIR
@@ -122,37 +130,25 @@ def _resolve_tts_name(tts_arg: str | None, channel_profile: dict) -> str:
     return name
 
 
-_COVER_PAD = 2
-
-
-def fit_cover_title(text: str, text_rect: dict, font) -> list[str]:
-    """Word-wraps `text` inside `text_rect` at the channel's fixed pixel
-    font, raising BuildError if it needs more lines than the rect has room
-    for. Used by both cover kinds (`S*` and `custom`) and testable without
-    rendering a frame."""
-    pad = _COVER_PAD
-    max_chars = max(1, (text_rect["w"] - 2 * pad) // FONT_PX)
-    lines = wrap_words(text.split(), max_chars)
-    # cover_title_layout puts line i at y = pad + i*(FONT_PX+2), each
-    # FONT_PX tall: the first line only costs FONT_PX, every additional line
-    # costs FONT_PX+2, so max_rows = 1 + how many extra (FONT_PX+2) slots
-    # fit after that first line.
-    max_rows = 1 + max(0, text_rect["h"] - 2 * pad - FONT_PX) // (FONT_PX + 2)
-    if len(lines) > max_rows:
-        raise BuildError(
-            f"cover text {text!r} needs {len(lines)} line(s) but cover.layout.text_rect {text_rect} only "
-            f"fits {max_rows} at {FONT_PX}px"
-        )
-    return lines
-
-
-def cover_title_layout(text: str, text_rect: dict, font) -> list[tuple[str, tuple[int, int]]]:
-    """Each cover title line with its top-left origin in logical 270x480
-    coordinates: the same geometry `fit_cover_title` checks against."""
-    lines = fit_cover_title(text, text_rect, font)
-    x = text_rect["x"] + _COVER_PAD
-    y0 = text_rect["y"] + _COVER_PAD
-    return [(line, (x, y0 + i * (FONT_PX + 2))) for i, line in enumerate(lines)]
+def check_plate_text(script: dict, template: TemplatePackage) -> None:
+    """Raises BuildError if any scene's `on_screen_text` or `source_plate`
+    needs more lines than its plate's `max_lines`: plates never cut text
+    (a source date dropped off the end is a wrong attribution)."""
+    problems = []
+    for scene in script["scenes"]:
+        for field, plate_name in (("on_screen_text", "scene_title"), ("source_plate", "source_plate")):
+            text = scene.get(field)
+            if not text:
+                continue
+            lines = plate_lines(template, plate_name, text)
+            limit = plate_max_lines(template, plate_name)
+            if len(lines) > limit:
+                problems.append(
+                    f"scene {scene['id']}: {field} {text!r} needs {len(lines)} lines, "
+                    f"plates.{plate_name} of template {template.id!r} holds {limit} (max_lines)"
+                )
+    if problems:
+        raise BuildError("scene text does not fit its plate:\n" + "\n".join(f"  - {p}" for p in problems))
 
 
 def _draw_cover_title(frame: Image.Image, text: str, template: TemplatePackage, assets: ChannelAssets) -> None:
@@ -237,6 +233,7 @@ def _assemble_package(
     srt_entry: dict,
     cover_entry: dict,
     timeline_entry: dict,
+    template_entry: dict,
     script_entry: dict,
     tts_name: str,
     voice_id: str,
@@ -293,6 +290,7 @@ def _assemble_package(
             "subtitles": srt_entry,
             "cover": cover_entry,
             "timeline": timeline_entry,
+            "template": template_entry,
             "script": script_entry,
         },
         "render": {
@@ -303,6 +301,7 @@ def _assemble_package(
             "audio_codec": "aac",
             "loudness_lufs": loudness,
             "engine": "studio-engine",
+            "template_dir": "template",
         },
         "voice": {"provider": tts_name, "voice_id": voice_id, "wpm": wpm},
         "transcript": " ".join(s["narration"] for s in script["scenes"]),
@@ -341,7 +340,8 @@ def build_package(
     template_dir = _resolve_template_dir(template_dir_arg, script, channel_profile)
     template = load_template(template_dir)
     assets = load_channel_assets(channel_id)
-    # Fail before TTS and rendering, not after them, if the cover title can't fit.
+    # Fail before TTS and rendering, not after them, if plate text or the cover title can't fit.
+    check_plate_text(script, template)
     fit_cover_title(script["cover"]["text"], template.data["cover"]["layout"]["text_rect"], assets.font(FONT_PX))
 
     tts_name_resolved = _resolve_tts_name(tts_name, channel_profile)
@@ -450,6 +450,7 @@ def build_package(
         srt_entry=_media_entry(srt_path, out_dir),
         cover_entry=_media_entry(cover_path, out_dir),
         timeline_entry=_media_entry(timeline_path, out_dir),
+        template_entry=_media_entry(template_out_dir / "template.json", out_dir),
         script_entry=_media_entry(script_out_path, out_dir),
         tts_name=tts_name_resolved,
         voice_id=voice_id,
