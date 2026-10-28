@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "release_receipt",
+  "description": "editor output at the end of a channel run: what hub release_submit answered. The video now waits for the moderator.",
+  "type": "object",
+  "required": [
+    "release_id",
+    "status",
+    "allowed_platforms",
+    "sources"
+  ],
+  "properties": {
+    "release_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "allowed_platforms": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "youtube",
+          "tiktok",
+          "instagram"
+        ]
+      }
+    },
+    "sources": {
+      "type": "object",
+      "required": [
+        "total",
+        "archived"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "archived": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dead": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

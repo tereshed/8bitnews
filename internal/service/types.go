@@ -112,6 +112,18 @@ type MediaUploadURLResponse struct {
 	ObjectKey string `json:"object_key"`
 }
 
+// MediaDownloadURLRequest is the input to media_download_url.
+type MediaDownloadURLRequest struct {
+	ObjectKey string `json:"object_key" jsonschema:"S3 object key to download: a release's media (releases/...) or a music catalog track (music/...)"`
+}
+
+// MediaDownloadURLResponse is the output of media_download_url: a presigned
+// GET URL for the object.
+type MediaDownloadURLResponse struct {
+	DownloadURL string `json:"download_url"`
+	ObjectKey   string `json:"object_key"`
+}
+
 // MediaManifest is the set of media object keys release_submit requires.
 type MediaManifest struct {
 	Video     string `json:"video" jsonschema:"S3 object key of the rendered video"`

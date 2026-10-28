@@ -42,6 +42,55 @@ func (s *Service) MediaUploadURL(ctx context.Context, req MediaUploadURLRequest)
 	return MediaUploadURLResponse{UploadURL: uploadURL, ObjectKey: key}, nil
 }
 
+// downloadablePrefixes are the parts of the media bucket agents may read:
+// release media (QA and Legal look at a video's keyframes) and the music
+// catalog's audio (the Video team mixes a track in). Backups live in
+// another bucket altogether.
+var downloadablePrefixes = []string{"releases/", "music/"}
+
+// MediaDownloadURL returns a presigned GET URL for an existing object under
+// one of downloadablePrefixes.
+func (s *Service) MediaDownloadURL(ctx context.Context, req MediaDownloadURLRequest) (MediaDownloadURLResponse, error) {
+	key := req.ObjectKey
+	if key == "" {
+		return MediaDownloadURLResponse{}, invalidf("object_key is required")
+	}
+	if err := checkDownloadKey(key); err != nil {
+		return MediaDownloadURLResponse{}, err
+	}
+	ok, err := s.media.Exists(ctx, key)
+	if err != nil {
+		return MediaDownloadURLResponse{}, err
+	}
+	if !ok {
+		return MediaDownloadURLResponse{}, notFoundf("object %q not found", key)
+	}
+	url, err := s.media.PresignGet(ctx, key)
+	if err != nil {
+		return MediaDownloadURLResponse{}, err
+	}
+	return MediaDownloadURLResponse{DownloadURL: url, ObjectKey: key}, nil
+}
+
+func checkDownloadKey(key string) error {
+	allowed := false
+	for _, p := range downloadablePrefixes {
+		if strings.HasPrefix(key, p) {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return invalidf("object_key %q is outside %s", key, strings.Join(downloadablePrefixes, ", "))
+	}
+	for _, seg := range strings.Split(key, "/") {
+		if seg == "" || seg == "." || seg == ".." {
+			return invalidf("object_key %q has an empty or relative path segment", key)
+		}
+	}
+	return nil
+}
+
 // objectKey builds a collision-resistant S3 key for a development's media
 // upload, keeping the original extension so content type sniffing by
 // downstream tools keeps working.

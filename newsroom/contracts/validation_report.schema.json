@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "validation_report",
+  "description": "QA output: is the rendered video (video_package) fit to go to Legal and the moderator? Technical checks come from studio validate in the package; the content review is QA's own look at the keyframes, plates, subtitles and package against format.md and policy.md. hub release_submit takes only a video whose verdict is pass.",
+  "type": "object",
+  "required": [
+    "channel_id",
+    "video_package",
+    "verdict",
+    "technical",
+    "issues",
+    "summary"
+  ],
+  "properties": {
+    "channel_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "video_package": {
+      "type": "string",
+      "minLength": 1,
+      "description": "id of the video_package artifact checked: the video_package_id newsroom/tools/video_review_kit.py printed"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "fail"
+      ],
+      "description": "fail if any blocker or major issue is open"
+    },
+    "technical": {
+      "type": "object",
+      "required": [
+        "passed",
+        "failed_checks"
+      ],
+      "properties": {
+        "passed": {
+          "type": "boolean",
+          "description": "video_package.validate.passed"
+        },
+        "failed_checks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "id: note of every failed studio check"
+        }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "severity",
+          "area",
+          "finding",
+          "fix_owner"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^Q[0-9]+$"
+          },
+          "severity": {
+            "enum": [
+              "blocker",
+              "major",
+              "minor"
+            ]
+          },
+          "area": {
+            "enum": [
+              "technical",
+              "format",
+              "policy",
+              "visual",
+              "text",
+              "audio",
+              "metadata"
+            ]
+          },
+          "scene_id": {
+            "type": "string",
+            "description": "S1, S2, ...; empty for the whole video"
+          },
+          "keyframe": {
+            "type": "string",
+            "description": "Keyframe it is seen on, e.g. S3_mid"
+          },
+          "finding": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fix_owner": {
+            "enum": [
+              "script",
+              "video"
+            ],
+            "description": "script: the text or the visual brief must change; video: a rebuild fixes it"
+          },
+          "fix": {
+            "type": "string",
+            "description": "What to change"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Two or three sentences for the router and the moderator"
+    }
+  }
+}

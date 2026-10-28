@@ -50,7 +50,7 @@
             "argument",
             "script"
           ],
-          "description": "argument: given to studio build (hub anchor_pick); script: picked by the script's content when none was given"
+          "description": "argument: given to studio build (studio pick against the channel's last videos); script: picked by the script's content when none was given"
         }
       }
     },
@@ -74,6 +74,13 @@
           "$ref": "#/$defs/media",
           "description": "Same video without music, for YouTube"
         },
+        "subtitles": {
+          "$ref": "#/$defs/media",
+          "description": "SRT with the burned-in subtitle text and timings"
+        },
+        "cover": {
+          "$ref": "#/$defs/media"
+        },
         "voice_stem": {
           "$ref": "#/$defs/media",
           "description": "The voice alone at the mix level (studio validate measures music against it)"
@@ -81,13 +88,6 @@
         "music_stem": {
           "$ref": "#/$defs/media",
           "description": "The ducked music alone at the mix level, when the video has music"
-        },
-        "subtitles": {
-          "$ref": "#/$defs/media",
-          "description": "SRT with the burned-in subtitle text and timings"
-        },
-        "cover": {
-          "$ref": "#/$defs/media"
         }
       }
     },
@@ -262,25 +262,140 @@
     "images": {
       "type": "object",
       "description": "Scene pictures drawn by the image provider for this build (studio build --images): the models, what they cost, and every attempt with its check. Absent when the pictures came from --assets or none were drawn.",
-      "required": ["provider", "model", "check_model", "cost_usd", "scenes"],
+      "required": [
+        "provider",
+        "model",
+        "check_model",
+        "cost_usd",
+        "scenes"
+      ],
       "properties": {
-        "provider": {"type": "string", "minLength": 1},
-        "model": {"type": "string", "minLength": 1},
-        "check_model": {"type": "string", "minLength": 1},
-        "cost_usd": {"type": "number", "minimum": 0},
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "check_model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cost_usd": {
+          "type": "number",
+          "minimum": 0
+        },
         "scenes": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "file", "fallback", "attempts"],
+            "required": [
+              "id",
+              "file",
+              "fallback",
+              "attempts"
+            ],
             "properties": {
-              "id": {"type": "string", "minLength": 1, "description": "Scene id, or 'cover' for a custom cover"},
-              "file": {"type": "string", "minLength": 1},
-              "fallback": {"type": "boolean", "description": "true: no attempt passed the check and a neutral card stands in"},
-              "accepted": {"type": ["string", "null"]},
-              "attempts": {"type": "array", "items": {"type": "object"}}
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Scene id, or 'cover' for a custom cover"
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1
+              },
+              "fallback": {
+                "type": "boolean",
+                "description": "true: no attempt passed the check and a neutral card stands in"
+              },
+              "accepted": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "attempts": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
             }
           }
+        }
+      }
+    },
+    "media": {
+      "type": "object",
+      "description": "Where the package's files are in the store (hub media_upload_url object keys), added by newsroom/tools/video_build.py; absent in a package that was not uploaded. QA, Legal and the publisher open them with hub media_download_url.",
+      "properties": {
+        "video": {
+          "type": "string",
+          "minLength": 1
+        },
+        "video_no_music": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subtitles": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cover": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeline": {
+          "type": "string",
+          "minLength": 1
+        },
+        "script": {
+          "type": "string",
+          "minLength": 1
+        },
+        "package_archive": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The whole package directory as .tar.gz"
+        },
+        "keyframes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Keyframe name (S1_first, S1_mid, ...) -> object key"
+        }
+      }
+    },
+    "pick": {
+      "type": "object",
+      "description": "What studio pick chose against the channel's last videos, and why",
+      "properties": {
+        "template": {
+          "type": "string",
+          "minLength": 1
+        },
+        "anchor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "music_track": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "music_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reasons": {
+          "type": "object"
         }
       }
     }

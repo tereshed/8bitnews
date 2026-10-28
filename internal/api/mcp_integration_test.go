@@ -281,7 +281,7 @@ func TestMCP_ReleaseSubmitAndGet_HappyPath(t *testing.T) {
 	}
 	wantTools := map[string]bool{
 		"channel_get": true, "story_find_similar": true, "story_register": true,
-		"experiment_assign": true, "media_upload_url": true, "release_submit": true,
+		"experiment_assign": true, "media_upload_url": true, "media_download_url": true, "release_submit": true,
 		"release_get": true, "releases_recent": true,
 	}
 	if len(tools.Tools) != len(wantTools) {
@@ -311,6 +311,31 @@ func TestMCP_ReleaseSubmitAndGet_HappyPath(t *testing.T) {
 	video := mcpUploadFixture(t, session, devID, "video.mp4")
 	subtitles := mcpUploadFixture(t, session, devID, "subtitles.srt")
 	cover := mcpUploadFixture(t, session, devID, "cover.png")
+
+	// What was uploaded comes back through media_download_url; keys outside
+	// releases/ and music/ are refused.
+	var download struct {
+		DownloadURL string `json:"download_url"`
+	}
+	mcpCallTool(t, session, "media_download_url", map[string]any{"object_key": video}, &download)
+	got, err := http.Get(download.DownloadURL)
+	if err != nil {
+		t.Fatalf("GET download: %v", err)
+	}
+	gotBody, _ := io.ReadAll(got.Body)
+	_ = got.Body.Close()
+	if got.StatusCode != http.StatusOK || string(gotBody) != "fixture content" {
+		t.Fatalf("download = %d %q, want 200 %q", got.StatusCode, gotBody, "fixture content")
+	}
+	refused, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "media_download_url", Arguments: map[string]any{"object_key": "backups/db.dump"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool media_download_url: %v", err)
+	}
+	if !refused.IsError {
+		t.Fatalf("media_download_url outside releases/ and music/ must fail")
+	}
 
 	sourceURL := sourceSrv.URL + "/ok"
 	researchDossier := map[string]any{

@@ -1,0 +1,42 @@
+{
+  "team_id": "",
+  "name": "Video",
+  "type": "other",
+  "description": "Сборка роликов 8bitnews по сценарию, прошедшему Legal: студия репозитория (studio/) в Docker озвучивает сценарий голосом ведущего, рисует и проверяет картинки сцен, выбирает шаблон, ведущего и трек так, чтобы соседние ролики не повторялись, сводит звук, делает субтитры, обложку и ключевые кадры, проверяет пакет и загружает его в хранилище через hub. Одна команда: newsroom/tools/video_build.py. Результат — video_package. Кода не пишет.",
+  "accepts_delegation": true,
+  "agents": [
+    {
+      "name": "router",
+      "role": "router",
+      "prompt": "router.md",
+      "common": false,
+      "model": "google/gemini-3.8-flash"
+    },
+    {
+      "name": "video_producer",
+      "role": "video_producer",
+      "prompt": "video_producer.md",
+      "role_description": "Собирает ролик одной командой newsroom/tools/video_build.py (студия в Docker: голос, картинки сцен с проверкой кадра, музыка, рендер, проверки, загрузка в хранилище) и сдаёт video_package; при доработке пересобирает. Сценарий не правит, проверки не обходит.",
+      "skills": [
+        "hub-access",
+        "studio-video"
+      ],
+      "settings": {
+        "attach_docker": true,
+        "dind_cpu_millicores": 4000,
+        "dind_memory_mb": 6144
+      }
+    }
+  ],
+  "deactivate": [],
+  "contracts": [
+    {
+      "kind": "video_package",
+      "schema": "video_package.schema.json",
+      "audience": [
+        "video_producer"
+      ],
+      "description": "Собранный ролик: package.json студии (файлы, сцены, ключевые кадры, голос, музыка, раскрытие AI, проверки studio validate, картинки и их стоимость) и ключи файлов в хранилище (media), выбор шаблона, ведущего и трека (pick)."
+    }
+  ]
+}

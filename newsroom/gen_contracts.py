@@ -208,7 +208,10 @@ schemas = {
       "description": "What is new: the turn of the story this video is about",
       "properties": {
         "summary": {"type": "string", "minLength": 20},
-        "reported_at": {"type": "string", "description": "When the development was first reported, UTC ISO 8601"}}},
+        "reported_at": {"type": "string", "description": "When the development was first reported, UTC ISO 8601"},
+        "hub_development_id": {"type": ["string", "null"],
+                               "description": "development_id from hub story_register: the Video team uploads media and "
+                                              "the release is submitted under it"}}},
     "prior_coverage": {"type": "array", "items": {"$ref": "#/$defs/prior"},
       "description": "Earlier videos of this channel on the same story"},
     "why_now": {"type": "string", "minLength": 10},
@@ -291,9 +294,15 @@ lr = schema("legal_review",
      "required_disclosures": {"type": "array", "items": {"$ref": "#/$defs/disclosure"}},
      "kill_reason": {"type": "string", "minLength": 10},
      "summary_ru": {"type": "string", "minLength": 20, "description": "For the human moderator, Russian, <= 80 words"},
-     "checked_against": {"type": "array", "minItems": 1, "items": str1}},
+     "checked_against": {"type": "array", "minItems": 1, "items": str1},
+     "video_package": {"type": "string", "minLength": 1,
+                       "description": "final mode: id of the video_package artifact reviewed (the video_package_id "
+                                      "newsroom/tools/video_review_kit.py printed); release_submit refuses a review "
+                                      "of another build"}},
     {"risk_issue": risk_issue, "disclosure": disclosure})
 lr["allOf"] = [
+    {"if": {"properties": {"mode": {"const": "final"}}}, "then": {"required": ["video_package"]},
+     "description": "A final review names the build it looked at"},
     {"if": {"properties": {"verdict": {"const": "kill"}}}, "then": {"required": ["kill_reason"]}},
     {"if": {"required": ["issues"], "properties": {"issues": {"contains": {
          "properties": {"severity": {"enum": ["blocker", "high"]}},
@@ -442,17 +451,29 @@ vmusic = {
 vp = schema("video_package",
     "video_producer output and final result of the Video team: the rendered video and everything QA and Legal "
     "need without rewatching it in full.",
-    ["channel_id", "script", "template", "duration_s", "files", "render", "voice", "transcript", "scenes", "music",
-     "disclosures", "validate"],
+    ["channel_id", "script", "template", "anchor", "duration_s", "files", "render", "voice", "transcript", "scenes",
+     "music", "disclosures", "validate"],
     {"channel_id": str1,
      "script": {"type": "string", "minLength": 1, "description": "script artifact id or repository path"},
      "template": str1,
+     "anchor": {"type": "object", "additionalProperties": False, "required": ["id", "chosen_by"],
+                "description": "Which of the channel's anchors presents the video (studio/channels/<channel>/anchors/<id>); "
+                               "the voice is that anchor's.",
+                "properties": {
+                    "id": str1,
+                    "chosen_by": {"enum": ["argument", "script"],
+                                  "description": "argument: given to studio build (studio pick against the channel's last "
+                                                 "videos); script: picked by the script's content when none was given"}}},
      "duration_s": {"type": "number", "exclusiveMinimum": 0, "description": "Measured length of the rendered video"},
      "files": {"type": "object", "required": ["video", "subtitles", "cover"], "properties": {
          "video": {"$ref": "#/$defs/media"},
          "video_no_music": {"$ref": "#/$defs/media", "description": "Same video without music, for YouTube"},
          "subtitles": {"$ref": "#/$defs/media", "description": "SRT with the burned-in subtitle text and timings"},
-         "cover": {"$ref": "#/$defs/media"}}},
+         "cover": {"$ref": "#/$defs/media"},
+         "voice_stem": {"$ref": "#/$defs/media",
+                        "description": "The voice alone at the mix level (studio validate measures music against it)"},
+         "music_stem": {"$ref": "#/$defs/media",
+                        "description": "The ducked music alone at the mix level, when the video has music"}}},
      "render": {"type": "object", "required": ["width", "height", "fps", "video_codec", "audio_codec", "loudness_lufs"],
                 "properties": {
                     "width": {"type": "integer"}, "height": {"type": "integer"}, "fps": {"type": "number"},
@@ -463,7 +484,9 @@ vp = schema("video_package",
      "voice": {"type": "object", "required": ["provider", "voice_id"], "properties": {
          "provider": str1, "voice_id": str1, "model": {"type": "string"}, "speed": {"type": "number"},
          "wpm": {"type": "number", "description": "Measured words per minute of the narration"}}},
-     "transcript": {"type": "string", "minLength": 1, "description": "Full narration as voiced, scenes joined in order"},
+     "transcript": {"type": "string", "minLength": 1,
+                    "description": "Full narration in the script's original spelling, scenes joined in order; "
+                                   "pronunciation respellings go only to TTS and scenes[].narration"},
      "scenes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/vscene"}},
      "music": {"$ref": "#/$defs/vmusic"},
      "disclosures": {"type": "object", "required": ["ai_voice", "ai_visuals", "platforms"], "properties": {
@@ -479,7 +502,37 @@ vp = schema("video_package",
          "checks": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["id", "ok"], "properties": {
              "id": str1, "ok": {"type": "boolean"}, "value": {}, "expected": {}, "note": {"type": "string"}}}}},
          "description": "Result of studio validate on this package"},
-     "notes": {"type": "array", "items": str1}},
+     "notes": {"type": "array", "items": str1},
+     "images": {"type": "object",
+                "description": "Scene pictures drawn by the image provider for this build (studio build --images): the "
+                               "models, what they cost, and every attempt with its check. Absent when the pictures came "
+                               "from --assets or none were drawn.",
+                "required": ["provider", "model", "check_model", "cost_usd", "scenes"],
+                "properties": {
+                    "provider": str1, "model": str1, "check_model": str1,
+                    "cost_usd": {"type": "number", "minimum": 0},
+                    "scenes": {"type": "array", "items": {
+                        "type": "object", "required": ["id", "file", "fallback", "attempts"],
+                        "properties": {
+                            "id": {"type": "string", "minLength": 1, "description": "Scene id, or 'cover' for a custom cover"},
+                            "file": str1,
+                            "fallback": {"type": "boolean",
+                                         "description": "true: no attempt passed the check and a neutral card stands in"},
+                            "accepted": {"type": ["string", "null"]},
+                            "attempts": {"type": "array", "items": {"type": "object"}}}}}}},
+     "media": {"type": "object",
+               "description": "Where the package's files are in the store (hub media_upload_url object keys), added by "
+                              "newsroom/tools/video_build.py; absent in a package that was not uploaded. QA, Legal and "
+                              "the publisher open them with hub media_download_url.",
+               "properties": {
+                   "video": str1, "video_no_music": str1, "subtitles": str1, "cover": str1, "timeline": str1,
+                   "script": str1, "package_archive": {"type": "string", "minLength": 1,
+                                                       "description": "The whole package directory as .tar.gz"},
+                   "keyframes": {"type": "object", "additionalProperties": str1,
+                                 "description": "Keyframe name (S1_first, S1_mid, ...) -> object key"}}},
+     "pick": {"type": "object", "description": "What studio pick chose against the channel's last videos, and why",
+              "properties": {"template": str1, "anchor": str1, "music_track": {"type": ["string", "null"]},
+                             "music_key": {"type": ["string", "null"]}, "reasons": {"type": "object"}}}},
     {"media": media, "vscene": vscene, "vmusic": vmusic})
 vp["allOf"] = [
     {"if": {"required": ["duration_s", "music"],
@@ -488,6 +541,45 @@ vp["allOf"] = [
      "description": "Longer than 60 s with music: a YouTube version without music is required"},
 ]
 schemas["video_package"] = vp
+
+schemas["validation_report"] = schema("validation_report",
+    "QA output: is the rendered video (video_package) fit to go to Legal and the moderator? Technical checks come from "
+    "studio validate in the package; the content review is QA's own look at the keyframes, plates, subtitles and "
+    "package against format.md and policy.md. hub release_submit takes only a video whose verdict is pass.",
+    ["channel_id", "video_package", "verdict", "technical", "issues", "summary"],
+    {"channel_id": str1,
+     "video_package": {"type": "string", "minLength": 1, "description": "id of the video_package artifact checked: the video_package_id newsroom/tools/video_review_kit.py printed"},
+     "verdict": {"enum": ["pass", "fail"], "description": "fail if any blocker or major issue is open"},
+     "technical": {"type": "object", "required": ["passed", "failed_checks"], "properties": {
+         "passed": {"type": "boolean", "description": "video_package.validate.passed"},
+         "failed_checks": {"type": "array", "items": str1, "description": "id: note of every failed studio check"}}},
+     "issues": {"type": "array", "items": {"type": "object",
+         "required": ["id", "severity", "area", "finding", "fix_owner"],
+         "properties": {
+             "id": {"type": "string", "pattern": "^Q[0-9]+$"},
+             "severity": {"enum": ["blocker", "major", "minor"]},
+             "area": {"enum": ["technical", "format", "policy", "visual", "text", "audio", "metadata"]},
+             "scene_id": {"type": "string", "description": "S1, S2, ...; empty for the whole video"},
+             "keyframe": {"type": "string", "description": "Keyframe it is seen on, e.g. S3_mid"},
+             "finding": str1,
+             "fix_owner": {"enum": ["script", "video"],
+                           "description": "script: the text or the visual brief must change; video: a rebuild fixes it"},
+             "fix": {"type": "string", "description": "What to change"}}}},
+     "summary": {"type": "string", "minLength": 1, "description": "Two or three sentences for the router and the moderator"}},
+    {})
+
+schemas["release_receipt"] = schema("release_receipt",
+    "editor output at the end of a channel run: what hub release_submit answered. The video now waits for the "
+    "moderator.",
+    ["release_id", "status", "allowed_platforms", "sources"],
+    {"release_id": str1,
+     "status": str1,
+     "allowed_platforms": {"type": "array", "items": {"enum": ["youtube", "tiktok", "instagram"]}},
+     "sources": {"type": "object", "required": ["total", "archived"], "properties": {
+         "total": {"type": "integer", "minimum": 0}, "archived": {"type": "integer", "minimum": 0},
+         "dead": {"type": "integer", "minimum": 0}}},
+     "notes": {"type": "array", "items": str1}},
+    {})
 
 uuid = {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"}
 schemas["stage_report"] = schema("stage_report",
@@ -500,12 +592,13 @@ schemas["stage_report"] = schema("stage_report",
      "delegation_result_id": uuid,
      "artifacts": {"type": "object", "propertyNames": {"pattern": "^[a-z_]+$"}, "additionalProperties": uuid,
                    "description": "Latest artifact id per kind returned by the team, e.g. {\"research_dossier\": \"…\"}"},
-     "verdict": {"enum": ["approved", "not_approved", "pass", "fix_required", "kill", "missing"],
+     "verdict": {"enum": ["approved", "not_approved", "pass", "fix_required", "kill", "built", "fail", "missing"],
                  "description": "Research/Script: approved by the team's reviewer or not; Legal: legal_review.verdict; "
-                                "missing: the expected artifact is absent"},
+                                "Video: built (a video_package whose studio checks passed) or fail; QA: "
+                                "validation_report.verdict (pass / fail); missing: the expected artifact is absent"},
      "fix_owners": {"type": "object", "propertyNames": {"enum": ["script", "video", "editor", "none"]},
                     "additionalProperties": {"type": "array", "items": str1},
-                    "description": "Legal only: open issue ids grouped by fix_owner"},
+                    "description": "Legal and QA: open issue ids grouped by fix_owner"},
      "platforms": {"type": "object", "additionalProperties": {"enum": ["pass", "fix_required", "exclude"]},
                    "description": "Legal only: verdict per platform"},
      "notes": {"type": "array", "items": str1}},

@@ -1,6 +1,6 @@
-# Каталог фоновой музыки (music/README.md). Только approved-треки идут в music_pick.
+# Каталог фоновой музыки (music/README.md). Только approved-треки идут в выбор трека (studio pick).
 # Собран 2026-10-24 из прослушивания CC0-кандидатов (music/candidates.yaml).
-# audio.key — будущий ключ в S3; пока файл лежит локально по тому же пути (папка в .gitignore).
+# audio.key — ключ файла в бакете медиа (R2, загружены 2026-10-28); локальная копия по тому же пути — в .gitignore.
 tracks:
 - id: oga-chill-chiptunes-collection-5
   status: approved

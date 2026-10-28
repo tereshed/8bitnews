@@ -52,9 +52,11 @@
         "pass",
         "fix_required",
         "kill",
+        "built",
+        "fail",
         "missing"
       ],
-      "description": "Research/Script: approved by the team's reviewer or not; Legal: legal_review.verdict; missing: the expected artifact is absent"
+      "description": "Research/Script: approved by the team's reviewer or not; Legal: legal_review.verdict; Video: built (a video_package whose studio checks passed) or fail; QA: validation_report.verdict (pass / fail); missing: the expected artifact is absent"
     },
     "fix_owners": {
       "type": "object",
@@ -73,7 +75,7 @@
           "minLength": 1
         }
       },
-      "description": "Legal only: open issue ids grouped by fix_owner"
+      "description": "Legal and QA: open issue ids grouped by fix_owner"
     },
     "platforms": {
       "type": "object",

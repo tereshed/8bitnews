@@ -1,0 +1,36 @@
+{
+  "team_id": "",
+  "name": "QA",
+  "type": "other",
+  "description": "Проверка собранных роликов 8bitnews до Legal и модератора: технические проверки студии (studio validate) и просмотр каждого ключевого кадра против сценария, format.md и policy.md — текст в кадре, плашки раскрытия AI, картинки сцен (надписи, логотипы, элементы игр, узнаваемые реальные люди, намёки на вину), ведущий, длительность, музыка. Результат — validation_report: pass / fail и замечания с адресатом (script или video). Кода не пишет.",
+  "accepts_delegation": true,
+  "agents": [
+    {
+      "name": "router",
+      "role": "router",
+      "prompt": "router.md",
+      "common": false,
+      "model": "google/gemini-3.8-flash"
+    },
+    {
+      "name": "qa_validator",
+      "role": "qa_validator",
+      "prompt": "qa_validator.md",
+      "role_description": "Скачивает ролик (newsroom/tools/video_review_kit.py), смотрит каждый ключевой кадр и обложку, сверяет со сценарием, format.md и policy.md, переносит технические проверки студии и сдаёт validation_report с замечаниями по важности и адресату.",
+      "skills": [
+        "hub-access"
+      ]
+    }
+  ],
+  "deactivate": [],
+  "contracts": [
+    {
+      "kind": "validation_report",
+      "schema": "validation_report.schema.json",
+      "audience": [
+        "qa_validator"
+      ],
+      "description": "Проверка собранного ролика: pass / fail, технические проверки студии, замечания по сценам с важностью и адресатом правки, сводка."
+    }
+  ]
+}
