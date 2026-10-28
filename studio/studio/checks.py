@@ -384,6 +384,14 @@ def _check_ai_plates(package_dir: Path, package: dict, channel_profile: dict) ->
         st = ctx.timing(cover_frame)
         frames.append((package["files"]["cover"]["path"], cover_frame, (st.start_s + st.end_s) / 2, True))
     checked = 0
+    # A custom cover the image model drew carries the plate as well
+    # (build._render_custom_cover): it shows the story, maybe its people.
+    if cover_frame == "custom" and any(s["id"] == "cover" for s in package.get("images", {}).get("scenes", [])):
+        checked += 1
+        rel = package["files"]["cover"]["path"]
+        why = _plate_problem(_image(package_dir, rel), ctx, "ai_illustration")
+        if why:
+            problems.append(f"{rel} (a cover drawn by the image model): ai_illustration plate missing: {why}")
     for rel, scene_id, t, is_cover in frames:
         if not is_cover and ctx.in_transition(scene_id, t):
             continue
@@ -655,14 +663,22 @@ def _check_video_no_music(package_dir: Path, package: dict, channel_profile: dic
     if rise > cfg["no_music_max_other_rise_db"]:
         problems.append(f"video_no_music.mp4 holds sound neither stem explains, {rise:.1f} dB more than "
                         "video.mp4 does: there is music in it")
-    # The voice's pauses (and not the sound effects'): silent in a cut
-    # without music, whatever the voice.
+    # The voice's pauses (and not the sound effects'): nothing but the voice
+    # in a cut without music. Measured on what is left once the voice stem
+    # is fitted and taken out, channel by channel: a word's tail can run past
+    # its timing into the pause (the ninth-circuit trial: -33.5 dB of pure
+    # voice there), music can't hide in it.
     speech = _speech(load_timeline(package_dir / files["timeline"]["path"]))
     in_speech = ~_outside(speech, n, sr)
     pauses = mask & _outside([(a - 0.03, b + 0.08) for a, b in speech], n, sr)
     pause_db = None
     if pauses.sum() >= 0.3 * sr and in_speech.any():
-        pause_db = float(10 * np.log10((np.mean(cut[:n][pauses] ** 2) + 1e-20) / (np.mean(cut[:n][in_speech] ** 2) + 1e-20)))
+        levels = []
+        for c in range(2):
+            (gain,), _ = fit(cut[:n, c], [voice[:n]], mask)
+            rest = cut[:n, c] - gain * voice[:n]
+            levels.append(10 * np.log10((np.mean(rest[pauses] ** 2) + 1e-20) / (np.mean(cut[:n, c][in_speech] ** 2) + 1e-20)))
+        pause_db = float(max(levels))
         if pause_db > cfg["no_music_max_pause_db"]:
             problems.append(f"video_no_music.mp4 is not silent in the voice's pauses ({pause_db:.1f} dB next to the "
                             "voice): there is music in it")

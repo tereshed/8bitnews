@@ -20,6 +20,10 @@
     "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
     "name": { "type": "string", "minLength": 1 },
     "version": { "type": "integer", "minimum": 1 },
+    "image_style": {
+      "type": "string",
+      "description": "The template's own look for generated scene pictures (time of day, dominant colors), added to the channel's style in every scene prompt (studio/scene_images.py)."
+    },
     "license_note": {
       "type": "string",
       "description": "Where the template's own assets come from and under what license; required whenever assets[] is non-empty."
@@ -83,6 +87,12 @@
           "type": "array",
           "items": { "$ref": "#/$defs/hex_color" },
           "description": "Muted subset (night, greys and blues) used when the script's serious_mode is true."
+        },
+        "scene_colors": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/hex_color" },
+          "description": "What scene pictures snap to in normal mode; default the whole NES palette (channels/8bitnews-us/palette.json). The template's own colors stay for what it draws itself."
         }
       }
     },

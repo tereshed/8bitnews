@@ -34,7 +34,7 @@ from .audio import (
 )
 from .channel_assets import ChannelAssets, anchor_ids, load_channel_assets, pick_anchor
 from .checks import run_checks
-from .config import audio_settings, tts_settings
+from .config import audio_settings, image_settings, tts_settings
 from .constants import (
     FONT_PX,
     FPS,
@@ -45,10 +45,12 @@ from .constants import (
 )
 from .engine import (
     active_plates,
+    _draw_plate,
     plate_lines,
     plate_max_lines,
     render_cover_frame,
     render_frame,
+    scene_palette,
     scene_transition_duration,
     transition_sound,
 )
@@ -176,19 +178,27 @@ def _draw_cover_title(frame: Image.Image, text: str, template: TemplatePackage, 
 
 
 def _render_custom_cover(
-    script: dict, template: TemplatePackage, assets: ChannelAssets, assets_dir: Path | None, cover_cfg: dict, out_path: Path
+    script: dict, template: TemplatePackage, assets: ChannelAssets, assets_dir: Path | None, cover_cfg: dict,
+    out_path: Path, generated: bool = False,
 ) -> None:
+    """`cover.png` from `assets_dir` (a picture: the scene palette), else the
+    template's own cover background (its own colors), with the title. A
+    cover the image model drew carries the "AI illustration" plate: it shows
+    the story, possibly its real people by role (format.md)."""
     serious = bool(script.get("serious_mode"))
-    palette = template.palette(serious=serious)
     custom_path = Path(assets_dir) / "cover.png" if assets_dir else None
     if custom_path is not None and custom_path.is_file():
+        palette = scene_palette(template, serious, assets.channel_id)
         bg = quantize(Image.open(custom_path), palette, target_w=LOGICAL_W, target_h=LOGICAL_H).convert("RGBA")
     else:
+        palette = template.palette(serious=serious)
         bg_asset = template.load_asset_image(template.data["cover"]["layout"]["background"])
         bg = quantize(bg_asset.convert("RGB"), palette, target_w=LOGICAL_W, target_h=LOGICAL_H).convert("RGBA")
 
     frame = Image.new("RGBA", (LOGICAL_W, LOGICAL_H), (0, 0, 0, 255))
     frame.alpha_composite(bg)
+    if generated:
+        _draw_plate(frame, template.plate("ai_illustration"), ["AI illustration"], assets.font(FONT_PX))
     _draw_cover_title(frame, cover_cfg["text"], template, assets)
 
     quantized = quantize_image(frame, palette)
@@ -202,10 +212,11 @@ def _render_cover(
     assets: ChannelAssets,
     assets_dir: Path | None,
     out_path: Path,
+    generated: bool = False,
 ) -> None:
     cover_cfg = script["cover"]
     if cover_cfg["frame"] == "custom":
-        _render_custom_cover(script, template, assets, assets_dir, cover_cfg, out_path)
+        _render_custom_cover(script, template, assets, assets_dir, cover_cfg, out_path, generated)
         return
     scene_timing = next((s for s in timeline.scenes if s.scene_id == cover_cfg["frame"]), None)
     if scene_timing is None:
@@ -362,11 +373,16 @@ def build_package(
     music_dir: Path | None = None,
     audio_overrides: dict | None = None,
     anchor_id: str | None = None,
+    images: str | None = None,
+    image_client=None,
 ) -> Path:
     """`keep_work` keeps frames/ (every rendered logical frame) after the
     build for debugging; by default it is deleted once nothing needs it.
     `anchor_id`: which of the channel's anchors presents the video (hub
     `anchor_pick`); without it, one picked by the script's content.
+    `images="openrouter"`: draw the scene pictures with the image provider
+    (studio.scene_images) instead of reading them from `assets_dir`;
+    `image_client` replaces the OpenRouter client (tests).
     `music_file`/`music_track`: see `studio.music.choose_music`;
     `audio_overrides` replaces mix levels from config.json (tests)."""
     script_path = Path(script_path)
@@ -397,6 +413,21 @@ def build_package(
     fit_cover_title(script["cover"]["text"], template.data["cover"]["layout"]["text_rect"], assets.font(FONT_PX))
     music_choice = choose_music(script, channel_profile, music_file, music_track, music_catalog, music_dir)
     audio_cfg = audio_settings(audio_overrides)
+
+    images_report = None
+    if images is not None:
+        if images != "openrouter":
+            raise BuildError(f"--images {images!r}: the only image provider is 'openrouter'")
+        if assets_dir is not None:
+            raise BuildError("--images and --assets both give the scene pictures: pass one")
+        from .openrouter import OpenRouterClient
+        from .scene_images import generate_scene_images
+
+        cfg = image_settings()
+        assets_dir, images_report = generate_scene_images(
+            script, template, channel_id, out_dir, image_client or OpenRouterClient(),
+            model=cfg["model"], check_model=cfg["check_model"],
+        )
 
     tts_name_resolved = _resolve_tts_name(tts_name, channel_profile)
     # Each anchor speaks with its own voice (format.md, 'Ведущие').
@@ -501,7 +532,8 @@ def build_package(
     write_srt(all_cues, srt_path)
 
     cover_path = out_dir / "cover.png"
-    _render_cover(script, timeline, template, assets, assets_dir, cover_path)
+    cover_generated = images_report is not None and any(s["id"] == "cover" for s in images_report.scenes)
+    _render_cover(script, timeline, template, assets, assets_dir, cover_path, cover_generated)
 
     timeline_path = out_dir / "timeline.json"
     timeline_dict = timeline_to_dict(timeline)
@@ -552,6 +584,8 @@ def build_package(
     if serious and template_has_sounds(template):
         extra_notes.append("serious mode: the template's transition sounds were left out (format.md)")
 
+    if images_report is not None:
+        extra_notes.extend(images_report.notes)
     package = _assemble_package(
         script=script,
         script_artifact=_script_artifact(script_path, root),
@@ -569,6 +603,8 @@ def build_package(
         extra_notes=extra_notes,
         anchor={"id": anchor_id, "chosen_by": chosen_by},
     )
+    if images_report is not None:
+        package["images"] = images_report.to_package()
 
     schema = repo.load_contract_schema("video_package.schema.json")
     validator = jsonschema.Draft202012Validator(schema)

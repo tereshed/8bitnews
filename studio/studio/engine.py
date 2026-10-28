@@ -20,7 +20,7 @@ from .constants import (
     MAX_SUBTITLE_CHARS_PER_LINE,
     MAX_SUBTITLE_LINES,
 )
-from .palette import Palette, hex_to_rgb, quantize_image
+from .palette import Palette, channel_palette_colors, hex_to_rgb, quantize_image
 from .quantize import quantize
 from .subtitles import wrap_words
 from .template_pkg import TemplatePackage
@@ -102,17 +102,38 @@ def _quantize_asset_cached(path_str: str, palette_colors: tuple[str, ...], w: in
     return quantize(Image.open(path_str), Palette(palette_colors), target_w=w, target_h=h).convert("RGBA")
 
 
+def scene_palette(template: TemplatePackage, serious: bool, channel_id: str) -> Palette:
+    """The colors a scene picture snaps to. In normal mode the whole NES
+    palette, or the template's `palette.scene_colors`: the template's own
+    subset has no skin tones, and generated people came out lilac in it (the
+    template's look reaches the picture through its `image_style` prompt
+    instead). In serious mode the template's muted colors, as before."""
+    if serious:
+        return template.palette(serious=True)
+    return Palette(template.data["palette"].get("scene_colors") or channel_palette_colors(channel_id))
+
+
+def frame_palette(template: TemplatePackage, serious: bool, channel_id: str) -> Palette:
+    """The template's colors for everything it draws itself, carrying
+    `.scene` (`scene_palette`) for the scene pictures."""
+    palette = template.palette(serious=serious)
+    palette.scene = scene_palette(template, serious, channel_id)
+    return palette
+
+
 def _render_scene_base(
     scene: dict, assets_dir: Path | None, palette: Palette, font, w: int, h: int
 ) -> Image.Image:
     """Renders scene["id"]'s image (or a placeholder) straight at the
-    requested logical size, already snapped to `palette`. Used both for the
-    main `shot: scene` frame and for the anchor's over-the-shoulder screen,
-    and -- at oversized `w`/`h` -- as the source for pan/zoom motion, so
-    panning/zooming is a pure crop with no secondary resize."""
+    requested logical size, already snapped: a picture to `palette.scene`
+    (`frame_palette`), the placeholder card to `palette` itself. Used both
+    for the main `shot: scene` frame and for the anchor's over-the-shoulder
+    screen, and -- at oversized `w`/`h` -- as the source for pan/zoom motion,
+    so panning/zooming is a pure crop with no secondary resize."""
     path = _scene_image_path(assets_dir, scene["id"])
     if path is not None:
-        return _quantize_asset_cached(str(path), tuple(palette.hex_colors), w, h)
+        scene_colors = getattr(palette, "scene", palette)
+        return _quantize_asset_cached(str(path), tuple(scene_colors.hex_colors), w, h)
     placeholder = _draw_placeholder_scene(scene["id"], scene["visual"], palette.hex_colors, font, w, h)
     # The placeholder's debug label is drawn in a fixed white/black (see
     # _draw_placeholder_scene) that isn't necessarily in a template's own
@@ -371,7 +392,7 @@ def render_cover_frame(
     scene_timing = timeline.scene_at(t_abs)
     scene = _scene_data(script, scene_timing.scene_id)
     serious = bool(script.get("serious_mode"))
-    palette = template.palette(serious=serious)
+    palette = frame_palette(template, serious, assets.channel_id)
     font = assets.font(FONT_PX)
     frame = _render_scene_pixels(script, scene, scene_timing, template, assets, t_abs, assets_dir, palette, font)
     _draw_content_plates(frame, scene, cover_plates(script, scene_timing, template, t_abs), template, font)
@@ -506,9 +527,10 @@ def render_frame(
 
     serious = bool(script.get("serious_mode"))
     # The template's own (muted, in serious mode) palette subset is what
-    # backgrounds/scene art are snapped to; the anchor sprite is composited
-    # afterwards and is never touched by this (see _render_anchor_shot).
-    palette = template.palette(serious=serious)
+    # its backgrounds are snapped to, scene pictures to `palette.scene`; the
+    # anchor sprite is composited afterwards and is never touched by this
+    # (see _render_anchor_shot).
+    palette = frame_palette(template, serious, assets.channel_id)
     font = assets.font(FONT_PX)
 
     scene_index = timeline.scenes.index(scene_timing)

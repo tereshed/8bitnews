@@ -32,6 +32,11 @@ DEFAULT_AUDIO = {
     "sfx_db": -8.0,
 }
 
+DEFAULT_IMAGES = {
+    "model": "google/gemini-3.1-flash-image",
+    "check_model": "google/gemini-3.5-flash-lite",
+}
+
 DEFAULT_CHECKS = {
     "min_voice_over_music_db": 10.0,
     "no_music_max_music_share": 0.05,
@@ -72,3 +77,8 @@ def check_settings() -> dict:
     studio's (how far under the voice the music must sit, how much music
     video_no_music.mp4 may hold); the channel policy is in `constants`."""
     return {**DEFAULT_CHECKS, **_load().get("checks", {})}
+
+
+def image_settings() -> dict:
+    """The image provider's models (`studio build --images openrouter`)."""
+    return {**DEFAULT_IMAGES, **_load().get("images", {})}

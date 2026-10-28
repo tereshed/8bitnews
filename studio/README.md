@@ -48,9 +48,14 @@ t_abs)` — same inputs always produce the same PNG bytes (`tests/test_determini
   `channels/8bitnews-us/palette.json`, so every frame is palette-pure by
   construction, not by a final clean-up pass.
 - **Palette subset vs. the anchor** — studio background/foreground layers
-  and scene images are snapped to the *template's* `palette.colors` (or
-  `serious_colors` in serious mode) before anything else is drawn on top,
-  in both modes, not just serious mode. The anchor sprite is composited
+  and the placeholder card of a scene without a picture are snapped to the
+  *template's* `palette.colors` (or `serious_colors` in serious mode)
+  before anything else is drawn on top, in both modes. Scene *pictures* snap
+  to `palette.scene_colors`, by default the whole NES palette, in normal
+  mode (E2b-2: the 13 colors of `nes-desk` have no skin tones, and the
+  generated people came out lilac; a template's look reaches its pictures
+  through its `image_style` prompt instead), and to `serious_colors` in
+  serious mode. The anchor sprite is composited
   **after** that and is never run through the template's palette at all —
   its pixels stay exactly whatever `channels/8bitnews-us/anchors/<id>/*.png`
   contain (skin/hair/suit tones that are deliberately not in every
@@ -250,6 +255,63 @@ under `STUDIO_IMAGE_CACHE`, so running again pays nothing):
 against the face of *every* active anchor, and that every anchor fits in the
 frame at the template's `studio.anchor` place.
 
+## Scene pictures (E2b-2)
+
+`studio build --images openrouter` draws the picture of every `shot: scene`
+(and a `custom` cover) with the image provider instead of reading them from
+`--assets` (key: env `STUDIO_OPENROUTER_API_KEY`; models: `config.json`
+`images`, Gemini Flash Image to draw and Gemini Flash Lite to check). The
+frame engine then snaps each picture to the 270×480 grid and the template's
+NES palette, like any scene asset.
+
+**The prompt** (`studio/scene_prompt.py`, `studio/scene_images.py`) is the
+channel's style (`channels/8bitnews-us/images.json`: NES pixel art, how
+people are drawn, what no picture may contain), the template's own look
+(`template.json` `image_style`, e.g. night-report's dark blue night; in
+serious mode the channel's muted `serious` look instead), and the scene's
+`visual` cleaned by `clean_visual`, a deterministic function with its own
+tests:
+- real people never reach the image model by name. Every scene is cleaned
+  of *everyone* in the script's `real_people` (a scene can mention someone
+  it doesn't show). Each name is reduced to its words (titles of any length,
+  initials and suffixes dropped; accents and curly apostrophes folded), and
+  the visual loses the full name with any middle names or initials, the
+  surname in any case, every other word when capitalized, each with a title
+  in front and a possessive behind: "Secretary of State Shirley Weber",
+  "Donald J. Trump", "WEBER's office", "Pedro Sanchez" for "Pedro Sánchez",
+  "President Xi" all become "a person". A surname that is also a word goes
+  everywhere ("the price of eggs" for Tom Price): a leak is worse than a
+  clumsy scene. Nicknames not in `real_people` ("AOC") can't be known.
+  `leaked_names` then checks the whole prompt by the same rules, and a
+  prompt that fails it is never sent (`BuildError`);
+- quoted words and what something is "labeled" or "marked" with are
+  dropped, and so are dates and numbers: the model draws them as text, and
+  no redraw talked it out of a "calendar from Oct 13 to Oct 15" in the
+  ninth-circuit trial. Calendars, notes and newspapers are asked for blank;
+- motifs of known games (a question mark, a "?" block, power-ups, "GAME
+  OVER", pipes, Tetris, Pac-Man) become neutral ones; a flag becomes a plain
+  one-color flag (format.md's half-mast flag stays possible); the seal of a
+  state or office, coats of arms, emblems and logos become plain shapes.
+
+**The check.** Every picture goes to a vision model that answers in JSON
+whether it shows text, logos, the flag of a real country or organization or
+a seal, video game elements, photorealism, or gore; a key missing from the
+answer counts as found. A picture that fails, one that doesn't decode, one
+under 256 px on its short side, and a refusal are drawn again (a refusal
+and an undecodable reply are never cached), the broken rule stated harder,
+at most twice. If no attempt passes, the channel logo on the template's
+darkest color stands in, and `package.json` `notes` says which scene and
+why, for QA and Legal. Every attempt is kept in the package
+(`images/attempts/`), with its prompt, check and cost in `package.json`
+`images.scenes[].attempts`. A cover the image model drew carries the "AI
+illustration" plate (it shows the story, maybe its people by role), and
+`ai_plates` checks it.
+
+**Cost.** About $0.067 a picture and $0.001 a check, so a video of six
+scene shots costs about $0.41, more with redraws; `package.json`
+`images.cost_usd` has the exact figure. Replies are cached by request
+(`STUDIO_IMAGE_CACHE`): rebuilding the same script pays nothing.
+
 ## Running things
 
 ```sh
@@ -389,7 +451,7 @@ check fails. Each check is a function registered under a fixed `id` with
 | `true_peak` | true peak of both files ≤ −1 dBTP (`constants.MAX_TRUE_PEAK_DBTP`) |
 | `silence` | ffmpeg `silencedetect`: no stretch below −50 dB longer than 1.5 s in either file (`constants.SILENCE_THRESHOLD_DB`, `MAX_SILENCE_S`) |
 | `music_under_voice` | with music, measured on `video.mp4` itself: over the word spans of `timeline.json`, the voice stem is fitted to each channel by least squares and subtracted; the voice must be at least 10 dB louder than what is left (`checks.min_voice_over_music_db`). The remainder is the music plus ~20–35 dB-down limiter and AAC error; channel by channel, so panned or out-of-phase music isn't lost in a mono sum; a stem that isn't the voice in the video leaves the voice in the remainder and fails |
-| `video_no_music` | a video with music longer than 60 s (`constants.YOUTUBE_MUSIC_MAX_S`) has `files.video_no_music`; when there is one, it carries the very same video stream as `video.mp4` (packet MD5) and the same length, and holds no music: the voice and music stems are fitted to both soundtracks channel by channel (outside the sound effects), and the music's gain in the cut must stay under 5 % of its gain in `video.mp4` (`checks.no_music_max_music_share`) — quiet music, enough for a Content ID match, is found by its shape — while sound neither stem explains may exceed what `video.mp4` itself leaves (limiter and AAC error) by at most 6 dB (`checks.no_music_max_other_rise_db`), which catches another track; and in the voice's pauses (outside the sound effects) the cut is at least 35 dB under the voice (`checks.no_music_max_pause_db`) — a real Kokoro cut measures about −53 dB there, any music shows |
+| `video_no_music` | a video with music longer than 60 s (`constants.YOUTUBE_MUSIC_MAX_S`) has `files.video_no_music`; when there is one, it carries the very same video stream as `video.mp4` (packet MD5) and the same length, and holds no music: the voice and music stems are fitted to both soundtracks channel by channel (outside the sound effects), and the music's gain in the cut must stay under 5 % of its gain in `video.mp4` (`checks.no_music_max_music_share`) — quiet music, enough for a Content ID match, is found by its shape — while sound neither stem explains may exceed what `video.mp4` itself leaves (limiter and AAC error) by at most 6 dB (`checks.no_music_max_other_rise_db`), which catches another track; and in the voice's pauses (outside the sound effects), once the voice stem is fitted and taken out channel by channel, what is left is at least 35 dB under the voice (`checks.no_music_max_pause_db`) — a real Kokoro cut measures about −65 dB there (a word's tail running into a pause is voice, not music: the ninth-circuit trial has −33.5 dB of it), any music shows |
 
 Keyframes taken mid-transition (only a scene shorter than its transition
 gets them) are skipped by `ai_plates` and `face_clear`: there the picture

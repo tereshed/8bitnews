@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import http.client
+import io
 import json
 import os
 import ssl
@@ -94,6 +95,17 @@ def _png_from_data_url(url: str) -> bytes:
     if not url.startswith("data:"):
         raise BuildError(f"OpenRouter returned an image URL, expected inline data: {url[:80]}")
     return base64.b64decode(url.split(",", 1)[1])
+
+
+def _decodes(data: bytes) -> bool:
+    from PIL import Image
+
+    try:
+        with Image.open(io.BytesIO(data)) as img:
+            img.verify()
+        return True
+    except Exception:  # noqa: BLE001 - whatever PIL can't read is not an image
+        return False
 
 
 def _parse_json_text(text: str) -> dict:
@@ -186,7 +198,10 @@ class OpenRouterClient:
             found = message.get("images") or []
             if not found:
                 raise NoImageError(f"{model} returned no image: {(message.get('content') or '')[:300]!r}")
-            return _png_from_data_url(found[0]["image_url"]["url"])
+            png = _png_from_data_url(found[0]["image_url"]["url"])
+            if not _decodes(png):
+                raise NoImageError(f"{model} returned an image that does not decode")
+            return png
 
         png, cost, cached = self._post(body, variant, parse)
         return ImageReply(png, cost, cached, model)

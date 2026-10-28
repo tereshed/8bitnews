@@ -273,6 +273,9 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
     for color in data.get("palette", {}).get("colors", []):
         if color.lower() not in palette_set:
             problems.append(f"palette.colors: {color} is not in the NES palette (channels/{channel_id}/palette.json)")
+    for color in data.get("palette", {}).get("scene_colors", []):
+        if color.lower() not in palette_set:
+            problems.append(f"palette.scene_colors: {color} is not in the NES palette (channels/{channel_id}/palette.json)")
     for color in data.get("palette", {}).get("serious_colors", []):
         if color.lower() not in palette_set:
             problems.append(

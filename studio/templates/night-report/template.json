@@ -2,6 +2,7 @@
   "id": "night-report",
   "name": "Night Report",
   "version": 1,
+  "image_style": "Night-time scenes in dark blue, teal and grey tones with a few lit windows or lamps.",
   "license_note": "All PNG assets in assets/ are original placeholder pixel art drawn for this repository (studio/scripts/generate_assets.py); no third-party material.",
   "studio": {
     "layers": [
