@@ -26,6 +26,11 @@ func (s *Service) MediaUploadURL(ctx context.Context, req MediaUploadURLRequest)
 	if req.ContentType == "" {
 		return MediaUploadURLResponse{}, invalidf("content_type is required")
 	}
+	id, err := parseID("development_id", req.DevelopmentID)
+	if err != nil {
+		return MediaUploadURLResponse{}, err
+	}
+	req.DevelopmentID = id
 
 	if _, err := s.store.GetDevelopment(ctx, req.DevelopmentID); err != nil {
 		if errors.Is(err, store.ErrNotFound) {

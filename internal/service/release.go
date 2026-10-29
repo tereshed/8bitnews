@@ -39,6 +39,11 @@ func (s *Service) ReleaseSubmit(ctx context.Context, manifest ReleaseManifest) (
 	if manifest.ChannelID == "" {
 		return ReleaseSubmitResponse{}, invalidf("channel_id is required")
 	}
+	devID, err := parseID("development_id", manifest.DevelopmentID)
+	if err != nil {
+		return ReleaseSubmitResponse{}, err
+	}
+	manifest.DevelopmentID = devID
 
 	dev, err := s.store.GetDevelopment(ctx, manifest.DevelopmentID)
 	if err != nil {
@@ -382,6 +387,11 @@ func (s *Service) ReleaseGet(ctx context.Context, req ReleaseGetRequest) (Releas
 	if req.ReleaseID == "" {
 		return ReleaseView{}, invalidf("release_id is required")
 	}
+	releaseID, err := parseID("release_id", req.ReleaseID)
+	if err != nil {
+		return ReleaseView{}, err
+	}
+	req.ReleaseID = releaseID
 	r, err := s.store.GetRelease(ctx, req.ReleaseID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
