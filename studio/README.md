@@ -302,13 +302,15 @@ tests:
 
 **The check.** Every picture goes to a vision model that answers in JSON
 whether it shows text, logos, the flag of a real country or organization or
-a seal, video game elements, photorealism, or gore; a key missing from the
-answer counts as found. A picture that fails, one that doesn't decode, one
-under 256 px on its short side, and a refusal are drawn again (a refusal
+a seal, video game elements, photorealism, gore, or people the scene's
+cleaned `visual` (given to the check) doesn't ask for; a key missing from
+the answer counts as found. A picture that fails, one that doesn't decode,
+one under 256 px on its short side, and a refusal are drawn again (a refusal
 and an undecodable reply are never cached), the broken rule stated harder,
 at most twice. If no attempt passes, the channel logo on the template's
 darkest color stands in, and `package.json` `notes` says which scene and
-why, for QA and Legal. Every attempt is kept in the package
+why, for QA and Legal. Extra people alone are not worth a card: the first
+attempt with nothing else wrong is kept, and the notes say so. Every attempt is kept in the package
 (`images/attempts/`), with its prompt, check and cost in `package.json`
 `images.scenes[].attempts`. A cover the image model drew carries the "AI
 illustration" plate (it shows the story, maybe its people by role), and

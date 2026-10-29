@@ -316,6 +316,13 @@
                   "null"
                 ]
               },
+              "kept_with": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "No attempt passed, and the kept one still has these findings: only extra_people, people the scene doesn't describe. Absent when the picture passed."
+              },
               "attempts": {
                 "type": "array",
                 "items": {
