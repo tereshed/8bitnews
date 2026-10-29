@@ -6,8 +6,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/tereshed/8bitnews/internal/store"
 )
 
@@ -88,8 +86,12 @@ func (s *Service) StoryRegister(ctx context.Context, req StoryRegisterRequest) (
 	if req.StoryID != nil {
 		if id := strings.TrimSpace(*req.StoryID); id == "" || strings.EqualFold(id, "null") {
 			req.StoryID = nil
-		} else if _, err := uuid.Parse(id); err != nil {
-			return StoryRegisterResponse{}, invalidf("story_id %q is not a story id: pass an id from story_find_similar, or null for a new storyline", id)
+		} else {
+			canonical, err := parseID("story_id", id)
+			if err != nil {
+				return StoryRegisterResponse{}, invalidf("story_id %q is not a story id: pass an id from story_find_similar, or null for a new storyline", id)
+			}
+			req.StoryID = &canonical
 		}
 	}
 

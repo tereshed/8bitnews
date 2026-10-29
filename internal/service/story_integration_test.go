@@ -142,11 +142,19 @@ func TestStoryRegisterTakesTheStringNullAsANewStoryline(t *testing.T) {
 		}
 	}
 
-	bad := "story-123"
-	_, err := svc.StoryRegister(ctx, service.StoryRegisterRequest{
-		ChannelID: "test-channel", StoryID: &bad, DevelopmentSummary: "Something new.", ReportedAt: time.Now().UTC(),
+	first, err := svc.StoryRegister(ctx, service.StoryRegisterRequest{
+		ChannelID: "test-channel", Title: "Storyline", Summary: "A summary.",
+		DevelopmentSummary: "Something new.", ReportedAt: time.Now().UTC(), SeedURLs: []string{},
 	})
-	if err == nil || !strings.Contains(err.Error(), "is not a story id") {
-		t.Fatalf("a story_id that isn't a uuid: %v; want a readable invalid-argument error", err)
+	if err != nil {
+		t.Fatalf("new storyline: %v", err)
+	}
+	spaced := "  " + strings.ToUpper(first.StoryID) + " "
+	again, err := svc.StoryRegister(ctx, service.StoryRegisterRequest{
+		ChannelID: "test-channel", StoryID: &spaced, DevelopmentSummary: "Something newer.",
+		ReportedAt: time.Now().UTC(), SeedURLs: []string{},
+	})
+	if err != nil || again.StoryID != first.StoryID {
+		t.Fatalf("story_id %q: %+v, %v; want the same storyline", spaced, again, err)
 	}
 }
