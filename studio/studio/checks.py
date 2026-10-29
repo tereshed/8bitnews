@@ -334,7 +334,8 @@ class _Context:
     def real_person_in_frame(self, scene_id: str) -> bool:
         """format.md's rule, stated independently of the engine: a real person
         in the scene, or -- for an anchor shot -- in the next `scene` shot,
-        which the screen behind the anchor shows."""
+        which the screen behind the anchor may show (it shows the anchor
+        scene's own picture when the studio drew one)."""
         order = self.script["scenes"]
         i = next(k for k, s in enumerate(order) if s["id"] == scene_id)
         if order[i].get("real_people"):
