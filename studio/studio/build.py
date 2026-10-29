@@ -44,8 +44,9 @@ from .constants import (
     MAX_SUBTITLE_LINES,
 )
 from .engine import (
+    AI_ILLUSTRATION_LABEL,
     active_plates,
-    _draw_plate,
+    draw_ai_label,
     plate_lines,
     plate_max_lines,
     render_cover_frame,
@@ -181,10 +182,11 @@ def _render_custom_cover(
     script: dict, template: TemplatePackage, assets: ChannelAssets, assets_dir: Path | None, cover_cfg: dict,
     out_path: Path, generated: bool = False,
 ) -> None:
-    """`cover.png` from `assets_dir` (a picture: the scene palette), else the
-    template's own cover background (its own colors), with the title. A
-    cover the image model drew carries the "AI illustration" plate: it shows
-    the story, possibly its real people by role (format.md)."""
+    """`cover.png` from `assets_dir` (a picture: its own colors, or the scene
+    palette when the template or serious mode sets one), else the template's
+    own cover background (its own colors), with the title. A cover the image
+    model drew carries the "AI illustration" line: it shows the story,
+    possibly its real people by role (format.md)."""
     serious = bool(script.get("serious_mode"))
     custom_path = Path(assets_dir) / "cover.png" if assets_dir else None
     if custom_path is not None and custom_path.is_file():
@@ -198,10 +200,10 @@ def _render_custom_cover(
     frame = Image.new("RGBA", (LOGICAL_W, LOGICAL_H), (0, 0, 0, 255))
     frame.alpha_composite(bg)
     if generated:
-        _draw_plate(frame, template.plate("ai_illustration"), ["AI illustration"], assets.font(FONT_PX))
+        draw_ai_label(frame, template, AI_ILLUSTRATION_LABEL, assets.font(FONT_PX))
     _draw_cover_title(frame, cover_cfg["text"], template, assets)
 
-    quantized = quantize_image(frame, palette)
+    quantized = quantize_image(frame, palette) if palette is not None else frame
     upscale_nearest(quantized.convert("RGB")).save(out_path)
 
 
@@ -471,7 +473,7 @@ def build_package(
         scene_voices.append(SceneVoice(scene_id=scene["id"], shot=scene["shot"], words=words, duration_s=duration))
         scene_wavs.append(tts_result.wav_path)
 
-    timeline = timeline_from_voice(scene_voices, pause_s, max_lines, max_chars)
+    timeline = timeline_from_voice(scene_voices, pause_s, max_lines, max_chars, sub_style.get("font_scale", 1))
 
     voice_raw_path = out_dir / "_voice_raw.wav"
     voice_sr = concat_wavs_with_silence(scene_wavs, pause_s, voice_raw_path)

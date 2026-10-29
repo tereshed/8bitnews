@@ -7,6 +7,7 @@ from __future__ import annotations
 from .constants import FONT_PX
 from .errors import BuildError
 from .subtitles import wrap_words
+from .text_render import text_size
 
 COVER_PAD = 2
 COVER_TEXT_MAX_CHARS = 30  # script.schema.json cover.text maxLength
@@ -64,8 +65,9 @@ def fit_cover_title(text: str, text_rect: dict, font) -> list[str]:
 
 def cover_title_layout(text: str, text_rect: dict, font) -> list[tuple[str, tuple[int, int]]]:
     """Each cover title line with its top-left origin in logical 270x480
-    coordinates: the same geometry `fit_cover_title` checks against."""
+    coordinates, centered in the rect: the same geometry `fit_cover_title`
+    checks against."""
     lines = fit_cover_title(text, text_rect, font)
-    x = text_rect["x"] + COVER_PAD
     y0 = text_rect["y"] + COVER_PAD
-    return [(line, (x, y0 + i * (FONT_PX + 2))) for i, line in enumerate(lines)]
+    return [(line, (text_rect["x"] + (text_rect["w"] - text_size(line, font)[0]) // 2, y0 + i * (FONT_PX + 2)))
+            for i, line in enumerate(lines)]

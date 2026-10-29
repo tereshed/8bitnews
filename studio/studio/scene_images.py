@@ -97,6 +97,8 @@ def scene_prompt(style: dict, template: TemplatePackage, visual: str, stronger: 
         parts.append(template.data["image_style"])
     if screen:
         parts.append(SCREEN_PROMPT)
+    # the source and title plates sit at the top of a scene shot, and reach the top of the screen behind the anchor
+    parts.append(style.get("top_room", ""))
     parts.append("Scene: " + _sentence(visual))
     parts.append(style["people"])
     parts.append(style["prohibitions"])

@@ -12,7 +12,6 @@ from PIL import Image, ImageDraw
 
 from .channel_assets import ChannelAssets
 from .constants import (
-    AI_VOICE_PLATE_S,
     FONT_PX,
     FPS,
     LOGICAL_H,
@@ -20,9 +19,9 @@ from .constants import (
     MAX_SUBTITLE_CHARS_PER_LINE,
     MAX_SUBTITLE_LINES,
 )
-from .palette import Palette, channel_palette_colors, hex_to_rgb, quantize_image
+from .palette import Palette, hex_to_rgb, quantize_image
 from .quantize import quantize
-from .subtitles import wrap_words
+from .subtitles import cue_lines, wrap_words
 from .template_pkg import TemplatePackage
 from .text_render import draw_text, text_size
 from .timeline import SceneTiming, Timeline
@@ -76,8 +75,8 @@ def _draw_placeholder_scene(
 ) -> Image.Image:
     """No asset file for this scene: a flat palette-colored card. The debug
     label and wrapped `visual` text sit in the lower half of the frame so
-    they don't collide with a template's top-area plates (AI voice/icon,
-    scene title, source)."""
+    they don't collide with a template's top-area plates (source, scene
+    title)."""
     idx = sum(ord(c) for c in scene_id) % len(palette_colors)
     bg = hex_to_rgb(palette_colors[idx])
     brightness = 0.299 * bg[0] + 0.587 * bg[1] + 0.114 * bg[2]
@@ -93,24 +92,27 @@ def _draw_placeholder_scene(
 
 @lru_cache(maxsize=64)
 def _quantize_asset_cached(path_str: str, palette_colors: tuple[str, ...], w: int, h: int) -> Image.Image:
-    """Quantizing a real scene asset (e.g. a 1024x1792 generated image) is the
-    expensive step (~0.17s observed); every frame of a scene re-requests the
-    exact same (path, palette, size) while the scene plays, so caching it by
-    those pure inputs is safe and cuts render time without affecting
-    determinism. Callers never mutate the returned Image in place (they only
+    """Fitting a real scene asset (e.g. a 1024x1792 generated image) to the
+    grid is the expensive step (~0.17s observed); every frame of a scene
+    re-requests the exact same (path, palette, size) while the scene plays,
+    so caching it by those pure inputs is safe and cuts render time without
+    affecting determinism. An empty `palette_colors` keeps the picture's own
+    colors. Callers never mutate the returned Image in place (they only
     .crop/.convert/.paste it, all of which return new images)."""
-    return quantize(Image.open(path_str), Palette(palette_colors), target_w=w, target_h=h).convert("RGBA")
+    palette = Palette(palette_colors) if palette_colors else None
+    return quantize(Image.open(path_str), palette, target_w=w, target_h=h).convert("RGBA")
 
 
-def scene_palette(template: TemplatePackage, serious: bool, channel_id: str) -> Palette:
-    """The colors a scene picture snaps to. In normal mode the whole NES
-    palette, or the template's `palette.scene_colors`: the template's own
-    subset has no skin tones, and generated people came out lilac in it (the
-    template's look reaches the picture through its `image_style` prompt
-    instead). In serious mode the template's muted colors, as before."""
+def scene_palette(template: TemplatePackage, serious: bool, channel_id: str) -> Palette | None:
+    """The colors a scene picture snaps to, or None to keep its own. In
+    normal mode the picture keeps the generator's colors (owner, 29.10: the
+    whole NES palette turned courtrooms brown and grey), unless the template
+    sets `palette.scene_colors`; it is still fitted to the 270x480 grid. In
+    serious mode the template's muted colors, as before."""
     if serious:
         return template.palette(serious=True)
-    return Palette(template.data["palette"].get("scene_colors") or channel_palette_colors(channel_id))
+    colors = template.data["palette"].get("scene_colors")
+    return Palette(colors) if colors else None
 
 
 def frame_palette(template: TemplatePackage, serious: bool, channel_id: str) -> Palette:
@@ -125,15 +127,16 @@ def _render_scene_base(
     scene: dict, assets_dir: Path | None, palette: Palette, font, w: int, h: int
 ) -> Image.Image:
     """Renders scene["id"]'s image (or a placeholder) straight at the
-    requested logical size, already snapped: a picture to `palette.scene`
-    (`frame_palette`), the placeholder card to `palette` itself. Used both
+    requested logical size: a picture fitted to the grid, snapped to
+    `palette.scene` when there is one (`frame_palette`), the placeholder card
+    snapped to `palette` itself. Used both
     for the main `shot: scene` frame and for the anchor's over-the-shoulder
     screen, and -- at oversized `w`/`h` -- as the source for pan/zoom motion,
     so panning/zooming is a pure crop with no secondary resize."""
     path = _scene_image_path(assets_dir, scene["id"])
     if path is not None:
         scene_colors = getattr(palette, "scene", palette)
-        return _quantize_asset_cached(str(path), tuple(scene_colors.hex_colors), w, h)
+        return _quantize_asset_cached(str(path), tuple(scene_colors.hex_colors) if scene_colors else (), w, h)
     placeholder = _draw_placeholder_scene(scene["id"], scene["visual"], palette.hex_colors, font, w, h)
     # The placeholder's debug label is drawn in a fixed white/black (see
     # _draw_placeholder_scene) that isn't necessarily in a template's own
@@ -222,11 +225,16 @@ def _render_anchor_shot(
     font,
 ) -> Image.Image:
     frame = Image.new("RGBA", (LOGICAL_W, LOGICAL_H), (0, 0, 0, 255))
-    for i, layer in enumerate(template.data["studio"]["layers"]):
-        img = quantize_image(template.load_asset_image(layer["file"]), palette)
-        dx = _parallax_shift(template, i, scene_timing, t_abs)
-        frame.alpha_composite(img, (layer["x"] + dx, layer["y"]))
+    layers = list(enumerate(template.data["studio"]["layers"]))
 
+    def draw_layers(front: bool) -> None:
+        for i, layer in layers:
+            if bool(layer.get("front")) == front:
+                img = quantize_image(template.load_asset_image(layer["file"]), palette)
+                dx = _parallax_shift(template, i, scene_timing, t_abs)
+                frame.alpha_composite(img, (layer["x"] + dx, layer["y"]))
+
+    draw_layers(front=False)
     screen = template.data["studio"]["screen"]
     # The anchor scene's own picture when it has one (its `visual` says what the screen shows: the hook's screen
     # is what Legal reviewed on it and on an S1 cover), else the next scene shot's, else the channel logo.
@@ -235,7 +243,12 @@ def _render_anchor_shot(
     if screen_scene is not None:
         content = _render_scene_base(screen_scene, assets_dir, palette, font, screen["w"], screen["h"])
     else:
-        content = assets.logo.resize((screen["w"], screen["h"]), Image.NEAREST)
+        content = _logo_card(assets.logo, screen["w"], screen["h"], hex_to_rgb(screen.get("border_color", "#000000")))
+    if screen.get("border_color"):
+        b = SCREEN_BORDER_PX
+        ImageDraw.Draw(frame).rectangle(
+            [screen["x"] - b, screen["y"] - b, screen["x"] + screen["w"] + b - 1, screen["y"] + screen["h"] + b - 1],
+            fill=(*hex_to_rgb(screen["border_color"]), 255))
     frame.paste(content.convert("RGBA"), (screen["x"], screen["y"]))
 
     # The anchor sprite's own pixels are never run through palette
@@ -253,7 +266,18 @@ def _render_anchor_shot(
     scale = anchor_cfg["scale"]  # schema-enforced integer >= 1: exact pixel replication, no fractional resize
     scaled = sprite.resize((sprite.width * scale, sprite.height * scale), Image.NEAREST)
     frame.alpha_composite(scaled, (anchor_cfg["x"], anchor_cfg["y"]))
+    draw_layers(front=True)  # the desk in front of the anchor
     return frame
+
+
+def _logo_card(logo: Image.Image, w: int, h: int, bg: tuple[int, int, int]) -> Image.Image:
+    """The channel logo on the screen of the last anchor shot: whole-pixel
+    scaled, centered on a plain card, with a margin -- never stretched."""
+    card = Image.new("RGBA", (w, h), (*bg, 255))
+    scale = max(1, min((w - 16) // logo.width, (h - 16) // logo.height))
+    big = logo.resize((logo.width * scale, logo.height * scale), Image.NEAREST)
+    card.alpha_composite(big, ((w - big.width) // 2, (h - big.height) // 2))
+    return card
 
 
 def _next_scene_shot(script: dict, after_scene_id: str) -> dict | None:
@@ -265,7 +289,7 @@ def _next_scene_shot(script: dict, after_scene_id: str) -> dict | None:
     return None
 
 
-def _max_chars_for_rect(rect_w: int, pad: int = 2) -> int:
+def _max_chars_for_rect(rect_w: int, pad: int = 3) -> int:  # pad: PLATE_PAD_X, the box's own
     """How many FONT_PX-wide monospace glyphs fit on one line of a plate
     rect, after padding on both sides."""
     return max(1, (rect_w - 2 * pad) // FONT_PX)
@@ -285,28 +309,67 @@ def plate_max_lines(template: TemplatePackage, plate_name: str) -> int:
     return template.plate(plate_name).get("max_lines", DEFAULT_PLATE_MAX_LINES)
 
 
-def _draw_plate(frame: Image.Image, plate_cfg: dict, lines: list[str], font) -> None:
+PLATE_PAD_X, PLATE_PAD_Y = 3, 2
+PLATE_GAP = 2  # between stacked plates (`below`)
+SCREEN_BORDER_PX = 2
+
+
+def plate_box(plate_cfg: dict, lines: list[str], font, y: int | None = None) -> dict:
+    """The box a text plate draws: as wide as its longest line, centered in
+    its rect, one 10-px row per line -- at `y`, or at the rect's own top."""
     rect = plate_cfg["rect"]
+    w = max(text_size(line, font)[0] for line in lines) + 2 * PLATE_PAD_X
+    return {"x": rect["x"] + (rect["w"] - w) // 2, "y": rect["y"] if y is None else y, "w": w,
+            "h": len(lines) * (FONT_PX + 2) + PLATE_PAD_Y}
+
+
+def _draw_plate(frame: Image.Image, plate_cfg: dict, lines: list[str], font, y: int | None = None) -> dict:
+    """Draws the plate (`plate_box`), each line centered in it; returns the box."""
+    box = plate_box(plate_cfg, lines, font, y)
     bg = hex_to_rgb(plate_cfg["bg_color"])
     fg = hex_to_rgb(plate_cfg["text_color"])
-    draw = ImageDraw.Draw(frame)
-    draw.rectangle(
-        [rect["x"], rect["y"], rect["x"] + rect["w"] - 1, rect["y"] + rect["h"] - 1],
-        fill=(*bg, 255),
-    )
-    pad = 2
-    y = rect["y"] + pad
+    ImageDraw.Draw(frame).rectangle(
+        [box["x"], box["y"], box["x"] + box["w"] - 1, box["y"] + box["h"] - 1], fill=(*bg, 255))
+    ty = box["y"] + PLATE_PAD_Y
     for line in lines:
-        draw_text(frame, (rect["x"] + pad, y), line, font, fg)
-        y += FONT_PX + 2
+        draw_text(frame, (box["x"] + (box["w"] - text_size(line, font)[0]) // 2, ty), line, font, fg)
+        ty += FONT_PX + 2
+    return box
+
+
+AI_VOICE_LABEL = "AI voice"
+AI_ILLUSTRATION_LABEL = "AI illustration"
+
+
+def ai_label_text(plates: set[str], cover: bool = False) -> str | None:
+    """The one AI line (format.md 'Текст в кадре'): "AI voice" on every
+    frame, joined by "AI illustration" while a real person is in frame. A
+    still cover has no voice: only "AI illustration", when it applies."""
+    illustration = "ai_illustration" in plates
+    if cover:
+        return AI_ILLUSTRATION_LABEL if illustration else None
+    return f"{AI_VOICE_LABEL} · {AI_ILLUSTRATION_LABEL}" if illustration else AI_VOICE_LABEL
+
+
+def ai_label_origin(template: TemplatePackage, text: str, font) -> tuple[int, int]:
+    """Top-left of the AI line: centered in the frame at `plates.ai_label.y`."""
+    return (LOGICAL_W - text_size(text, font)[0]) // 2, template.plate("ai_label")["y"]
+
+
+def draw_ai_label(frame: Image.Image, template: TemplatePackage, text: str | None, font) -> None:
+    """The AI line: small text with an outline, no plate behind it."""
+    if not text:
+        return
+    cfg = template.plate("ai_label")
+    draw_text(frame, ai_label_origin(template, text, font), text, font, hex_to_rgb(cfg["text_color"]),
+              outline=hex_to_rgb(cfg["outline_color"]))
 
 
 def active_plates(script: dict, scene_timing: SceneTiming, template: TemplatePackage, t_abs: float) -> set[str]:
-    """Which named plates (docs: AI voice, AI icon, AI illustration, scene
-    title, source plate) should be visible at `t_abs`. A pure function of
-    its inputs so timing rules (format.md: AI voice plate for the video's
-    first 3s, then a persistent icon; AI illustration while real_people is
-    non-empty) can be tested without rendering any pixels.
+    """Which of scene_title, source_plate and ai_illustration (the AI line's
+    "AI illustration", `ai_label_text`) are visible at `t_abs`. A pure
+    function of its inputs, so the rules (format.md: AI illustration while a
+    real person is in frame) can be tested without rendering any pixels.
     """
     scene = _scene_data(script, scene_timing.scene_id)
     plates: set[str] = set()
@@ -316,9 +379,9 @@ def active_plates(script: dict, scene_timing: SceneTiming, template: TemplatePac
     if element_delay is not None and element_delay["params"].get("element") == "scene_title":
         title_ready = (t_abs - scene_timing.start_s) >= element_delay["params"].get("delay_s", 0.0)
 
-    if title_ready and scene.get("on_screen_text"):
+    if title_ready and (scene.get("on_screen_text") or "").strip():
         plates.add("scene_title")
-    if scene.get("source_plate"):
+    if (scene.get("source_plate") or "").strip():
         plates.add("source_plate")
 
     # ai_illustration must stay up for as long as a real person's likeness is
@@ -332,8 +395,6 @@ def active_plates(script: dict, scene_timing: SceneTiming, template: TemplatePac
             real_person_in_frame = True
     if real_person_in_frame:
         plates.add("ai_illustration")
-
-    plates.add("ai_voice" if t_abs < AI_VOICE_PLATE_S else "ai_icon")
     return plates
 
 
@@ -353,31 +414,38 @@ def _render_scene_pixels(
     return _render_scene_shot(script, scene, scene_timing, template, t_abs, assets_dir, palette, font)
 
 
+_TEXT_PLATE_FIELDS = {"source_plate": "source_plate", "scene_title": "on_screen_text"}
+
+
+def content_plate_boxes(scene: dict, plates: set[str], template: TemplatePackage, font) -> dict[str, tuple[dict, list[str]]]:
+    """Where the source and title plates go and what they say. A plate with
+    `below` sits under that plate when it is shown, else at its own rect's
+    top: the source above the title (owner, 29.10), the title up top alone."""
+    out: dict[str, tuple[dict, list[str]]] = {}
+    for name in sorted(_TEXT_PLATE_FIELDS, key=lambda n: bool(template.plate(n).get("below"))):
+        if name not in plates:
+            continue
+        # [:max_lines] only guards `template preview`'s built-in script; `studio
+        # build` has already rejected text that doesn't fit (build.check_plate_text).
+        lines = plate_lines(template, name, scene[_TEXT_PLATE_FIELDS[name]])[: plate_max_lines(template, name)]
+        above = out.get(template.plate(name).get("below"))
+        y = above[0]["y"] + above[0]["h"] + PLATE_GAP if above else None
+        out[name] = (plate_box(template.plate(name), lines, font, y), lines)
+    return out
+
+
 def _draw_content_plates(frame: Image.Image, scene: dict, plates: set[str], template: TemplatePackage, font) -> None:
-    """Scene-title / source / AI-illustration plates -- shared by the timed
-    frame render (`_render_core`) and the untimed cover render
-    (`render_cover_frame`), which skips the AI-voice/AI-icon plate and
-    subtitles a still cover doesn't need."""
-    # [:max_lines] only guards `template preview`'s built-in script; `studio
-    # build` has already rejected text that doesn't fit (build.check_plate_text).
-    if "scene_title" in plates:
-        lines = plate_lines(template, "scene_title", scene["on_screen_text"])
-        _draw_plate(frame, template.plate("scene_title"), lines[: plate_max_lines(template, "scene_title")], font)
-
-    if "source_plate" in plates:
-        lines = plate_lines(template, "source_plate", scene["source_plate"])
-        _draw_plate(frame, template.plate("source_plate"), lines[: plate_max_lines(template, "source_plate")], font)
-
-    if "ai_illustration" in plates:
-        _draw_plate(frame, template.plate("ai_illustration"), ["AI illustration"], font)
+    """Source and title plates -- shared by the timed frame render
+    (`_render_core`) and the untimed cover render (`render_cover_frame`)."""
+    for name, (box, lines) in content_plate_boxes(scene, plates, template, font).items():
+        _draw_plate(frame, template.plate(name), lines, font, box["y"])
 
 
 def cover_plates(script: dict, scene_timing: SceneTiming, template: TemplatePackage, t_abs: float) -> set[str]:
     """Plates on a `cover.frame: S*` cover: only ai_illustration, by the same
     rule as the timed frame (a real person in the scene or on the screen
     behind the anchor). The cover's own title replaces scene_title and
-    source_plate, and AI-voice/AI-icon are timed against a video start a
-    still cover doesn't have."""
+    source_plate, and a still cover has no voice to label."""
     return active_plates(script, scene_timing, template, t_abs) & {"ai_illustration"}
 
 
@@ -398,7 +466,9 @@ def render_cover_frame(
     palette = frame_palette(template, serious, assets.channel_id)
     font = assets.font(FONT_PX)
     frame = _render_scene_pixels(script, scene, scene_timing, template, assets, t_abs, assets_dir, palette, font)
-    _draw_content_plates(frame, scene, cover_plates(script, scene_timing, template, t_abs), template, font)
+    plates = cover_plates(script, scene_timing, template, t_abs)
+    _draw_content_plates(frame, scene, plates, template, font)
+    draw_ai_label(frame, template, ai_label_text(plates, cover=True), font)
     return frame.convert("RGB")
 
 
@@ -450,34 +520,54 @@ def _render_core(
     plates = active_plates(script, scene_timing, template, t_abs)
     _draw_content_plates(frame, scene, plates, template, font)
 
-    if "ai_voice" in plates:
-        _draw_plate(frame, template.plate("ai_voice"), ["AI · AI voice"], font)
-    else:
-        _draw_plate(frame, template.plate("ai_icon"), ["AI"], font)
-
     cue = next((c for c in scene_timing.subtitles if c.start_s <= t_abs < c.end_s), None)
     if cue is not None:
-        sub = template.data["subtitles"]
-        rect = sub["rect"]
-        style = sub["style"]
-        # Re-wrap at render time using *this* template's own line/char caps
-        # (schema `subtitles.style.max_lines`/`max_chars_per_line`) rather than
-        # the timeline's template-independent split, so those fields actually
-        # affect the frame.
-        max_lines = style.get("max_lines", MAX_SUBTITLE_LINES)
-        max_chars = style.get("max_chars_per_line", MAX_SUBTITLE_CHARS_PER_LINE)
-        lines = wrap_words(cue.text.split(), max_chars)[:max_lines]
-        fg = hex_to_rgb(style["color"])
-        outline = hex_to_rgb(style["outline_color"])
-        total_h = len(lines) * (FONT_PX + 2)
-        y = rect["y"] + rect["h"] - total_h
-        for line in lines:
-            w, _h = text_size(line, font)
-            x = rect["x"] + max(0, (rect["w"] - w) // 2)
-            draw_text(frame, (x, y), line, font, fg, outline=outline)
-            y += FONT_PX + 2
-
+        _draw_subtitle(frame, template, assets, cue.text)
     return frame.convert("RGB")
+
+
+def subtitle_layout(template: TemplatePackage, text: str) -> tuple[int, list[str]]:
+    """(font scale, lines) for a cue: re-wrapped at render time with *this*
+    template's caps (`subtitles.style`), by the same `cue_lines` the build
+    split the cues with -- a cue with a word longer than a line
+    ("administration") is shown in the small font, not broken."""
+    style = template.data["subtitles"]["style"]
+    scale, lines = cue_lines(text.split(), style.get("max_chars_per_line", MAX_SUBTITLE_CHARS_PER_LINE),
+                             style.get("font_scale", 1))
+    return scale, lines[: style.get("max_lines", MAX_SUBTITLE_LINES)]
+
+
+def subtitle_box(template: TemplatePackage, assets: ChannelAssets, text: str) -> tuple[dict, list[tuple[str, tuple[int, int]]], int]:
+    """The cue's plate box (bottom-aligned in `subtitles.rect`, centered,
+    as wide as its longest line) and each line with its origin, and the scale."""
+    rect = template.data["subtitles"]["rect"]
+    scale, lines = subtitle_layout(template, text)
+    font = assets.font(FONT_PX * scale)
+    step = (FONT_PX + 2) * scale
+    pad_x, pad_y = PLATE_PAD_X * scale, PLATE_PAD_Y * scale
+    w = max(text_size(line, font)[0] for line in lines) + 2 * pad_x
+    h = len(lines) * step + pad_y
+    box = {"x": rect["x"] + (rect["w"] - w) // 2, "y": rect["y"] + rect["h"] - h, "w": w, "h": h}
+    origins = []
+    for i, line in enumerate(lines):
+        origins.append((line, (box["x"] + (w - text_size(line, font)[0]) // 2, box["y"] + pad_y + i * step)))
+    return box, origins, scale
+
+
+def _draw_subtitle(frame: Image.Image, template: TemplatePackage, assets: ChannelAssets, text: str) -> None:
+    """Subtitles centered, on a plate (`style.bg_color`) or outlined text."""
+    style = template.data["subtitles"]["style"]
+    box, origins, scale = subtitle_box(template, assets, text)
+    font = assets.font(FONT_PX * scale)
+    fg = hex_to_rgb(style["color"])
+    if style.get("bg_color"):
+        ImageDraw.Draw(frame).rectangle([box["x"], box["y"], box["x"] + box["w"] - 1, box["y"] + box["h"] - 1],
+                                        fill=(*hex_to_rgb(style["bg_color"]), 255))
+        outline = None
+    else:
+        outline = hex_to_rgb(style["outline_color"])
+    for line, xy in origins:
+        draw_text(frame, xy, line, font, fg, outline=outline)
 
 
 def _apply_transition(kind: str, prev: Image.Image, curr: Image.Image, progress: float) -> Image.Image:
@@ -538,20 +628,20 @@ def render_frame(
 
     scene_index = timeline.scenes.index(scene_timing)
     frame = _render_core(script, template, assets, t_abs, assets_dir, palette, font, scene_timing)
+    plates = active_plates(script, scene_timing, template, t_abs)
 
-    if scene_index == 0:
-        return frame
-
-    transition = _select_transition(template, scene_index)
-    if transition is None:
-        return frame
-    duration = transition.get("duration_s", 0.0)
+    transition = _select_transition(template, scene_index) if scene_index > 0 else None
+    duration = transition.get("duration_s", 0.0) if transition else 0.0
     elapsed = t_abs - scene_timing.start_s
-    if transition["type"] == "cut" or duration <= 0 or elapsed >= duration:
-        return frame
+    if transition is not None and transition["type"] != "cut" and duration > 0 and elapsed < duration:
+        prev_timing = timeline.scenes[scene_index - 1]
+        prev_t = max(prev_timing.start_s, prev_timing.end_s - 1.0 / (2 * FPS))
+        prev_frame = _render_core(script, template, assets, prev_t, assets_dir, palette, font, prev_timing)
+        frame = _apply_transition(transition["type"], prev_frame, frame, elapsed / duration)
+        # mid-transition both scenes are in frame: either one's real person counts
+        plates |= active_plates(script, prev_timing, template, prev_t) & {"ai_illustration"}
 
-    prev_timing = timeline.scenes[scene_index - 1]
-    prev_t = max(prev_timing.start_s, prev_timing.end_s - 1.0 / (2 * FPS))
-    prev_frame = _render_core(script, template, assets, prev_t, assets_dir, palette, font, prev_timing)
-
-    return _apply_transition(transition["type"], prev_frame, frame, elapsed / duration)
+    # The AI line goes on last, outside the transition: it holds still on every frame.
+    frame = frame.convert("RGBA")
+    draw_ai_label(frame, template, ai_label_text(plates), font)
+    return frame.convert("RGB")

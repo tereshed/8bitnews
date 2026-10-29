@@ -47,7 +47,7 @@ BUILTIN_SCRIPT: dict = {
             "narration": "This scene has no real people, so no illustration plate appears.",
             "word_count": 11,
             "on_screen_text": "No real people here",
-            "visual": "A generic illustrative scene with charts and no real people.",
+            "visual": "A generic illustrative scene of a ballot box on a table and no real people.",
             "real_people": [],
             "fact_ids": ["F1"],
         },
@@ -63,5 +63,5 @@ BUILTIN_SCRIPT: dict = {
 }
 
 
-def builtin_timeline(wpm: float | None = None) -> Timeline:
-    return uniform_timeline(BUILTIN_SCRIPT, wpm=wpm)
+def builtin_timeline(wpm: float | None = None, subtitle_style: dict | None = None) -> Timeline:
+    return uniform_timeline(BUILTIN_SCRIPT, wpm=wpm, subtitle_style=subtitle_style)

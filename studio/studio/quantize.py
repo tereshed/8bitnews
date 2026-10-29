@@ -31,14 +31,17 @@ def crop_to_aspect(img: Image.Image, target_w: int, target_h: int) -> Image.Imag
 
 def quantize(
     img: Image.Image,
-    palette: Palette,
+    palette: Palette | None,
     target_w: int = LOGICAL_W,
     target_h: int = LOGICAL_H,
 ) -> Image.Image:
-    """Crop to 9:16, resize to the logical frame, and snap every pixel to the
-    nearest palette color (no dithering). Deterministic for a given Pillow
-    version (resampling is pinned via requirements.txt)."""
+    """Crop to the target aspect, resize to the logical frame, and snap every
+    pixel to the nearest palette color (no dithering); with no palette the
+    picture keeps its own colors. Deterministic for a given Pillow version
+    (resampling is pinned via requirements.txt)."""
     img = img.convert("RGB")
     cropped = crop_to_aspect(img, target_w, target_h)
     resized = cropped.resize((target_w, target_h), Image.LANCZOS)
+    if palette is None:
+        return resized
     return quantize_image(resized.convert("RGBA"), palette).convert("RGB")

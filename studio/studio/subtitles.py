@@ -61,8 +61,18 @@ def wrap_words(words: list[str], max_chars: int) -> list[str]:
     return lines
 
 
-def _fits(texts: list[str], max_lines: int, max_chars: int) -> bool:
-    return len(wrap_words(texts, max_chars)) <= max_lines
+def cue_lines(words: list[str], max_chars: int, scale: int = 1) -> tuple[int, list[str]]:
+    """The font scale and the lines a cue is shown in: `max_chars` a line at
+    `scale`. A cue with a word longer than that ("administration" at 12)
+    drops to scale 1, `max_chars * scale` a line, rather than break the word.
+    Shared by `split_cues` and the engine, so the screen and the SRT agree."""
+    if scale > 1 and any(len(w) > max_chars for w in words):
+        scale, max_chars = 1, max_chars * scale
+    return scale, wrap_words(words, max_chars)
+
+
+def _fits(texts: list[str], max_lines: int, max_chars: int, scale: int = 1) -> bool:
+    return len(cue_lines(texts, max_chars, scale)[1]) <= max_lines
 
 
 def _cut_at_punctuation(group: Sequence["Word"]) -> int:
@@ -86,9 +96,11 @@ def split_cues(
     words: Sequence["Word"],
     max_lines: int = MAX_SUBTITLE_LINES,
     max_chars: int = MAX_SUBTITLE_CHARS_PER_LINE,
+    font_scale: int = 1,
 ) -> list[SubtitleCue]:
     """Greedily packs `words` into cues capped at `max_lines` lines of
-    `max_chars` characters each; within the maximal group that still fits,
+    `max_chars` characters each (`cue_lines`: at `font_scale`, or the small
+    font for a cue with a longer word); within the maximal group that still fits,
     cuts after the last sentence/clause punctuation if there is one (so cues
     break on natural phrase boundaries, not just whichever word happened to
     fill the line). A cue starts at its first word's start and ends at its
@@ -102,13 +114,13 @@ def split_cues(
     while i < n:
         texts = [words[i].text]
         j = i + 1
-        while j < n and _fits(texts + [words[j].text], max_lines, max_chars):
+        while j < n and _fits(texts + [words[j].text], max_lines, max_chars, font_scale):
             texts.append(words[j].text)
             j += 1
         maximal_group = words[i:j]
         cut = _cut_at_punctuation(maximal_group)
         group = maximal_group[:cut]
-        lines = wrap_words([w.text for w in group], max_chars)[:max_lines]
+        lines = cue_lines([w.text for w in group], max_chars, font_scale)[1][:max_lines]
         groups.append((group, lines))
         i += cut
 

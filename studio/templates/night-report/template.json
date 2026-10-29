@@ -10,25 +10,27 @@
         "file": "assets/background_layer0.png",
         "x": 0,
         "y": 0,
-        "parallax": 0.1
+        "parallax": 0
       },
       {
-        "file": "assets/background_layer1.png",
+        "file": "assets/desk.png",
         "x": 0,
         "y": 0,
-        "parallax": 0.5
+        "parallax": 0,
+        "front": true
       }
     ],
     "anchor": {
-      "x": 90,
-      "y": 160,
+      "x": 75,
+      "y": 196,
       "scale": 1
     },
     "screen": {
-      "x": 160,
-      "y": 50,
-      "w": 90,
-      "h": 110
+      "x": 50,
+      "y": 70,
+      "w": 170,
+      "h": 136,
+      "border_color": "#000000"
     }
   },
   "palette": {
@@ -38,7 +40,8 @@
       "#787878",
       "#7c7c7c",
       "#008888",
-      "#f8f8f8"
+      "#f8f8f8",
+      "#bcbcbc"
     ],
     "serious_colors": [
       "#000000",
@@ -50,71 +53,49 @@
     ]
   },
   "plates": {
-    "ai_voice": {
-      "rect": {
-        "x": 10,
-        "y": 25,
-        "w": 190,
-        "h": 20
-      },
-      "bg_color": "#000000",
-      "text_color": "#f8f8f8"
-    },
-    "ai_icon": {
-      "rect": {
-        "x": 10,
-        "y": 25,
-        "w": 24,
-        "h": 20
-      },
-      "bg_color": "#000000",
-      "text_color": "#f8f8f8"
-    },
-    "ai_illustration": {
-      "rect": {
-        "x": 10,
-        "y": 355,
-        "w": 190,
-        "h": 18
-      },
-      "bg_color": "#000000",
-      "text_color": "#f8f8f8"
-    },
-    "scene_title": {
-      "rect": {
-        "x": 10,
-        "y": 49,
-        "w": 190,
-        "h": 36
-      },
-      "bg_color": "#000000",
-      "text_color": "#f8f8f8",
-      "max_lines": 2
+    "ai_label": {
+      "y": 380,
+      "text_color": "#bcbcbc",
+      "outline_color": "#000000"
     },
     "source_plate": {
       "rect": {
-        "x": 10,
-        "y": 89,
+        "x": 40,
+        "y": 40,
         "w": 190,
         "h": 32
       },
       "bg_color": "#000000",
-      "text_color": "#7c7c7c",
+      "text_color": "#bcbcbc",
       "max_lines": 3
+    },
+    "scene_title": {
+      "rect": {
+        "x": 40,
+        "y": 40,
+        "w": 190,
+        "h": 22
+      },
+      "bg_color": "#000000",
+      "text_color": "#f8f8f8",
+      "max_lines": 2,
+      "below": "source_plate"
     }
   },
   "subtitles": {
     "rect": {
-      "x": 10,
-      "y": 320,
-      "w": 190,
-      "h": 32
+      "x": 20,
+      "y": 332,
+      "w": 230,
+      "h": 44
     },
     "style": {
       "color": "#f8f8f8",
       "outline_color": "#000000",
+      "bg_color": "#000000",
+      "font_scale": 2,
       "max_lines": 2,
-      "max_chars_per_line": 23
+      "max_chars_per_line": 12
     }
   },
   "timing": {
@@ -176,10 +157,10 @@
     "layout": {
       "background": "assets/sample_scene.png",
       "text_rect": {
-        "x": 10,
-        "y": 322,
-        "w": 190,
-        "h": 32
+        "x": 20,
+        "y": 332,
+        "w": 230,
+        "h": 44
       }
     }
   },
@@ -197,7 +178,7 @@
   },
   "assets": [
     "assets/background_layer0.png",
-    "assets/background_layer1.png",
+    "assets/desk.png",
     "assets/screen_frame.png",
     "assets/sample_scene.png"
   ]

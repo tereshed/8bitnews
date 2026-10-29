@@ -20,7 +20,7 @@ def render_preview(template_dir: Path, out_dir: Path) -> dict:
     out_dir = Path(out_dir)
     template = load_template(template_dir)
     assets = load_channel_assets(BUILTIN_SCRIPT["channel_id"])
-    timeline = builtin_timeline()
+    timeline = builtin_timeline(subtitle_style=template.data["subtitles"]["style"])
 
     n_frames = max(int(round(timeline.duration_s * FPS)), 1)
     frames = [render_frame(BUILTIN_SCRIPT, timeline, template, assets, i / FPS) for i in range(n_frames)]

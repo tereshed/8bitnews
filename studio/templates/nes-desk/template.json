@@ -10,25 +10,27 @@
         "file": "assets/background_layer0.png",
         "x": 0,
         "y": 0,
-        "parallax": 0.2
+        "parallax": 0
       },
       {
-        "file": "assets/background_layer1.png",
+        "file": "assets/desk.png",
         "x": 0,
         "y": 0,
-        "parallax": 0.6
+        "parallax": 0,
+        "front": true
       }
     ],
     "anchor": {
-      "x": 60,
-      "y": 140,
+      "x": 75,
+      "y": 196,
       "scale": 1
     },
     "screen": {
-      "x": 175,
-      "y": 65,
-      "w": 80,
-      "h": 100
+      "x": 50,
+      "y": 70,
+      "w": 170,
+      "h": 136,
+      "border_color": "#000000"
     }
   },
   "palette": {
@@ -45,7 +47,8 @@
       "#f83800",
       "#4428bc",
       "#9878f8",
-      "#d8b8f8"
+      "#d8b8f8",
+      "#bcbcbc"
     ],
     "serious_colors": [
       "#000000",
@@ -60,71 +63,49 @@
     ]
   },
   "plates": {
-    "ai_voice": {
-      "rect": {
-        "x": 10,
-        "y": 25,
-        "w": 190,
-        "h": 20
-      },
-      "bg_color": "#000000",
-      "text_color": "#fcfcfc"
-    },
-    "ai_icon": {
-      "rect": {
-        "x": 176,
-        "y": 25,
-        "w": 24,
-        "h": 20
-      },
-      "bg_color": "#881400",
-      "text_color": "#fcfcfc"
-    },
-    "ai_illustration": {
-      "rect": {
-        "x": 10,
-        "y": 330,
-        "w": 190,
-        "h": 18
-      },
-      "bg_color": "#000000",
-      "text_color": "#fcfcfc"
-    },
-    "scene_title": {
-      "rect": {
-        "x": 10,
-        "y": 51,
-        "w": 190,
-        "h": 40
-      },
-      "bg_color": "#000000",
-      "text_color": "#fcfcfc",
-      "max_lines": 2
+    "ai_label": {
+      "y": 380,
+      "text_color": "#bcbcbc",
+      "outline_color": "#000000"
     },
     "source_plate": {
       "rect": {
-        "x": 10,
-        "y": 97,
+        "x": 40,
+        "y": 40,
         "w": 190,
         "h": 32
       },
       "bg_color": "#000000",
-      "text_color": "#787878",
+      "text_color": "#bcbcbc",
       "max_lines": 3
+    },
+    "scene_title": {
+      "rect": {
+        "x": 40,
+        "y": 40,
+        "w": 190,
+        "h": 22
+      },
+      "bg_color": "#000000",
+      "text_color": "#fcfcfc",
+      "max_lines": 2,
+      "below": "source_plate"
     }
   },
   "subtitles": {
     "rect": {
-      "x": 10,
-      "y": 354,
-      "w": 190,
-      "h": 40
+      "x": 20,
+      "y": 332,
+      "w": 230,
+      "h": 44
     },
     "style": {
       "color": "#fcfcfc",
       "outline_color": "#000000",
+      "bg_color": "#000000",
+      "font_scale": 2,
       "max_lines": 2,
-      "max_chars_per_line": 23
+      "max_chars_per_line": 12
     }
   },
   "timing": {
@@ -186,10 +167,10 @@
     "layout": {
       "background": "assets/sample_scene.png",
       "text_rect": {
-        "x": 10,
-        "y": 350,
-        "w": 190,
-        "h": 40
+        "x": 20,
+        "y": 332,
+        "w": 230,
+        "h": 44
       }
     }
   },
@@ -209,7 +190,7 @@
   },
   "assets": [
     "assets/background_layer0.png",
-    "assets/background_layer1.png",
+    "assets/desk.png",
     "assets/screen_frame.png",
     "assets/sample_scene.png",
     "assets/sfx/pixel-wipe.wav"

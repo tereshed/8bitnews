@@ -113,11 +113,11 @@ def test_an_unreadable_check_is_not_a_pass():
     assert check_findings(dict(PASS, gore="no")) == ["gore"]
 
 
-def _skin_picture() -> bytes:
+def _skin_picture(color=(240, 208, 176)) -> bytes:
     """A usable picture in a color outside nes-desk's own 13 (#f0d0b0, skin)."""
     import io
 
-    img = Image.new("RGB", (288, 512), (240, 208, 176))
+    img = Image.new("RGB", (288, 512), color)
     buf = io.BytesIO()
     img.save(buf, "PNG")
     return buf.getvalue()
@@ -150,26 +150,25 @@ def test_build_with_generated_pictures_records_them(generated_build):
         assert (generated_build["out_dir"] / s["file"]).is_file()
 
 
-def test_the_drawn_picture_is_what_the_video_shows_in_the_full_palette(generated_build):
+def test_the_drawn_picture_is_what_the_video_shows_in_its_own_colors(generated_build):
     """S3's keyframes carry the picture's skin color, which nes-desk's own 13
-    colors lack: the picture is used, and snapped to the whole NES palette."""
+    colors lack: the picture is used, in its own colors."""
     out_dir = generated_build["out_dir"]
     colors = {"#%02x%02x%02x" % c for _n, c in Image.open(out_dir / "keyframes" / "S3_mid.png").convert("RGB").getcolors(1 << 20)}
     template = load_template(TEMPLATES_DIR / "nes-desk")
     assert "#f0d0b0" in colors and "#f0d0b0" not in template.palette().hex_colors
 
 
-def test_a_drawn_cover_carries_the_ai_illustration_plate(generated_build, corrupt_copy, test_channels_dir):
+def test_a_drawn_cover_carries_the_ai_illustration_line(generated_build, corrupt_copy, test_channels_dir):
     from studio.checks import run_checks
 
-    check = next(c for c in generated_build["package"]["validate"]["checks"] if c["id"] == "ai_plates")
+    check = next(c for c in generated_build["package"]["validate"]["checks"] if c["id"] == "ai_label")
     assert check["ok"]
 
     def cover_without_plate(copy_dir, package):
-        template = load_template(copy_dir / "template")
-        r = template.plate("ai_illustration")["rect"]
+        y = load_template(copy_dir / "template").plate("ai_label")["y"]
         img = Image.open(copy_dir / "cover.png").convert("RGB")
-        img.paste((240, 208, 176), (r["x"] * 4, r["y"] * 4, (r["x"] + r["w"]) * 4, (r["y"] + r["h"]) * 4))
+        img.paste((240, 208, 176), (0, (y - 1) * 4, 270 * 4, (y + 9) * 4))
         img.save(copy_dir / "cover.png")
 
     import yaml
@@ -177,7 +176,7 @@ def test_a_drawn_cover_carries_the_ai_illustration_plate(generated_build, corrup
     copy = corrupt_copy({"out_dir": generated_build["out_dir"], "package": generated_build["package"]}, cover_without_plate)
     package = json.loads((copy / "package.json").read_text())
     profile = yaml.safe_load((test_channels_dir / "8bitnews-us" / "channel.yaml").read_text())
-    result = next(c for c in run_checks(copy, package, profile)["checks"] if c["id"] == "ai_plates")
+    result = next(c for c in run_checks(copy, package, profile)["checks"] if c["id"] == "ai_label")
     assert not result["ok"] and "a cover drawn by the image model" in result["note"]
 
 
@@ -240,7 +239,7 @@ def test_images_and_assets_together_are_refused(tmp_path):
 
 # --- what scene pictures snap to (engine.scene_palette) ------------------------
 
-def _scene_frame(tmp_path, serious: bool, with_picture: bool) -> set[str]:
+def _scene_frame(tmp_path, serious: bool, with_picture: bool, color=(240, 208, 176)) -> set[str]:
     from studio.builtin_script import BUILTIN_SCRIPT, builtin_timeline
     from studio.channel_assets import load_channel_assets
     from studio.engine import render_frame
@@ -248,7 +247,7 @@ def _scene_frame(tmp_path, serious: bool, with_picture: bool) -> set[str]:
     assets_dir = tmp_path / "assets"
     assets_dir.mkdir(exist_ok=True)
     if with_picture:
-        (assets_dir / "S3.png").write_bytes(_skin_picture())
+        (assets_dir / "S3.png").write_bytes(_skin_picture(color))
     script = dict(BUILTIN_SCRIPT, serious_mode=serious)
     timeline = builtin_timeline()
     s3 = next(s for s in timeline.scenes if s.scene_id == "S3")
@@ -264,8 +263,9 @@ def test_a_picture_keeps_skin_tones_in_normal_mode(tmp_path):
 def test_serious_mode_mutes_the_picture(tmp_path):
     template = load_template(TEMPLATES_DIR / "nes-desk")
     colors = _scene_frame(tmp_path, serious=True, with_picture=True)
-    drawn_by_template = {c.lower() for p in template.data["plates"].values() for c in (p["bg_color"], p["text_color"])}
-    drawn_by_template |= {template.data["subtitles"]["style"][k].lower() for k in ("color", "outline_color")}
+    keys = ("bg_color", "text_color", "outline_color", "color")
+    drawn_by_template = {p[k].lower() for p in template.data["plates"].values() for k in keys if k in p}
+    drawn_by_template |= {v.lower() for k, v in template.data["subtitles"]["style"].items() if k in keys}
     assert "#f0d0b0" not in colors and colors <= set(template.palette(serious=True).hex_colors) | drawn_by_template
 
 
@@ -274,11 +274,19 @@ def test_the_placeholder_card_keeps_the_template_colors(tmp_path):
     assert _scene_frame(tmp_path, serious=False, with_picture=False) <= set(template.palette().hex_colors)
 
 
+def test_a_picture_keeps_its_own_colors_in_normal_mode(tmp_path):
+    """Owner, 29.10: the NES palette turned pictures brown and grey."""
+    from studio.palette import channel_palette_set
+
+    assert "#7b2d43" in _scene_frame(tmp_path, serious=False, with_picture=True, color=(0x7b, 0x2d, 0x43))
+    assert "#7b2d43" not in channel_palette_set("8bitnews-us")
+
+
 def test_scene_colors_narrow_what_pictures_snap_to(tmp_path, monkeypatch):
     from studio.engine import scene_palette
 
     template = load_template(TEMPLATES_DIR / "nes-desk")
-    assert len(scene_palette(template, False, "8bitnews-us")) == 55
+    assert scene_palette(template, False, "8bitnews-us") is None  # the picture's own colors
     template.data["palette"]["scene_colors"] = ["#000000", "#fcfcfc", "#f0d0b0"]
     assert scene_palette(template, False, "8bitnews-us").hex_colors == ["#000000", "#fcfcfc", "#f0d0b0"]
     assert scene_palette(template, True, "8bitnews-us").hex_colors == template.palette(serious=True).hex_colors
@@ -299,7 +307,7 @@ def test_an_anchor_scene_gets_its_own_screen_picture(tmp_path, template):
     assert len(screens) == 1  # not the last anchor shot's: the outro shows the logo
     screen_prompt, aspect = screens[0]
     assert "courthouse icon over a ledger" in screen_prompt and "studio desk" not in screen_prompt
-    assert aspect == "4:5"  # nes-desk's screen is 80x100
+    assert aspect == "5:4"  # nes-desk's screen is 170x136
     assert not (images_dir / f"{last['id']}.png").exists()
 
 
@@ -390,3 +398,12 @@ def test_the_style_names_the_pictures_frame(template):
     assert "portrait 4:5" in screen and "9:16" not in screen and "{frame}" not in screen
     assert "Scene: a ballot box. " in screen
     assert "Scene: Who will win? " in scene_prompt(style, template, "Who will win?")
+
+
+def test_scene_and_screen_pictures_leave_room_for_the_plates(template):
+    """The plate stack covers the top of a scene shot and, with a source, the top of the screen behind the anchor."""
+    from studio.scene_images import scene_prompt
+
+    style = load_style("8bitnews-us")
+    assert style["top_room"] in scene_prompt(style, template, "a ballot box")
+    assert style["top_room"] in scene_prompt(style, template, "a ballot box", screen=True, aspect="5:4")
