@@ -79,6 +79,21 @@ type Config struct {
 	// /metrics route — for deployments that scrape Prometheus metrics from
 	// a private network interface.
 	MetricsAddr string
+
+	Moderation ModerationConfig
+}
+
+// ModerationConfig is the Telegram moderation bot (E4). With no BotToken
+// the bot doesn't run: releases stay "submitted".
+type ModerationConfig struct {
+	// BotToken and ChatID are the bot and the group it posts release cards
+	// to; the group's administrators are the moderators.
+	BotToken string
+	ChatID   int64
+	// PollInterval is how often the bot looks for new releases to post.
+	PollInterval time.Duration
+	// APIBase is the Bot API endpoint; overridden in tests.
+	APIBase string
 }
 
 // S3Config holds the settings for the S3-compatible object store used for
@@ -111,6 +126,11 @@ func Load() (Config, error) {
 		SourcesCheckDeadline:            getDuration("HUB_SOURCES_CHECK_DEADLINE", 25*time.Second),
 		SourcesBackgroundArchiveTimeout: getDuration("HUB_SOURCES_BACKGROUND_ARCHIVE_TIMEOUT", 5*time.Minute),
 		MetricsAddr:                     getEnv("HUB_METRICS_ADDR", ""),
+		Moderation: ModerationConfig{
+			BotToken:     strings.TrimSpace(getEnv("TELEGRAM_BOT_TOKEN", "")),
+			PollInterval: getDuration("HUB_MODERATION_POLL_INTERVAL", 20*time.Second),
+			APIBase:      getEnv("HUB_TELEGRAM_API_BASE", "https://api.telegram.org"),
+		},
 		S3: S3Config{
 			Endpoint:        getEnv("HUB_S3_ENDPOINT", "http://localhost:9000"),
 			Region:          getEnv("HUB_S3_REGION", "us-east-1"),
@@ -123,6 +143,19 @@ func Load() (Config, error) {
 	}
 
 	cfg.APIKeys = parseAPIKeys(os.Getenv("HUB_API_KEYS"))
+	if raw := strings.TrimSpace(getEnv("TELEGRAM_MODERATION_CHAT_ID", "")); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return Config{}, fmt.Errorf("TELEGRAM_MODERATION_CHAT_ID %q is not a chat id: %w", raw, err)
+		}
+		cfg.Moderation.ChatID = id
+	}
+	if cfg.Moderation.PollInterval <= 0 {
+		cfg.Moderation.PollInterval = 20 * time.Second
+	}
+	if cfg.Moderation.BotToken != "" && cfg.Moderation.ChatID == 0 {
+		return Config{}, fmt.Errorf("TELEGRAM_BOT_TOKEN is set but TELEGRAM_MODERATION_CHAT_ID is not")
+	}
 
 	if cfg.S3.Bucket == "" {
 		return Config{}, fmt.Errorf("HUB_S3_BUCKET must not be empty")

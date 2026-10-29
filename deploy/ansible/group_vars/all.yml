@@ -36,6 +36,11 @@ r2_secret_access_key: "{{ lookup('env', 'R2_SECRET_ACCESS_KEY') }}"
 r2_media_bucket: "{{ lookup('env', 'R2_MEDIA_BUCKET') }}"
 r2_backup_bucket: "{{ lookup('env', 'R2_BACKUP_BUCKET') }}"
 
+# The Telegram moderation bot and its group (E4); an empty token leaves the
+# bot off and releases stay "submitted".
+telegram_bot_token: "{{ lookup('env', 'TELEGRAM_BOT_TOKEN') }}"
+telegram_moderation_chat_id: "{{ lookup('env', 'TELEGRAM_MODERATION_CHAT_ID') }}"
+
 # hub's own S3 env names (internal/config/config.go's HUB_S3_* contract);
 # mapped from the r2_* controller vars above, not read from the
 # environment directly — the app doesn't need to know these are R2.

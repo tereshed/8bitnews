@@ -11,6 +11,7 @@ import (
 	"github.com/tereshed/8bitnews/internal/api"
 	"github.com/tereshed/8bitnews/internal/config"
 	"github.com/tereshed/8bitnews/internal/mcpapi"
+	"github.com/tereshed/8bitnews/internal/moderation"
 	"github.com/tereshed/8bitnews/internal/observability"
 	"github.com/tereshed/8bitnews/internal/service"
 	"github.com/tereshed/8bitnews/internal/sources"
@@ -66,6 +67,13 @@ func runServe(_ []string) {
 		SourcesCheckDeadline:            cfg.SourcesCheckDeadline,
 		SourcesBackgroundArchiveTimeout: cfg.SourcesBackgroundArchiveTimeout,
 	})
+	if cfg.Moderation.BotToken != "" {
+		tg := moderation.NewTelegram(cfg.Moderation.APIBase, cfg.Moderation.BotToken)
+		go moderation.New(tg, st, media, cfg.Moderation.ChatID, cfg.Moderation.PollInterval, logger).Run(ctx)
+	} else {
+		logger.Info("moderation bot off: TELEGRAM_BOT_TOKEN is not set, releases stay 'submitted'")
+	}
+
 	mcpHandler := mcpapi.NewHTTPHandler(svc)
 	metrics := observability.NewMetrics()
 

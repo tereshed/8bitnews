@@ -94,6 +94,18 @@ type Release struct {
 	AllowedPlatforms []string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	Moderation       Moderation
+}
+
+// Moderation is a release's card in the moderation group and the
+// moderator's decision (E4). ChatID/MessageID are nil until the bot has
+// posted the card; By/At stay empty until someone decides.
+type Moderation struct {
+	ChatID    *int64
+	MessageID *int64
+	By        string
+	At        *time.Time
+	Note      string
 }
 
 // ReleaseSource is one verified, archived source of a Release

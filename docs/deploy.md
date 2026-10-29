@@ -37,8 +37,9 @@ Playbooks и Make-цели: `deploy/ansible/`, см. также `deploy/ansible/
      (`ssh-keygen -y`) и кладёт в cloud-init — отдельно публичный ключ задавать не нужно.
 6. Заполните `~/.config/8bitnews/deploy.env` (0600) по образцу `deploy/ansible/deploy.env.example`:
    `HUB_SERVER_SSH_KEY`, `HUB_ADMIN_SSH_KEY`, `R2_ENDPOINT` (с `.eu.`), `R2_ACCESS_KEY_ID`,
-   `R2_SECRET_ACCESS_KEY`, `R2_MEDIA_BUCKET`, `R2_BACKUP_BUCKET`, `RESTIC_PASSWORD`. `HUB_DOMAIN`
-   можно не трогать — по умолчанию уже `hub.8bitlang.org`. Repository URL для restic
+   `R2_SECRET_ACCESS_KEY`, `R2_MEDIA_BUCKET`, `R2_BACKUP_BUCKET`, `RESTIC_PASSWORD`, а для модерации —
+   `TELEGRAM_BOT_TOKEN` и `TELEGRAM_MODERATION_CHAT_ID` (бот и группа модерации; пустой токен — бот выключен).
+   `HUB_DOMAIN` можно не трогать — по умолчанию уже `hub.8bitlang.org`. Repository URL для restic
    (`s3:<R2_ENDPOINT>/<R2_BACKUP_BUCKET>`) плейбук собирает сам — отдельно его задавать не нужно.
    Этот файл не попадает в git.
 7. На машине-контроллере должны быть: `ansible-core` (`pip install ansible-core` или системный

@@ -175,8 +175,18 @@ type ReleaseView struct {
 	LegalReview      json.RawMessage     `json:"legal_review"`
 	AllowedPlatforms []string            `json:"allowed_platforms"`
 	Sources          []ReleaseSourceView `json:"sources"`
+	Moderation       *ModerationView     `json:"moderation,omitempty"`
 	CreatedAt        time.Time           `json:"created_at"`
 	UpdatedAt        time.Time           `json:"updated_at"`
+}
+
+// ModerationView is the moderator's decision on a release in the Telegram
+// group (E4): who decided and when (status says what), and the reason they
+// gave for a rejection or a request for changes. Absent until someone decides.
+type ModerationView struct {
+	DecidedBy string     `json:"decided_by"`
+	DecidedAt *time.Time `json:"decided_at,omitempty"`
+	Note      string     `json:"note,omitempty"`
 }
 
 // ReleasesRecentRequest is the input to releases_recent.
