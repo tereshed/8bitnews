@@ -7,7 +7,8 @@
       "name": "router",
       "role": "router",
       "prompt": "router.md",
-      "common": false
+      "common": false,
+      "model": "google/gemini-3.8-flash"
     },
     {
       "name": "legal_counsel",
