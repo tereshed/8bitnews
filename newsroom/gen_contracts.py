@@ -343,7 +343,7 @@ scene = {
         "word_count": {"type": "integer", "minimum": 1, "description": "Whitespace-separated words of narration"},
         "on_screen_text": {"type": "string", "maxLength": 60},
         "source_plate": {"type": "string", "description": "Source label under a number or quote: 'Source: X · Oct 21'"},
-        "visual": {"type": "string", "minLength": 20, "description": "What is on screen and what moves, English"},
+        "visual": {"type": "string", "minLength": 20, "description": "One still picture: the place, people by their role and objects that read without text; no action over time, no text or numbers. English"},
         "real_people": {"type": "array", "items": str1, "description": "Real people shown; the AI line then says 'AI illustration'"},
         "fact_ids": {"type": "array", "items": {"type": "string", "pattern": "^F[0-9]+$"}},
         "group_ids": {"type": "array", "items": {"type": "string", "pattern": "^L[0-9]+$"}},

@@ -12,6 +12,11 @@ from PIL import Image
 
 from .constants import FPS, LOGICAL_H, LOGICAL_W, OUTPUT_H, OUTPUT_W
 
+# A near-lossless master: the platforms re-encode every upload, and pixel art at x4 is cheap to keep (the
+# 82-s trial: 2.0 MB and 53 dB PSNR at x264's defaults, 2.8 MB and 65 dB here). -refs 4 keeps 1080x1920 at
+# H.264 level 4.0: `-tune animation` doubles the slow preset's references, which would need level 5.0.
+X264_QUALITY = ("-crf", "14", "-preset", "slow", "-tune", "animation", "-refs", "4")
+
 
 def write_frames_png(frames: list[Image.Image], out_dir: Path) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -60,6 +65,7 @@ def encode_mp4(frames_dir: Path, out_path: Path, duration_s: float, fps: int = F
         f"scale={OUTPUT_W}:{OUTPUT_H}:flags=neighbor",
         "-c:v",
         "libx264",
+        *X264_QUALITY,
         "-pix_fmt",
         "yuv420p",
         "-c:a",
@@ -89,6 +95,7 @@ def encode(frames_dir: Path, audio_path: Path, out_path: Path, fps: int = FPS) -
         f"scale={OUTPUT_W}:{OUTPUT_H}:flags=neighbor",
         "-c:v",
         "libx264",
+        *X264_QUALITY,
         "-pix_fmt",
         "yuv420p",
         "-c:a",
@@ -107,7 +114,7 @@ def encode_video_only(frames_dir: Path, out_path: Path, fps: int = FPS) -> None:
     cmd = [
         "ffmpeg", "-y", "-framerate", str(fps), "-i", str(frames_dir / "frame_%06d.png"),
         "-vf", f"scale={OUTPUT_W}:{OUTPUT_H}:flags=neighbor",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", str(out_path),
+        "-c:v", "libx264", *X264_QUALITY, "-pix_fmt", "yuv420p", "-an", str(out_path),
     ]
     subprocess.run(cmd, check=True, capture_output=True, text=True)
 

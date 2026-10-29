@@ -218,7 +218,7 @@
         "visual": {
           "type": "string",
           "minLength": 20,
-          "description": "What is on screen and what moves, English"
+          "description": "One still picture: the place, people by their role and objects that read without text; no action over time, no text or numbers. English"
         },
         "real_people": {
           "type": "array",
