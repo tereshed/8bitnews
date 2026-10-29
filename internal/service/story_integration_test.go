@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -119,5 +120,33 @@ func TestExperimentAssign_DefaultArm(t *testing.T) {
 	}
 	if resp.ArmID != "default" {
 		t.Errorf("ArmID = %q, want default", resp.ArmID)
+	}
+}
+
+// An agent's tool call sometimes sends the string "null" for a new
+// storyline; hub took it for a story id and failed with a uuid error.
+func TestStoryRegisterTakesTheStringNullAsANewStoryline(t *testing.T) {
+	st := newTestStore(t)
+	seedChannel(t, st, "test-channel")
+	svc := service.New(service.Deps{Store: st, Media: newTestMedia(t), Log: slog.Default()})
+	ctx := context.Background()
+
+	for _, id := range []string{"null", "NULL", " "} {
+		id := id
+		reg, err := svc.StoryRegister(ctx, service.StoryRegisterRequest{
+			ChannelID: "test-channel", StoryID: &id, Title: "Storyline " + id, Summary: "A summary.",
+			DevelopmentSummary: "Something new.", ReportedAt: time.Now().UTC(), SeedURLs: []string{},
+		})
+		if err != nil || reg.StoryID == "" || reg.DevelopmentID == "" {
+			t.Fatalf("story_id %q: %+v, %v; want a new storyline", id, reg, err)
+		}
+	}
+
+	bad := "story-123"
+	_, err := svc.StoryRegister(ctx, service.StoryRegisterRequest{
+		ChannelID: "test-channel", StoryID: &bad, DevelopmentSummary: "Something new.", ReportedAt: time.Now().UTC(),
+	})
+	if err == nil || !strings.Contains(err.Error(), "is not a story id") {
+		t.Fatalf("a story_id that isn't a uuid: %v; want a readable invalid-argument error", err)
 	}
 }
