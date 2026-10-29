@@ -24,3 +24,26 @@ func TestParseAPIKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestModerationSettings(t *testing.T) {
+	t.Setenv("TELEGRAM_BOT_TOKEN", "")
+	t.Setenv("TELEGRAM_MODERATION_CHAT_ID", "")
+	cfg, err := Load()
+	if err != nil || cfg.Moderation.BotToken != "" || cfg.Moderation.ChatID != 0 {
+		t.Fatalf("without a token: %+v, %v; want the bot off", cfg.Moderation, err)
+	}
+
+	t.Setenv("TELEGRAM_BOT_TOKEN", "123:abc")
+	if _, err := Load(); err == nil {
+		t.Fatal("a token without a chat id loaded")
+	}
+	t.Setenv("TELEGRAM_MODERATION_CHAT_ID", "the group")
+	if _, err := Load(); err == nil {
+		t.Fatal("a chat id that isn't a number loaded")
+	}
+	t.Setenv("TELEGRAM_MODERATION_CHAT_ID", "-5012345678")
+	cfg, err = Load()
+	if err != nil || cfg.Moderation.ChatID != -5012345678 || cfg.Moderation.PollInterval <= 0 {
+		t.Fatalf("with both: %+v, %v", cfg.Moderation, err)
+	}
+}

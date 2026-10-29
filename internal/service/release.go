@@ -404,6 +404,11 @@ func (s *Service) ReleaseGet(ctx context.Context, req ReleaseGetRequest) (Releas
 		views = append(views, toReleaseSourceView(src))
 	}
 
+	var moderation *ModerationView
+	if r.Moderation.By != "" || r.Moderation.Note != "" {
+		moderation = &ModerationView{DecidedBy: r.Moderation.By, DecidedAt: r.Moderation.At, Note: r.Moderation.Note}
+	}
+
 	return ReleaseView{
 		ID:               r.ID,
 		DevelopmentID:    r.DevelopmentID,
@@ -417,6 +422,7 @@ func (s *Service) ReleaseGet(ctx context.Context, req ReleaseGetRequest) (Releas
 		LegalReview:      r.LegalReview,
 		AllowedPlatforms: r.AllowedPlatforms,
 		Sources:          views,
+		Moderation:       moderation,
 		CreatedAt:        r.CreatedAt,
 		UpdatedAt:        r.UpdatedAt,
 	}, nil

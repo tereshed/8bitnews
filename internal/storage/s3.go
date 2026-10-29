@@ -1,13 +1,15 @@
 // Package storage talks to the S3-compatible object store (MinIO locally,
 // any S3-compatible provider in production) that holds release media:
 // presigned uploads for media_upload_url, presigned downloads for
-// media_download_url and existence checks for release_submit.
+// media_download_url, existence checks for release_submit, and reads for
+// the moderation bot.
 package storage
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -77,6 +79,21 @@ func (c *Client) PresignGet(ctx context.Context, key string) (string, error) {
 		return "", fmt.Errorf("presigning GET for %s: %w", key, err)
 	}
 	return req.URL, nil
+}
+
+// Open streams the object at key; the caller closes it. size is the
+// object's length, or -1 if the store didn't say. Used by the moderation bot
+// to post a release's video into the moderation group.
+func (c *Client) Open(ctx context.Context, key string) (body io.ReadCloser, size int64, err error) {
+	out, err := c.api.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(c.bucket), Key: aws.String(key)})
+	if err != nil {
+		return nil, 0, fmt.Errorf("getting %s: %w", key, err)
+	}
+	size = -1
+	if out.ContentLength != nil {
+		size = *out.ContentLength
+	}
+	return out.Body, size, nil
 }
 
 // Exists reports whether key is present in the bucket, used by

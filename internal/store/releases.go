@@ -32,6 +32,25 @@ type NewReleaseParams struct {
 	AllowedPlatforms []string
 }
 
+// releaseColumns is every column a Release is scanned from (scanRelease).
+const releaseColumns = `id, development_id, channel_id, experiment_id, arm_id, status,
+	media, research_dossier, script, video_package, validation_report, legal_review,
+	allowed_platforms, created_at, updated_at,
+	moderation_chat_id, moderation_message_id, moderated_by, moderated_at, moderation_note`
+
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanRelease(row rowScanner, r *Release) error {
+	return row.Scan(
+		&r.ID, &r.DevelopmentID, &r.ChannelID, &r.ExperimentID, &r.ArmID, &r.Status,
+		&r.Media, &r.ResearchDossier, &r.Script, &r.VideoPackage, &r.ValidationReport, &r.LegalReview,
+		&r.AllowedPlatforms, &r.CreatedAt, &r.UpdatedAt,
+		&r.Moderation.ChatID, &r.Moderation.MessageID, &r.Moderation.By, &r.Moderation.At, &r.Moderation.Note,
+	)
+}
+
 // CreateRelease inserts a new release in status "submitted".
 func (s *Store) CreateRelease(ctx context.Context, p NewReleaseParams) (Release, error) {
 	allowed := p.AllowedPlatforms
@@ -39,26 +58,20 @@ func (s *Store) CreateRelease(ctx context.Context, p NewReleaseParams) (Release,
 		allowed = []string{}
 	}
 	var r Release
-	err := s.pool.QueryRow(ctx, `
+	row := s.pool.QueryRow(ctx, `
 		INSERT INTO releases (
 			development_id, channel_id, experiment_id, arm_id, status,
 			media, research_dossier, script, video_package, validation_report, legal_review,
 			allowed_platforms
 		)
 		VALUES ($1, $2, $3, $4, 'submitted', $5, $6, $7, $8, $9, $10, $11)
-		RETURNING id, development_id, channel_id, experiment_id, arm_id, status,
-			media, research_dossier, script, video_package, validation_report, legal_review,
-			allowed_platforms, created_at, updated_at
-	`,
+		RETURNING `+releaseColumns,
 		p.DevelopmentID, p.ChannelID, p.ExperimentID, p.ArmID,
 		nonNilJSON(p.Media), nonNilJSON(p.ResearchDossier), nonNilJSON(p.Script),
 		nonNilJSON(p.VideoPackage), nonNilJSON(p.ValidationReport), nonNilJSON(p.LegalReview),
 		allowed,
-	).Scan(
-		&r.ID, &r.DevelopmentID, &r.ChannelID, &r.ExperimentID, &r.ArmID, &r.Status,
-		&r.Media, &r.ResearchDossier, &r.Script, &r.VideoPackage, &r.ValidationReport, &r.LegalReview,
-		&r.AllowedPlatforms, &r.CreatedAt, &r.UpdatedAt,
 	)
+	err := scanRelease(row, &r)
 	if err != nil {
 		if conflictErr := mapConflict(err); errors.Is(conflictErr, ErrConflict) {
 			return Release{}, fmt.Errorf("creating release for development %s: %w", p.DevelopmentID, conflictErr)
@@ -71,16 +84,7 @@ func (s *Store) CreateRelease(ctx context.Context, p NewReleaseParams) (Release,
 // GetRelease returns a release by id.
 func (s *Store) GetRelease(ctx context.Context, id string) (Release, error) {
 	var r Release
-	err := s.pool.QueryRow(ctx, `
-		SELECT id, development_id, channel_id, experiment_id, arm_id, status,
-			media, research_dossier, script, video_package, validation_report, legal_review,
-			allowed_platforms, created_at, updated_at
-		FROM releases WHERE id = $1
-	`, id).Scan(
-		&r.ID, &r.DevelopmentID, &r.ChannelID, &r.ExperimentID, &r.ArmID, &r.Status,
-		&r.Media, &r.ResearchDossier, &r.Script, &r.VideoPackage, &r.ValidationReport, &r.LegalReview,
-		&r.AllowedPlatforms, &r.CreatedAt, &r.UpdatedAt,
-	)
+	err := scanRelease(s.pool.QueryRow(ctx, `SELECT `+releaseColumns+` FROM releases WHERE id = $1`, id), &r)
 	if err != nil {
 		return Release{}, fmt.Errorf("getting release %s: %w", id, mapNotFound(err))
 	}
