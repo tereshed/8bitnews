@@ -397,7 +397,7 @@ def _check_ai_label(package_dir: Path, package: dict, channel_profile: dict) -> 
             prev = ctx.timeline.scenes[ctx.timeline.scenes.index(st) - 1]
             person = person or ctx.real_person_in_frame(prev.scene_id)
         if is_cover:
-            want = _AI_ILLUSTRATION if person else None
+            want = _AI_ILLUSTRATION  # format.md: every cover, its picture and anchor are generated
             shown = ai_label_text(cover_plates(ctx.script, st, ctx.template, t), cover=True)
         else:
             want = f"{_AI_VOICE} · {_AI_ILLUSTRATION}" if person else _AI_VOICE

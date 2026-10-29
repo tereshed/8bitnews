@@ -391,7 +391,7 @@ def test_scene_cover_title_that_does_not_fit_fails_the_build(nes_desk_dir, tmp_p
         _render_cover(script, builtin_timeline(), template, load_channel_assets("8bitnews-us"), None, tmp_path / "c.png")
 
 
-def test_cover_plates_keep_only_ai_illustration(short_script_path, nes_desk_dir):
+def test_every_cover_says_ai_illustration(short_script_path, nes_desk_dir):
     from studio.engine import cover_plates
     from studio.timeline import uniform_timeline
 
@@ -403,9 +403,8 @@ def test_cover_plates_keep_only_ai_illustration(short_script_path, nes_desk_dir)
         st = next(s for s in timeline.scenes if s.scene_id == scene_id)
         return cover_plates(script, st, template, (st.start_s + st.end_s) / 2)
 
-    assert plates("S2") == {"ai_illustration"}  # real person in the scene
-    assert plates("S1") == {"ai_illustration"}  # anchor, S2's real person on the screen behind her
-    assert plates("S3") == set()
+    # the picture and the anchor are drawn by the image model, real person or not
+    assert plates("S1") == plates("S2") == plates("S3") == {"ai_illustration"}
 
 
 def test_build_duration_is_the_measured_video_length(built_package):

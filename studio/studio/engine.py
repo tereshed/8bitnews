@@ -442,11 +442,12 @@ def _draw_content_plates(frame: Image.Image, scene: dict, plates: set[str], temp
 
 
 def cover_plates(script: dict, scene_timing: SceneTiming, template: TemplatePackage, t_abs: float) -> set[str]:
-    """Plates on a `cover.frame: S*` cover: only ai_illustration, by the same
-    rule as the timed frame (a real person in the scene or on the screen
-    behind the anchor). The cover's own title replaces scene_title and
-    source_plate, and a still cover has no voice to label."""
-    return active_plates(script, scene_timing, template, t_abs) & {"ai_illustration"}
+    """Plates on a `cover.frame: S*` cover: ai_illustration, always. A cover
+    is seen in the feed out of context, and what it shows -- a scene picture,
+    the anchor and the screen behind them -- is drawn by the image model (QA,
+    29.10). The cover's own title replaces scene_title and source_plate, and
+    a still cover has no voice to label."""
+    return {"ai_illustration"}
 
 
 def render_cover_frame(
