@@ -529,6 +529,10 @@ vp = schema("video_package",
                             "fallback": {"type": "boolean",
                                          "description": "true: no attempt passed the check and a neutral card stands in"},
                             "accepted": {"type": ["string", "null"]},
+                            "kept_with": {"type": "array", "items": {"type": "string"},
+                                          "description": "No attempt passed, and the kept one still has these "
+                                                         "findings: only extra_people, people the scene doesn't "
+                                                         "describe. Absent when the picture passed."},
                             "attempts": {"type": "array", "items": {"type": "object"}}}}}}},
      "media": {"type": "object",
                "description": "Where the package's files are in the store (hub media_upload_url object keys), added by "

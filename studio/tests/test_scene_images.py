@@ -16,6 +16,8 @@ from studio.template_pkg import load_template
 
 CLEAN = (FIXTURES_DIR / "images" / "clean.png").read_bytes()
 WITH_TEXT = (FIXTURES_DIR / "images" / "with_text.png").read_bytes()
+WITH_PEOPLE = CLEAN + b"\0"  # the same picture; the fake check finds people the scene doesn't ask for in it
+WITH_BOTH = CLEAN + b"\0\0"  # ... and text too
 PASS = {k: False for k in FINDINGS}
 
 
@@ -25,7 +27,7 @@ class Client:
 
     def __init__(self, pictures):
         self.pictures = list(pictures)
-        self.prompts, self.aspects, self.checked = [], [], 0
+        self.prompts, self.aspects, self.check_prompts, self.checked = [], [], [], 0
 
     def generate_image(self, model, prompt, aspect_ratio, images=(), variant=0):
         self.prompts.append(prompt)
@@ -37,7 +39,9 @@ class Client:
 
     def ask_json(self, model, prompt, images=()):
         self.checked += 1
-        return JsonReply(dict(PASS, text=images[0] == WITH_TEXT), 0.001, False, model)
+        self.check_prompts.append(prompt)
+        return JsonReply(dict(PASS, text=images[0] in (WITH_TEXT, WITH_BOTH),
+                              extra_people=images[0] in (WITH_PEOPLE, WITH_BOTH)), 0.001, False, model)
 
 
 def _script(**scene_overrides):
@@ -73,7 +77,8 @@ def test_the_prompt_carries_style_template_look_and_prohibitions(tmp_path, templ
     generate_scene_images(script, template, "8bitnews-us", tmp_path, client)
     prompt = client.prompts[0]
     style = load_style("8bitnews-us")
-    for part in (style["style"], style["people"], style["prohibitions"], template.data["image_style"]):
+    for part in (style["style"].replace("{frame}", "vertical 9:16"), style["people"], style["prohibitions"],
+                 template.data["image_style"]):
         assert part in prompt
     assert "Weber" not in prompt and "VOTE" not in prompt and "question" not in prompt.split("Scene:")[1].split(".")[0]
 
@@ -332,3 +337,56 @@ def test_the_screen_shows_the_anchor_scenes_own_picture(tmp_path):
 
     assert screen_colors(True) > 0.8
     assert screen_colors(False) == 0
+
+
+def test_extra_people_are_redrawn_and_then_kept_not_carded(tmp_path, template):
+    script = _script(visual="A conveyor belt of envelopes beside a ballot box.", real_people=[])
+    first = _scene_ids(script)[0]
+    client = Client([WITH_PEOPLE] * 3)  # the first scene shot is drawn first (short.json's S1 has no screen text)
+    images_dir, report = generate_scene_images(script, template, "8bitnews-us", tmp_path, client)
+    scene = next(s for s in report.scenes if s["id"] == first)
+    assert len(scene["attempts"]) == 3 and not scene["fallback"] and scene["accepted"] == f"images/attempts/{first}-0.png"
+    assert scene["kept_with"] == ["extra_people"]
+    assert "no figures, faces or hands" in client.prompts[1]  # the redraw says it harder
+    assert client.check_prompts[0].endswith("The scene description: A conveyor belt of envelopes beside a ballot box.")
+
+
+@pytest.mark.parametrize("pictures,kept", [
+    ([WITH_TEXT, WITH_PEOPLE, WITH_TEXT], 1),  # after a hard failure
+    ([NoImageError("refused", 0.01), WITH_TEXT, WITH_PEOPLE], 2),  # a refusal has no findings to go by
+])
+def test_the_kept_picture_is_the_first_with_only_extra_people(tmp_path, template, pictures, kept):
+    script = _script(real_people=[])
+    first = _scene_ids(script)[0]
+    images_dir, report = generate_scene_images(script, template, "8bitnews-us", tmp_path, Client(pictures))
+    scene = next(s for s in report.scenes if s["id"] == first)
+    assert scene["accepted"] == f"images/attempts/{first}-{kept}.png" and not scene["fallback"]
+    assert (images_dir / f"{first}.png").read_bytes() == WITH_PEOPLE
+    note = next(n for n in report.notes if n.startswith(f"{first}:"))
+    assert "no generated picture passed the check after 3 attempt(s)" in note and "text" in note
+    assert f"images/attempts/{first}-{kept}.png is kept: its only finding is people" in note
+
+
+def test_extra_people_with_text_is_still_a_card(tmp_path, template):
+    script = _script(real_people=[])
+    first = _scene_ids(script)[0]
+    images_dir, report = generate_scene_images(script, template, "8bitnews-us", tmp_path, Client([WITH_BOTH] * 3))
+    scene = next(s for s in report.scenes if s["id"] == first)
+    assert scene["fallback"] and "kept_with" not in scene
+    assert (images_dir / f"{first}.png").read_bytes() != WITH_BOTH
+
+
+def test_the_fixed_wording_never_counts_as_a_name(tmp_path, template):
+    """"power-ups" in the prohibitions, "hands" in the extra-people redraw: not Samantha Power or Guy Hands."""
+    script = _script(visual="A diplomat speaks at a podium.", real_people=["Samantha Power", "Guy Hands"])
+    generate_scene_images(script, template, "8bitnews-us", tmp_path, Client([WITH_PEOPLE] * 3))
+
+
+def test_the_style_names_the_pictures_frame(template):
+    style = load_style("8bitnews-us")
+    from studio.scene_images import scene_prompt
+    assert "vertical 9:16" in scene_prompt(style, template, "a ballot box")
+    screen = scene_prompt(style, template, "a ballot box", screen=True, aspect="4:5")
+    assert "portrait 4:5" in screen and "9:16" not in screen and "{frame}" not in screen
+    assert "Scene: a ballot box. " in screen
+    assert "Scene: Who will win? " in scene_prompt(style, template, "Who will win?")

@@ -2,10 +2,12 @@
 
 For every `shot: scene` (and a `custom` cover): the prompt (`scene_prompt`)
 -> the image model -> a vision check of the picture (JSON: text, logos,
-flags or seals, game elements, photorealism, gore). A picture that fails is
-drawn again with the prohibition it broke stated harder, at most twice; if
-none passes, a neutral card (the channel logo on the template's colors)
-stands in and the package's notes say so, for QA and Legal. Every picture
+flags or seals, game elements, photorealism, gore, people the scene doesn't
+describe). A picture that fails is drawn again with the prohibition it broke
+stated harder, at most twice; if none passes, a neutral card (the channel
+logo on the template's colors) stands in and the package's notes say so, for
+QA and Legal. Extra people alone don't make a card: the first picture with
+nothing else wrong is kept, with a note. Every picture
 drawn, passed or not, and its check are kept in the package (`images/`).
 The frame engine snaps the accepted picture to the 270x480 grid and the
 template's NES palette like any scene asset.
@@ -52,7 +54,9 @@ CHECK_PROMPT = (
     "country, state or organization (a plain one-color flag is fine), a coat of arms, government seal or official "
     "emblem, \"game_elements\": anything from a known video game (a \"?\" block, "
     "pipes, coins, power-ups, health bars, game characters), \"photorealistic\": it looks like a photograph rather "
-    "than pixel art, \"gore\": blood, wounds, dead bodies or a moment of violence}."
+    "than pixel art, \"gore\": blood, wounds, dead bodies or a moment of violence, \"extra_people\": a person, "
+    "human figure, face or hand that the scene description below does not ask for (any person at all when it "
+    "describes none)}. The scene description: "
 )
 FINDINGS = {
     "text": "Absolutely no text: every sign, screen, paper, label, calendar and badge is blank, with no letters, "
@@ -63,7 +67,13 @@ FINDINGS = {
     "game_elements": "Nothing from any video game: no blocks, pipes, coins, power-ups, health bars or game characters.",
     "photorealistic": "Strictly flat NES 8-bit pixel art with big visible pixels, not a photograph, not realistic.",
     "gore": "No blood, wounds, bodies or violence.",
+    "extra_people": "Only the people the scene describes, and none at all if it describes none: no figures, faces "
+                    "or hands beyond them.",
 }
+# Worth a redraw, not a neutral card: a stylized stranger is a QA remark, text or a seal is a rule broken.
+SOFT_FINDINGS = {"extra_people"}
+# The frame each aspect asks for, in the style's "{frame}".
+FRAMES = {"9:16": "vertical 9:16", "4:5": "portrait 4:5", "1:1": "square 1:1", "5:4": "landscape 5:4"}
 
 
 def load_style(channel_id: str) -> dict:
@@ -76,22 +86,27 @@ SCREEN_PROMPT = ("This picture fills the TV screen behind a news anchor: show on
 
 
 def scene_prompt(style: dict, template: TemplatePackage, visual: str, stronger: list[str] = (), serious: bool = False,
-                 screen: bool = False) -> str:
+                 screen: bool = False, aspect: str = "9:16") -> str:
     """In serious mode the channel's serious look replaces the template's
     (nes-desk's "bright, saturated" day has no place in a tragedy); a
     `screen` picture is what an anchor shot shows behind the anchor."""
-    parts = [style["style"]]
+    parts = [style["style"].replace("{frame}", FRAMES[aspect])]
     if serious:
         parts.append(style["serious"])
     elif template.data.get("image_style"):
         parts.append(template.data["image_style"])
     if screen:
         parts.append(SCREEN_PROMPT)
-    parts.append("Scene: " + visual)
+    parts.append("Scene: " + _sentence(visual))
     parts.append(style["people"])
     parts.append(style["prohibitions"])
     parts.extend(stronger)
     return " ".join(p.strip() for p in parts if p.strip())
+
+
+def _sentence(text: str) -> str:
+    text = text.strip()
+    return text if text.endswith((".", "?", "!")) else text + "."
 
 
 def check_findings(answer: dict) -> list[str]:
@@ -166,16 +181,19 @@ def generate_scene_images(
     screen_aspect = "4:5" if screen["w"] / screen["h"] <= 0.9 else ("1:1" if screen["w"] / screen["h"] <= 1.15 else "5:4")
     for name, visual, kind in jobs:
         cleaned = clean_visual(visual, everyone)
+        # clean_visual's job; this is the last line before the network. Only the scene text comes from the
+        # script: the fixed wording around it ("power-ups", "hands", "gore") would trip on Samantha Power.
+        leaked = leaked_names(cleaned, everyone)
+        if leaked:
+            raise BuildError(f"{name}: the image prompt still names {', '.join(leaked)}; not sent")
         stronger: list[str] = []
         attempts: list[dict] = []
         accepted = None
+        aspect = screen_aspect if kind == "screen" else "9:16"
         for n in range(1 + MAX_REDRAWS):
-            prompt = scene_prompt(style, template, cleaned, stronger, serious, screen=kind == "screen")
-            leaked = leaked_names(prompt, everyone)
-            if leaked:  # clean_visual's job; this is the last line before the network
-                raise BuildError(f"{name}: the image prompt still names {', '.join(leaked)}; not sent")
+            prompt = scene_prompt(style, template, cleaned, stronger, serious, screen=kind == "screen", aspect=aspect)
             try:
-                reply = client.generate_image(model, prompt, screen_aspect if kind == "screen" else "9:16", variant=n)
+                reply = client.generate_image(model, prompt, aspect, variant=n)
             except NoImageError as e:
                 attempts.append({"n": n, "prompt": prompt, "refused": str(e)[:300], "cost_usd": round(e.cost_usd, 4)})
                 continue
@@ -186,7 +204,7 @@ def generate_scene_images(
                 attempts.append({"n": n, "prompt": prompt, "file": rel, "unusable": f"image {size}",
                                  "cost_usd": round(reply.cost_usd, 4)})
                 continue
-            check = client.ask_json(check_model, CHECK_PROMPT, (reply.png,))
+            check = client.ask_json(check_model, CHECK_PROMPT + _sentence(cleaned), (reply.png,))
             found = check_findings(check.data)
             attempts.append({"n": n, "prompt": prompt, "file": rel, "check": check.data, "found": found,
                              "cost_usd": round(reply.cost_usd + check.cost_usd, 4)})
@@ -195,20 +213,26 @@ def generate_scene_images(
                 break
             stronger = list(dict.fromkeys(stronger + [FINDINGS[k] for k in found]))
         target = images_dir / f"{name}.png"
-        if accepted:
-            shutil.copyfile(Path(out_dir) / accepted, target)
-        else:
-            if kind == "screen":  # sized to the screen, so the logo isn't cropped down to a few pixels
-                fallback_card(template, logo, (screen["w"], screen["h"]), scale=1).save(target)
-            else:
-                fallback_card(template, logo).save(target)
+        entry = {"id": name, "file": f"images/{name}.png"}
+        if not accepted:
+            what = f"{name} screen behind the anchor" if kind == "screen" else name
             found_all = sorted({k for a in attempts for k in a.get("found", [])}
                                | {"refused" for a in attempts if "refused" in a}
                                | {"unusable image" for a in attempts if "unusable" in a})
-            what = f"{name} screen behind the anchor" if kind == "screen" else name
-            report.notes.append(
-                f"{what}: no generated picture passed the check after {len(attempts)} attempt(s) "
-                f"({', '.join(found_all)}); a neutral card with the logo stands in -- see images/attempts/")
-        report.scenes.append({"id": name, "file": f"images/{name}.png", "fallback": accepted is None,
-                              "accepted": accepted, "attempts": attempts})
+            failed = f"{what}: no generated picture passed the check after {len(attempts)} attempt(s) ({', '.join(found_all)})"
+            soft = next((a for a in attempts if a.get("found") and set(a["found"]) <= SOFT_FINDINGS), None)
+            if soft:
+                accepted = soft["file"]
+                entry["kept_with"] = soft["found"]
+                report.notes.append(f"{failed}; {accepted} is kept: its only finding is people the scene doesn't "
+                                    f"describe -- see images/attempts/")
+            else:
+                report.notes.append(f"{failed}; a neutral card with the logo stands in -- see images/attempts/")
+        if accepted:
+            shutil.copyfile(Path(out_dir) / accepted, target)
+        elif kind == "screen":  # sized to the screen, so the logo isn't cropped down to a few pixels
+            fallback_card(template, logo, (screen["w"], screen["h"]), scale=1).save(target)
+        else:
+            fallback_card(template, logo).save(target)
+        report.scenes.append({**entry, "fallback": accepted is None, "accepted": accepted, "attempts": attempts})
     return images_dir, report
