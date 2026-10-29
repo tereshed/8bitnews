@@ -17,7 +17,7 @@ def test_all_checks_pass_on_the_freshly_built_package(built_package, test_channe
     ids = {c["id"] for c in package["validate"]["checks"]}
     assert ids == {
         "format", "duration", "file_size", "subtitles_cover_words",
-        "package_schema", "template_valid", "keyframes_grid_palette", "ai_plates", "face_clear",
+        "package_schema", "template_valid", "keyframes_grid", "ai_label", "face_clear",
         "video_matches_keyframes", "no_black_frames", "disclosures",
         "loudness", "true_peak", "silence", "music_under_voice", "video_no_music",
     }
@@ -304,16 +304,15 @@ def test_template_valid_fails_on_a_broken_template_copy(built_package, test_chan
     assert "plates.source_plate" in check["note"]
 
 
-def test_keyframes_grid_palette_fails_on_an_off_palette_color(built_package, test_channels_dir, corrupt_copy):
+def test_keyframes_grid_allows_colors_outside_the_palette(built_package, test_channels_dir, corrupt_copy):
+    """Scene pictures keep the generator's colors (owner, 29.10)."""
     def corrupt(copy_dir, package):
         _paint(copy_dir, "keyframes/S2_mid.png", {"x": 100, "y": 200, "w": 4, "h": 4}, "#123456")
 
-    check = _check(built_package, test_channels_dir, corrupt_copy, "keyframes_grid_palette", corrupt)
-    assert check["ok"] is False
-    assert "S2_mid.png" in check["note"] and "#123456" in check["note"]
+    assert _check(built_package, test_channels_dir, corrupt_copy, "keyframes_grid", corrupt)["ok"] is True
 
 
-def test_keyframes_grid_palette_fails_off_the_4x4_grid(built_package, test_channels_dir, corrupt_copy):
+def test_keyframes_grid_fails_off_the_4x4_grid(built_package, test_channels_dir, corrupt_copy):
     def corrupt(copy_dir, package):
         from PIL import Image
 
@@ -322,48 +321,54 @@ def test_keyframes_grid_palette_fails_off_the_4x4_grid(built_package, test_chann
         img.putpixel((401, 801), (0, 0, 0) if img.getpixel((401, 801)) != (0, 0, 0) else (252, 252, 252))
         img.save(path)
 
-    check = _check(built_package, test_channels_dir, corrupt_copy, "keyframes_grid_palette", corrupt)
+    check = _check(built_package, test_channels_dir, corrupt_copy, "keyframes_grid", corrupt)
     assert check["ok"] is False
     assert "S1_mid.png: 1 of" in check["note"] and "cells are not one color" in check["note"]
 
 
-def test_keyframes_grid_palette_fails_on_wrong_size(built_package, test_channels_dir, corrupt_copy):
+def test_keyframes_grid_fails_on_wrong_size(built_package, test_channels_dir, corrupt_copy):
     def corrupt(copy_dir, package):
         from PIL import Image
 
         path = copy_dir / package["files"]["cover"]["path"]
         Image.open(path).resize((540, 960)).save(path)
 
-    check = _check(built_package, test_channels_dir, corrupt_copy, "keyframes_grid_palette", corrupt)
+    check = _check(built_package, test_channels_dir, corrupt_copy, "keyframes_grid", corrupt)
     assert check["ok"] is False
     assert "cover.png: 540x960" in check["note"]
 
 
-def test_ai_plates_fails_when_ai_illustration_is_painted_over(built_package, test_channels_dir, corrupt_copy):
+def _ai_line_band(copy_dir) -> dict:
+    """The AI line's row across the whole frame (its glyphs and outline)."""
+    return {"x": 0, "y": _template(copy_dir)["plates"]["ai_label"]["y"] - 1, "w": 270, "h": 10}
+
+
+def test_ai_label_fails_when_the_line_is_painted_over_a_real_person(built_package, test_channels_dir, corrupt_copy):
     def corrupt(copy_dir, package):
-        _paint(copy_dir, "keyframes/S2_mid.png", _template(copy_dir)["plates"]["ai_illustration"]["rect"], "#0058f8")
+        _paint(copy_dir, "keyframes/S2_mid.png", _ai_line_band(copy_dir), "#0058f8")
 
-    check = _check(built_package, test_channels_dir, corrupt_copy, "ai_plates", corrupt)
+    check = _check(built_package, test_channels_dir, corrupt_copy, "ai_label", corrupt)
     assert check["ok"] is False
-    assert "S2_mid.png (S2" in check["note"] and "ai_illustration plate missing" in check["note"]
+    assert "S2_mid.png (S2" in check["note"] and "AI line missing" in check["note"]
+    assert "'AI voice · AI illustration' line" in check["note"]
 
 
-def test_ai_plates_fails_when_ai_voice_is_painted_over(built_package, test_channels_dir, corrupt_copy):
+def test_ai_label_fails_when_the_line_is_painted_over_at_the_start(built_package, test_channels_dir, corrupt_copy):
     def corrupt(copy_dir, package):
-        _paint(copy_dir, "keyframes/S1_first.png", _template(copy_dir)["plates"]["ai_voice"]["rect"], "#0058f8")
+        _paint(copy_dir, "keyframes/S1_first.png", _ai_line_band(copy_dir), "#0058f8")
 
-    check = _check(built_package, test_channels_dir, corrupt_copy, "ai_plates", corrupt)
+    check = _check(built_package, test_channels_dir, corrupt_copy, "ai_label", corrupt)
     assert check["ok"] is False
-    assert "S1_first.png" in check["note"] and "ai_voice plate missing" in check["note"]
+    assert "S1_first.png" in check["note"] and "AI line missing" in check["note"]
 
 
-def test_ai_plates_fails_when_the_cover_loses_ai_illustration(built_package, test_channels_dir, corrupt_copy):
+def test_ai_label_fails_when_the_cover_loses_ai_illustration(built_package, test_channels_dir, corrupt_copy):
     def corrupt(copy_dir, package):
-        _paint(copy_dir, "cover.png", _template(copy_dir)["plates"]["ai_illustration"]["rect"], "#0058f8")
+        _paint(copy_dir, "cover.png", _ai_line_band(copy_dir), "#0058f8")
 
-    check = _check(built_package, test_channels_dir, corrupt_copy, "ai_plates", corrupt)
+    check = _check(built_package, test_channels_dir, corrupt_copy, "ai_label", corrupt)
     assert check["ok"] is False
-    assert "cover.png" in check["note"]
+    assert "cover.png" in check["note"] and "'AI illustration' line" in check["note"]
 
 
 def test_face_clear_fails_when_the_face_is_covered(built_package, test_channels_dir, corrupt_copy):
@@ -434,30 +439,32 @@ def _logical_edit(copy_dir, rel, edit):
     small.convert("RGB").resize(big.size, Image.NEAREST).save(path)
 
 
-def test_ai_plates_fails_on_a_plate_with_the_wrong_label(built_package, test_channels_dir, corrupt_copy):
-    """The AI-voice plate drawn with the icon's "AI" label: right colors, wrong text."""
+def test_ai_label_fails_on_a_line_with_the_wrong_text(built_package, test_channels_dir, corrupt_copy):
+    """Only "AI voice" where a real person is on the screen behind the anchor: right colors, wrong text."""
     from studio.channel_assets import load_channel_assets
-    from studio.engine import _draw_plate
+    from studio.engine import draw_ai_label
+    from studio.template_pkg import load_template
 
     def corrupt(copy_dir, package):
-        cfg = _template(copy_dir)["plates"]["ai_voice"]
+        _paint(copy_dir, "keyframes/S1_first.png", _ai_line_band(copy_dir), "#503000")
+        template = load_template(copy_dir / "template")
         font = load_channel_assets("8bitnews-us").font(8)
-        _logical_edit(copy_dir, "keyframes/S1_first.png", lambda img: _draw_plate(img, cfg, ["AI"], font))
+        _logical_edit(copy_dir, "keyframes/S1_first.png", lambda img: draw_ai_label(img, template, "AI voice", font))
 
-    check = _check(built_package, test_channels_dir, corrupt_copy, "ai_plates", corrupt)
+    check = _check(built_package, test_channels_dir, corrupt_copy, "ai_label", corrupt)
     assert check["ok"] is False
-    assert "S1_first.png" in check["note"] and "'AI · AI voice' plate" in check["note"]
+    assert "S1_first.png" in check["note"] and "'AI voice · AI illustration' line" in check["note"]
 
 
-def test_ai_plates_fails_when_the_engine_leaves_a_plate_out(built_package, test_channels_dir, corrupt_copy, monkeypatch):
+def test_ai_label_fails_when_the_engine_leaves_the_illustration_out(built_package, test_channels_dir, corrupt_copy, monkeypatch):
     import studio.checks as checks_mod
 
     real = checks_mod.active_plates
     monkeypatch.setattr(checks_mod, "active_plates", lambda *a: real(*a) - {"ai_illustration"})
-    check = _check(built_package, test_channels_dir, corrupt_copy, "ai_plates", lambda d, p: None)
+    check = _check(built_package, test_channels_dir, corrupt_copy, "ai_label", lambda d, p: None)
     assert check["ok"] is False
     # S1 is the anchor with S2's real person on the screen behind her
-    assert "(S1, " in check["note"] and "does not put ai_illustration" in check["note"]
+    assert "(S1, " in check["note"] and "the engine draws the AI line 'AI voice', not" in check["note"]
 
 
 def test_video_matches_keyframes_fails_on_a_small_local_change(built_package, test_channels_dir, corrupt_copy):

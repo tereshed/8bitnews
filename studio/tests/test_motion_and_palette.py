@@ -99,14 +99,12 @@ def test_transition_at_scene_boundary_blends_into_the_first_frame(nes_desk_dir):
     """render_frame (not the internal helper) must actually use the boundary
     transition: nes-desk's transitions round-robin to 'pixel-wipe' (a
     pixelate, duration_s=0.4) at the S1->S2 boundary. Two points inside that
-    0.4s window (both still before the 3s AI-voice/-icon cutover, so the
-    plates drawn on top are identical either way) must differ, because the
-    pixelate reveal fraction grows with elapsed time."""
+    0.4s window (the AI line drawn on top is the same at both) must differ,
+    because the pixelate reveal fraction grows with elapsed time."""
     template = load_template(nes_desk_dir)
     assets = load_channel_assets("8bitnews-us")
-    timeline = builtin_timeline(wpm=165.0)  # a pace that ends S2's transition before 3 s
+    timeline = builtin_timeline(wpm=165.0)
     s2 = next(s for s in timeline.scenes if s.scene_id == "S2")
-    assert s2.start_s + 0.39 < 3.0  # stay on the same side of the ai_voice/ai_icon cutover
 
     just_inside = render_frame(BUILTIN_SCRIPT, timeline, template, assets, s2.start_s + 0.01)
     near_end_of_transition = render_frame(BUILTIN_SCRIPT, timeline, template, assets, s2.start_s + 0.39)
@@ -172,6 +170,11 @@ def test_serious_mode_does_not_recolor_the_anchor(nes_desk_dir):
     w, h = assets.anchor.canvas[0] * cfg["scale"], assets.anchor.canvas[1] * cfg["scale"]
     box = (cfg["x"], cfg["y"], cfg["x"] + w, cfg["y"] + h)
     opaque = np.asarray(assets.anchor.bodies["normal"].resize((w, h), Image.NEAREST))[..., 3] > 0
+    for layer in template.data["studio"]["layers"]:  # the desk in front of the anchor takes the template's colors
+        if layer.get("front"):
+            front = template.load_asset_image(layer["file"]).convert("RGBA")
+            opaque &= np.asarray(front.crop((box[0] - layer["x"], box[1] - layer["y"],
+                                             box[2] - layer["x"], box[3] - layer["y"])))[..., 3] == 0
     normal_px = np.asarray(normal_frame.convert("RGB").crop(box))[opaque]
     serious_px = np.asarray(serious_frame.convert("RGB").crop(box))[opaque]
     assert (normal_px == serious_px).all()

@@ -1,21 +1,57 @@
 {
-  "$comment": "Rectangles are in logical 270x480 engine pixels (9:16, matches the 1080x1920 output at *4). Every important text element (subtitles, on_screen_text, source_plate, AI plates) must stay inside the intersection of all enabled platforms' safe zones for a given release, so templates use the tightest common rectangle unless they target one platform only.",
-  "frame": { "w": 270, "h": 480 },
-  "sourcing_note": "Per-platform rectangles below are conservative engineering estimates, not numbers copied from a live, currently-fetched official guide: YouTube's, TikTok's and Instagram's own safe-zone pages (support.google.com, ads.tiktok.com/business/creativecenter, facebook.com/business/help) were unreachable from this sandbox at the time this file was written (403/404/blocked, consistent with other platform domains being blocked here -- see notes). The margins follow the well-known general shape repeatedly published by third-party creator tools (reserve roughly the top ~5-8% for a status/caption bar, the bottom ~15-20% for username/caption/music ticker, and the right ~20-25% for the like/comment/share icon column on TikTok and Instagram specifically), erring conservative. Re-verify against each platform's current official safe-zone guide with a working fetch before this ships to production, and update this file plus `common_safe_rect` if the real numbers differ.",
+  "$comment": "Rectangles are in logical 270x480 engine pixels (9:16, the 1080x1920 output at *4). Every important text element (subtitles, the source and title plates, the AI line, the cover title) must stay inside common_safe_rect; `studio template validate` checks it.",
+  "frame": {
+    "w": 270,
+    "h": 480
+  },
+  "sourcing_note": "Checked 2026-10-29. The platforms publish safe zones only for ads, not for organic posts; the per-platform rectangles below are those ad zones (1080x1920 px / 4). Ads reserve more than organic posts: a call-to-action and ad label sit in the bottom band. Sources: TikTok Ads Help, In-Feed ads, and its safe-zone overlay file (https://ads.tiktok.com/help/article/tiktok-auction-in-feed-ads, page last updated June 2026; the overlay is drawn on 720x1280 and scaled x1.5); Google Ads Help, vertical video safe zones (https://support.google.com/google-ads/answer/9128498) and its overlay PNG; Meta ads guide, Instagram Reels (https://www.facebook.com/business/ads-guide/update/video/instagram-reels: at least 14% top, 35% bottom, 6% each side). Secondary creator tools disagree with TikTok's own file (e.g. top 130 or 160 px, bottom 480 px).",
   "platforms": {
-    "youtube": {
-      "source": "Engineering estimate, not independently verified in this sandbox (see sourcing_note). YouTube Shorts' own on-screen UI (title, channel handle, like/comment/share column) is generally considered the lightest of the three platforms.",
-      "safe_rect": { "x": 10, "y": 10, "w": 250, "h": 430 }
-    },
     "tiktok": {
-      "source": "Engineering estimate, not independently verified in this sandbox (see sourcing_note). TikTok reserves the widest right-hand icon column and a deep bottom caption/sound band of the three platforms.",
-      "safe_rect": { "x": 10, "y": 20, "w": 190, "h": 380 }
+      "source": "TikTok In-Feed ads overlay: margins 240 top / 660 bottom / 120 left / 120 right px; the right-hand button column is x 780-960 px from y 840 px down (logical x >= 195 from y >= 210).",
+      "safe_rect": {
+        "x": 30,
+        "y": 60,
+        "w": 210,
+        "h": 255
+      },
+      "right_column": {
+        "x": 195,
+        "y": 210,
+        "w": 45,
+        "h": 270
+      }
+    },
+    "youtube": {
+      "source": "Google Ads vertical video safe zone (in-feed, in-stream, Shorts ads): margins 288 top / 672 bottom / 48 left / 192 right px.",
+      "safe_rect": {
+        "x": 12,
+        "y": 72,
+        "w": 210,
+        "h": 240
+      }
     },
     "instagram": {
-      "source": "Engineering estimate, not independently verified in this sandbox (see sourcing_note). Reels reserves a shorter top strip than TikTok but a deep bottom caption band and a right-hand action column.",
-      "safe_rect": { "x": 10, "y": 25, "w": 215, "h": 390 }
+      "source": "Meta ads guide, Reels: 14% top / 35% bottom / 6% each side (about 269 / 672 / 65 / 65 px); no button-column size published.",
+      "safe_rect": {
+        "x": 16,
+        "y": 67,
+        "w": 238,
+        "h": 245
+      }
     }
   },
-  "common_safe_rect": { "x": 10, "y": 25, "w": 190, "h": 375 },
-  "common_safe_rect_note": "Intersection of the three platform rectangles above, in logical pixels; nes-desk and night-report both key their plate/subtitle placement to this rectangle so one render clears all three platforms."
+  "ads_common_rect": {
+    "x": 30,
+    "y": 72,
+    "w": 165,
+    "h": 240
+  },
+  "ads_common_rect_note": "Intersection of the ad zones above, minus TikTok's button column: what a template made for paid placement would have to use.",
+  "common_safe_rect": {
+    "x": 20,
+    "y": 36,
+    "w": 230,
+    "h": 364
+  },
+  "common_safe_rect_note": "The working area for organic posts (owner's choice, 2026-10-29: plates, subtitles and the AI line centered in the frame). Organic posts have no ad call-to-action, so text runs below the ads' bottom margin, down to logical y 400 (1600 px), above the username/caption/music band, and from y 36 (144 px), below the status bar and the TikTok tabs. Known cost: on TikTok the right end of a long subtitle line and of the AI line can reach under the button column (x >= 195 from y 210); centering is impossible without it. Paid placement would need a template inside ads_common_rect."
 }

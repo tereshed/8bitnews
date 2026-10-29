@@ -59,69 +59,49 @@
     ]
   },
   "plates": {
-    "ai_voice": {
-      "rect": {
-        "x": 0,
-        "y": 0,
-        "w": 270,
-        "h": 20
-      },
-      "bg_color": "#000000",
-      "text_color": "#fcfcfc"
-    },
-    "ai_icon": {
-      "rect": {
-        "x": 176,
-        "y": 25,
-        "w": 24,
-        "h": 20
-      },
-      "bg_color": "#881400",
-      "text_color": "#fcfcfc"
-    },
-    "ai_illustration": {
-      "rect": {
-        "x": 10,
-        "y": 330,
-        "w": 190,
-        "h": 18
-      },
-      "bg_color": "#000000",
-      "text_color": "#fcfcfc"
-    },
-    "scene_title": {
-      "rect": {
-        "x": 10,
-        "y": 51,
-        "w": 190,
-        "h": 40
-      },
-      "bg_color": "#000000",
-      "text_color": "#fcfcfc"
+    "ai_label": {
+      "y": 0,
+      "text_color": "#bcbcbc",
+      "outline_color": "#000000"
     },
     "source_plate": {
       "rect": {
-        "x": 10,
-        "y": 97,
+        "x": 40,
+        "y": 40,
         "w": 190,
-        "h": 28
+        "h": 32
       },
       "bg_color": "#000000",
-      "text_color": "#787878"
+      "text_color": "#bcbcbc",
+      "max_lines": 3
+    },
+    "scene_title": {
+      "rect": {
+        "x": 40,
+        "y": 40,
+        "w": 190,
+        "h": 22
+      },
+      "bg_color": "#000000",
+      "text_color": "#fcfcfc",
+      "max_lines": 2,
+      "below": "source_plate"
     }
   },
   "subtitles": {
     "rect": {
-      "x": 10,
-      "y": 354,
-      "w": 190,
-      "h": 40
+      "x": 20,
+      "y": 332,
+      "w": 230,
+      "h": 44
     },
     "style": {
       "color": "#fcfcfc",
       "outline_color": "#000000",
+      "bg_color": "#000000",
+      "font_scale": 2,
       "max_lines": 2,
-      "max_chars_per_line": 23
+      "max_chars_per_line": 12
     }
   },
   "motion_presets": [
@@ -179,10 +159,10 @@
     "layout": {
       "background": "assets/sample_scene.png",
       "text_rect": {
-        "x": 10,
-        "y": 350,
-        "w": 190,
-        "h": 40
+        "x": 20,
+        "y": 332,
+        "w": 230,
+        "h": 44
       }
     }
   },

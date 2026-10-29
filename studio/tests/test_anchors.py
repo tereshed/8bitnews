@@ -229,7 +229,7 @@ def test_template_validate_checks_every_anchors_face(tmp_path):
     d = tmp_path / "t"
     shutil.copytree(TEMPLATES_DIR / "nes-desk", d)
     data = json.loads((d / "template.json").read_text())
-    data["plates"]["ai_illustration"]["rect"] = {"x": x, "y": y, "w": 1, "h": 1}
+    data["plates"]["source_plate"]["rect"] = {"x": x, "y": y, "w": 1, "h": 1}
     (d / "template.json").write_text(json.dumps(data))
     with pytest.raises(TemplateValidationError) as e:
         validate_template(d)

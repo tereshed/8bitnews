@@ -63,5 +63,5 @@ BUILTIN_SCRIPT: dict = {
 }
 
 
-def builtin_timeline(wpm: float | None = None) -> Timeline:
-    return uniform_timeline(BUILTIN_SCRIPT, wpm=wpm)
+def builtin_timeline(wpm: float | None = None, subtitle_style: dict | None = None) -> Timeline:
+    return uniform_timeline(BUILTIN_SCRIPT, wpm=wpm, subtitle_style=subtitle_style)

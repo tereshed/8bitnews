@@ -500,7 +500,7 @@
         },
         "ai_label_shown": {
           "type": "boolean",
-          "description": "The 'AI illustration' plate is on screen in this scene"
+          "description": "The AI line says 'AI illustration' in this scene"
         }
       },
       "if": {

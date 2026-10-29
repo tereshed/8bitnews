@@ -80,12 +80,17 @@ class Timeline:
 _MIN_SCENE_DURATION_S = 1.0
 
 
-def uniform_timeline(script: dict, wpm: float | None = None) -> Timeline:
+def uniform_timeline(script: dict, wpm: float | None = None, subtitle_style: dict | None = None) -> Timeline:
     """Builds a Timeline purely from each scene's narration word count and a
     fixed words-per-minute pace (no audio): format.md's own word budget is
     defined this way (144 wpm, 131 in serious mode -- the af_sarah pace), so
-    this is also the right stand-in for tests and template preview.
+    this is also the right stand-in for tests and template preview. Cues are
+    split with a template's `subtitles.style` caps when given, as `studio
+    build` does.
     """
+    style = subtitle_style or {}
+    caps = {k: style[f] for k, f in (("max_lines", "max_lines"), ("max_chars", "max_chars_per_line"),
+                                     ("font_scale", "font_scale")) if f in style}
     if wpm is None:
         wpm = SERIOUS_WPM if script.get("serious_mode") else DEFAULT_WPM
     words_per_second = wpm / 60.0
@@ -102,7 +107,7 @@ def uniform_timeline(script: dict, wpm: float | None = None) -> Timeline:
             Word(text=w, start_s=scene_start + i * word_dur, end_s=scene_start + (i + 1) * word_dur)
             for i, w in enumerate(words_text)
         )
-        subtitles = tuple(split_cues(words))
+        subtitles = tuple(split_cues(words, **caps))
         scenes.append(
             SceneTiming(
                 scene_id=scene["id"],
@@ -139,6 +144,7 @@ def timeline_from_voice(
     pause_s: float,
     max_lines: int,
     max_chars: int,
+    font_scale: int = 1,
 ) -> Timeline:
     """Builds a Timeline from real per-scene voice word timings plus
     `pause_s` silence *between* scenes (template `timing.scene_pause_s`) --
@@ -154,7 +160,7 @@ def timeline_from_voice(
         end = words[-1].end_s if words else start
         if sv.duration_s is not None:
             end = max(end, start + sv.duration_s)
-        subtitles = tuple(split_cues(words, max_lines, max_chars))
+        subtitles = tuple(split_cues(words, max_lines, max_chars, font_scale))
         scenes.append(SceneTiming(scene_id=sv.scene_id, shot=sv.shot, start_s=start, end_s=end, words=words, subtitles=subtitles))
         t = end
     return Timeline(scenes=tuple(scenes))

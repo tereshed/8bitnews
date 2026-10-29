@@ -44,18 +44,18 @@ t_abs)` — same inputs always produce the same PNG bytes (`tests/test_determini
   identical thing in Python for the contact sheet). All drawing — plate
   backgrounds, scene images (via `studio/quantize.py:quantize`), and text
   (via `studio/text_render.py`, which rasterizes glyphs to a bilevel mask
-  so there is no anti-aliased blend color) — only ever paints colors from
-  `channels/8bitnews-us/palette.json`, so every frame is palette-pure by
-  construction, not by a final clean-up pass.
+  so there is no anti-aliased blend color) — paints the studio, plates and
+  text only in colors from `channels/8bitnews-us/palette.json`. Scene
+  pictures are the exception (below).
 - **Palette subset vs. the anchor** — studio background/foreground layers
   and the placeholder card of a scene without a picture are snapped to the
   *template's* `palette.colors` (or `serious_colors` in serious mode)
-  before anything else is drawn on top, in both modes. Scene *pictures* snap
-  to `palette.scene_colors`, by default the whole NES palette, in normal
-  mode (E2b-2: the 13 colors of `nes-desk` have no skin tones, and the
-  generated people came out lilac; a template's look reaches its pictures
-  through its `image_style` prompt instead), and to `serious_colors` in
-  serious mode. The anchor sprite is composited
+  before anything else is drawn on top, in both modes. Scene *pictures*
+  keep the generator's colors in normal mode, fitted to the 270×480 grid
+  (owner, 29.10: the whole NES palette turned courtrooms brown and grey;
+  before that, the 13 colors of `nes-desk` made faces lilac), unless the
+  template sets `palette.scene_colors`; in serious mode they snap to
+  `serious_colors`. The anchor sprite is composited
   **after** that and is never run through the template's palette at all —
   its pixels stay exactly whatever `channels/8bitnews-us/anchors/<id>/*.png`
   contain (skin/hair/suit tones that are deliberately not in every
@@ -66,59 +66,61 @@ t_abs)` — same inputs always produce the same PNG bytes (`tests/test_determini
   rendered its debug placeholder in `nes-desk`'s pink, not night-report's
   muted colors.
 
-### AI disclosure plates (`channels/8bitnews-us/format.md`, Legal R4/R5)
+### The AI line and the plates (`channels/8bitnews-us/format.md`, Legal R4/R5)
 
-`studio/engine.py:active_plates` is the single source of truth for plate
-timing, kept separate from pixel drawing so it is unit-testable
-(`tests/test_ai_plates_timing.py`):
+`studio/engine.py:active_plates` is the single source of truth for what is
+shown, kept separate from pixel drawing so it is unit-testable
+(`tests/test_ai_label.py`):
 
-- `ai_voice` — the whole video's first 3 seconds (`AI_VOICE_PLATE_S` in
-  `studio/constants.py`), top of frame.
-- `ai_icon` — every frame after that (mutually exclusive with `ai_voice`).
+- **The AI line** (`plates.ai_label`, owner 29.10: "не в лоб", at the
+  bottom) — one small grey line with an outline and no plate, centered at
+  the template's `y` under the subtitles, on every frame: "AI voice", or
+  "AI voice · AI illustration" while `ai_illustration` is active
+  (`engine.ai_label_text`). It is there from the first frame to the last,
+  which covers both the start and the "regular intervals" of the AI Act
+  Code of Practice.
 - `ai_illustration` — any frame where a real person's likeness may be in
   frame: the current scene's own `real_people` is non-empty, or (for an
-  anchor shot) the next scene shot's is — the over-the-shoulder screen shows
+  anchor shot) the next scene shot's is — the screen behind the anchor shows
   the anchor scene's own picture when it has one, else the next scene
-  shot's (`_next_scene_shot`), so both count — the plate holds for that
+  shot's (`_next_scene_shot`), so both count — "AI illustration" holds for that
   scene's entire duration either way. With hand-made `--assets`, an
   `<anchor scene id>.png` there is that anchor shot's screen picture.
 - `scene_title` / `source_plate` — straight from the scene's
   `on_screen_text` / `source_plate` fields, wrapped to fit the template's
-  own plate rect width (`studio/engine.py:_max_chars_for_rect`).
+  own plate rect width (`studio/engine.py:_max_chars_for_rect`). Each plate
+  is as wide as its longest line and centered in its rect; a plate with
+  `below` sits under that plate when it is shown (`content_plate_boxes`):
+  the source on top, the title under it, the title alone at the top.
 
 ### Safe zones
 
-`channels/8bitnews-us/safe_zones.json` has one rectangle per platform
-(YouTube Shorts, TikTok, Instagram Reels) plus their intersection,
-`common_safe_rect`. Templates in this repo place every plate and the
-subtitle rect inside that intersection. **These rectangles are
-conservative engineering estimates, not numbers read off a live official
-guide**: YouTube's, TikTok's and Instagram's own safe-zone pages were
-unreachable from this sandbox when this file was written (403/404s; see
-`safe_zones.json`'s own `sourcing_note`). Re-verify against each
-platform's current guide with a
-working fetch before this ships, and update the file (and the template
-rects that key off it) if the real numbers differ. `studio template
-validate` checks every plate/subtitle/cover rect against whatever is in
-the file today — and, separately, that none of them overlap the face of
-any active anchor (each `channels/8bitnews-us/anchors/<id>/manifest.json`
+`channels/8bitnews-us/safe_zones.json` has each platform's official
+safe zone (TikTok, YouTube, Instagram, checked 29.10 — the platforms
+publish them for ads only), their intersection `ads_common_rect`, and
+`common_safe_rect`, the working area for organic posts, which have no ad
+call-to-action in the bottom band. Templates in this repo place every
+plate, the AI line, the subtitles and the cover title inside
+`common_safe_rect`, centered in the frame (owner, 29.10): on TikTok the
+right end of a long line can reach under the button column. `studio
+template validate` checks them against the file — and, separately, that
+none of them, and no layer drawn in front of the anchor (`front`),
+overlap the face of any active anchor (each `channels/8bitnews-us/anchors/<id>/manifest.json`
 `face_rect`, mapped into frame coordinates by `studio.anchor.x/y/scale`
 via `AnchorSprites.face_rect_in_frame`).
 
 ### Subtitles
 
-`channels/8bitnews-us/format.md` caps subtitle lines at "up to 32
-characters" assuming the full 270px logical width. The timeline
-(`studio/timeline.py:uniform_timeline`) splits narration into cues once,
-independently of which template renders them, using the channel-wide
-`MAX_SUBTITLE_CHARS_PER_LINE`/`MAX_SUBTITLE_LINES` in `studio/constants.py`
-(23/2 — a tighter, still-compliant choice against the common safe
-rect's 190px width at the 8px font). At render time `engine.py:_render_core`
-**re-wraps** each cue's text using the *active template's*
-`subtitles.style.max_lines`/`max_chars_per_line` (schema fields that were
-previously validated but never read) — so a template that wants shorter or
-longer lines than the channel default actually gets them, without the
-timeline needing to know which template will render it.
+`studio build` splits the timed words into cues with the template's
+`subtitles.style.max_lines`/`max_chars_per_line` (`split_cues`; the
+channel-wide `MAX_SUBTITLE_CHARS_PER_LINE`/`MAX_SUBTITLE_LINES` in
+`studio/constants.py` only cover a template without them), and the engine
+re-wraps each cue the same way. Both templates draw subtitles at
+`font_scale` 2 (16 px glyphs, 12 characters a line, owner 29.10: "должны
+читаться лучше"), white on a black plate as wide as the longest line,
+centered and bottom-aligned in `subtitles.rect` (`engine.subtitle_box`). A
+cue with a word longer than a line ("administration") drops to scale 1,
+24 characters a line, rather than break the word.
 
 ### Motion
 
@@ -159,9 +161,11 @@ with none would leave some scenes with no motion at all.
   A transition may carry a `sound` (below, «Sound»).
 - `shot: anchor` scenes separately animate the anchor's blink and mouth
   (2-3 frames, driven by the timeline's volume envelope) regardless of
-  which motion preset the scene shown on the over-the-shoulder screen is
+  which motion preset the scene shown on the screen behind the anchor is
   using (the anchor scene's own picture `<assets>/<id>.png`, else the next
-  scene shot's; the last anchor shot shows the channel logo).
+  scene shot's; the last anchor shot shows the channel logo). The screen
+  sits centered above the anchor with a 2-px frame (`studio.screen`), and
+  the desk is a layer drawn in front of the anchor (`front: true`).
 
 ## Making a new template without writing code
 
@@ -313,8 +317,10 @@ why, for QA and Legal. Extra people alone are not worth a card: the first
 attempt with nothing else wrong is kept, and the notes say so. Every attempt is kept in the package
 (`images/attempts/`), with its prompt, check and cost in `package.json`
 `images.scenes[].attempts`. A cover the image model drew carries the "AI
-illustration" plate (it shows the story, maybe its people by role), and
-`ai_plates` checks it.
+illustration" line (it shows the story, maybe its people by role), and
+`ai_label` checks it. A scene picture is asked to keep its top fifth plain
+background (`images.json` `top_room`): the source and title plates go
+there.
 
 **Cost.** About $0.067 a picture and $0.001 a check, so a video of six
 scene shots costs about $0.41, more with redraws; `package.json`
@@ -420,19 +426,20 @@ with a title of up to 30 characters), word-wrapped inside
 `cover.layout.text_rect` in the subtitle colors
 (`cover_title.cover_title_layout`); `cover_title.fit_cover_title` raises a
 readable `BuildError` if the title needs more lines than the rect has room
-for, checked before TTS. `studio template validate` requires the rect to
-hold any 30-character title and to clear the anchor's face and the
-AI-illustration plate.
+for, checked before TTS; each line is centered in the rect. `studio
+template validate` requires the rect to hold any 30-character title and to
+clear the anchor's face and the AI line.
 - `cover.frame: S*` — that scene's middle frame (`engine.render_cover_frame`)
-  with `engine.cover_plates` only: the AI-illustration plate by the same rule
-  as the video (a real person in the scene or on the screen behind the
-  anchor), no scene title or source plate (the cover title replaces them),
-  no AI-voice/AI-icon plate, no subtitles. The title is drawn at 270×480
+  with `engine.cover_plates` only: the AI line says "AI illustration" by the
+  same rule as the video (a real person in the scene or on the screen behind
+  the anchor) and is absent otherwise (a still cover has no voice), no scene
+  title or source plate (the cover title replaces them), no subtitles. The title is drawn at 270×480
   before the ×4 upscale and the frame is not re-quantized, so the anchor
   keeps its colors.
-- `cover.frame: custom` — `<assets>/cover.png` quantized to the template's
-  palette at 270×480, or `cover.layout.background` without one, then the
-  title.
+- `cover.frame: custom` — `<assets>/cover.png` fitted to 270×480 (its own
+  colors, like a scene picture), or `cover.layout.background` without one,
+  then the title; a cover the image model drew gets the "AI illustration"
+  line.
 
 **Build scratch.** `frames/` (every logical frame) and the `_*` work files
 are deleted at the end of the build; `--keep-work` keeps `frames/` for
@@ -470,8 +477,8 @@ check fails. Each check is a function registered under a fixed `id` with
 | `subtitles_cover_words` | SRT cue text and timing against `timeline.json` words (below) |
 | `package_schema` | `package.json` against `video_package.schema.json`; `sha256`/`bytes` of every file record (`files.*` including `files.template` = `template/template.json`, scenes' keyframes) against the file, no path outside the package; every keyframe the package lists has its `timeline.json` record (scene, `t_s = frame/30`) |
 | `template_valid` | the package's `template/` copy passes `studio template validate` and is the template `package.template` names |
-| `keyframes_grid_palette` | keyframes and cover: 1080×1920, every 4×4 cell one color, NES palette only |
-| `ai_plates` | on every keyframe and an `S*` cover, by pixels: the plate rect equals that plate drawn with its format.md label («AI · AI voice», «AI», «AI illustration»). Required: `ai_voice` before 3 s, `ai_icon` after, `ai_illustration` whenever a real person is in frame (scene or the screen behind the anchor) — stated independently of `engine.active_plates`, which must agree |
+| `keyframes_grid` | keyframes and cover: 1080×1920, every 4×4 cell one color (no palette: scene pictures keep their colors) |
+| `ai_label` | on every keyframe, by pixels: the AI line's glyph and outline pixels equal the line drawn with its format.md text — «AI voice», «AI voice · AI illustration» whenever a real person is in frame (scene or the screen behind the anchor); on an `S*` cover and a cover the image model drew, «AI illustration» when that applies — stated independently of `engine.active_plates`, which must agree |
 | `face_clear` | on anchor keyframes and an anchor cover, the face rect equals the anchor sprite for that moment (pose, blink, mouth) |
 | `video_matches_keyframes` | each keyframe PNG against the video frame with the same number, per 4×4 cell: no cell's mean difference above `max_keyframe_cell_diff` (`studio/config.json`) |
 | `no_black_frames` | ffmpeg `blackdetect` (whole picture black, `pic_th=1.0`): no black frame anywhere; an unreadable video fails |
@@ -483,8 +490,10 @@ check fails. Each check is a function registered under a fixed `id` with
 | `video_no_music` | a video with music longer than 60 s (`constants.YOUTUBE_MUSIC_MAX_S`) has `files.video_no_music`; when there is one, it carries the very same video stream as `video.mp4` (packet MD5) and the same length, and holds no music: the voice and music stems are fitted to both soundtracks channel by channel (outside the sound effects), and the music's gain in the cut must stay under 5 % of its gain in `video.mp4` (`checks.no_music_max_music_share`) — quiet music, enough for a Content ID match, is found by its shape — while sound neither stem explains may exceed what `video.mp4` itself leaves (limiter and AAC error) by at most 6 dB (`checks.no_music_max_other_rise_db`), which catches another track; and in the voice's pauses (outside the sound effects), once the voice stem is fitted and taken out channel by channel, what is left is at least 35 dB under the voice (`checks.no_music_max_pause_db`) — a real Kokoro cut measures about −65 dB there (a word's tail running into a pause is voice, not music: the ninth-circuit trial has −33.5 dB of it), any music shows |
 
 Keyframes taken mid-transition (only a scene shorter than its transition
-gets them) are skipped by `ai_plates` and `face_clear`: there the picture
-legitimately mixes two scenes.
+gets them) are skipped by `face_clear`: there the picture legitimately
+mixes two scenes. `ai_label` checks them too: the AI line is drawn after
+the transition and holds still, saying "AI illustration" when either scene
+has a real person in frame.
 
 Negative tests in `tests/test_validate_checks.py` and
 `tests/test_validate_audio.py` corrupt a copy of the

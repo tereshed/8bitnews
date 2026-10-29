@@ -5,10 +5,6 @@ OUTPUT_W = LOGICAL_W * SCALE
 OUTPUT_H = LOGICAL_H * SCALE
 FPS = 30
 
-AI_VOICE_PLATE_S = 3.0
-"""format.md: the 'AI · AI voice' plate shows top-of-frame for the first 3s
-of the whole video; a small 'AI' icon persists after that."""
-
 DEFAULT_WPM = 144.0
 """The af_sarah pace at Kokoro speed 1.1 (format.md 'Длительность и темп',
 recalibrated 27.10): the `stub` voice and `uniform_timeline` read at it so a
@@ -37,12 +33,6 @@ FONT_PX = 8
 
 MAX_SUBTITLE_LINES = 2
 MAX_SUBTITLE_CHARS_PER_LINE = 23
-"""format.md caps subtitle lines at "до 32 символов" assuming the full
-270px logical width; the channel's actual common safe rect (common to
-YouTube/TikTok/Instagram, channels/8bitnews-us/safe_zones.json) is 190px
-wide, which at the 8px pixel font fits 23 monospace characters after
-padding. The timeline (studio.timeline) wraps subtitles once, independent
-of which template renders them, so this is a fixed channel-wide ceiling
-rather than a per-template computation -- 23 stays within format.md's
-"up to 32" cap.
-"""
+"""The default for a template without `subtitles.style.max_chars_per_line`
+(and the stub `uniform_timeline`): 23 characters at the 8px font. The
+templates set their own (12 at `font_scale` 2)."""

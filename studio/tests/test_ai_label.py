@@ -1,38 +1,30 @@
+"""The one AI line (format.md 'Текст в кадре'): "AI voice" on every frame,
+joined by "AI illustration" while a real person is in frame."""
 from studio.builtin_script import BUILTIN_SCRIPT, builtin_timeline
-from studio.constants import AI_VOICE_PLATE_S
-from studio.engine import active_plates
+from studio.engine import active_plates, ai_label_text
 from studio.template_pkg import load_template
 
 
-def test_ai_voice_plate_only_in_first_three_seconds(nes_desk_dir):
+def test_every_frame_says_ai_voice(nes_desk_dir):
     template = load_template(nes_desk_dir)
     timeline = builtin_timeline()
-
-    before = active_plates(BUILTIN_SCRIPT, timeline.scene_at(0.0), template, 0.0)
-    assert "ai_voice" in before
-    assert "ai_icon" not in before
-
-    just_before = active_plates(BUILTIN_SCRIPT, timeline.scene_at(AI_VOICE_PLATE_S - 0.1), template, AI_VOICE_PLATE_S - 0.1)
-    assert "ai_voice" in just_before
-
-    after = active_plates(BUILTIN_SCRIPT, timeline.scene_at(AI_VOICE_PLATE_S + 0.1), template, AI_VOICE_PLATE_S + 0.1)
-    assert "ai_icon" in after
-    assert "ai_voice" not in after
+    for t in [0.0, 2.9, 3.1, 5.0, timeline.duration_s - 0.01]:
+        assert ai_label_text(active_plates(BUILTIN_SCRIPT, timeline.scene_at(t), template, t)).startswith("AI voice")
 
 
-def test_ai_voice_and_ai_icon_are_mutually_exclusive(nes_desk_dir):
-    template = load_template(nes_desk_dir)
-    timeline = builtin_timeline()
-    for t in [0.0, 1.0, 2.9, 3.0, 3.1, 5.0, timeline.duration_s - 0.01]:
-        plates = active_plates(BUILTIN_SCRIPT, timeline.scene_at(t), template, t)
-        assert ("ai_voice" in plates) != ("ai_icon" in plates)
+def test_the_line_names_the_illustration_only_when_it_applies():
+    assert ai_label_text(set()) == "AI voice"
+    assert ai_label_text({"ai_illustration"}) == "AI voice · AI illustration"
+    # a still cover has no voice to label
+    assert ai_label_text(set(), cover=True) is None
+    assert ai_label_text({"ai_illustration"}, cover=True) == "AI illustration"
 
 
 def test_ai_illustration_shows_whenever_a_real_person_is_in_frame(nes_desk_dir):
     """Not just for a scene's own `real_people`: an anchor shot (S1) puts the
-    *next* scene-shot's image on its over-the-shoulder screen
-    (engine._next_scene_shot), so S1 must also carry the disclosure for as
-    long as that next scene (S2) has a real person on it."""
+    *next* scene-shot's image on the screen behind the anchor when it has no
+    picture of its own (engine._next_scene_shot), so S1 must also carry the
+    disclosure for as long as that next scene (S2) has a real person on it."""
     template = load_template(nes_desk_dir)
     timeline = builtin_timeline()
 
@@ -49,8 +41,8 @@ def test_ai_illustration_shows_whenever_a_real_person_is_in_frame(nes_desk_dir):
 
 
 def test_ai_illustration_holds_for_the_whole_scene(nes_desk_dir):
-    """format.md: the plate stays up the entire time a real person is on
-    screen, not just at one instant."""
+    """format.md: "AI illustration" stays up the entire time a real person
+    is on screen, not just at one instant."""
     template = load_template(nes_desk_dir)
     timeline = builtin_timeline()
     s2 = next(s for s in timeline.scenes if s.scene_id == "S2")

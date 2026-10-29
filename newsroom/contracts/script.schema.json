@@ -226,7 +226,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "Real people shown; the template adds the 'AI illustration' plate"
+          "description": "Real people shown; the AI line then says 'AI illustration'"
         },
         "fact_ids": {
           "type": "array",

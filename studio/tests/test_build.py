@@ -15,6 +15,7 @@ from studio.build import (
 from studio.builtin_script import BUILTIN_SCRIPT, builtin_timeline
 from studio.channel_assets import load_channel_assets
 from studio.constants import FONT_PX, OUTPUT_H, OUTPUT_W
+from studio.cover_title import cover_text_capacity, worst_case_title_lines
 from studio.template_pkg import load_template
 from studio.timeline import load_timeline
 
@@ -77,24 +78,27 @@ def test_fit_cover_title_fits_when_there_is_room():
     assert lines
 
 
-def test_fit_cover_title_fits_three_lines_on_night_reports_real_rect(night_report_dir):
-    """night-report's cover.layout.text_rect holds the 3 lines a 30-character
-    title can wrap to at 23 characters per line (studio template validate
-    enforces it): guard the real rect geometry."""
+def test_fit_cover_title_fits_the_worst_title_on_night_reports_real_rect(night_report_dir):
+    """night-report's cover.layout.text_rect holds the lines a 30-character
+    title can wrap to (studio template validate enforces it): guard the real
+    rect geometry."""
     template = load_template(night_report_dir)
     font = load_channel_assets("8bitnews-us").font(FONT_PX)
     text_rect = template.data["cover"]["layout"]["text_rect"]
+    max_chars, max_rows = cover_text_capacity(text_rect)
+    assert worst_case_title_lines(max_chars) <= max_rows
     lines = fit_cover_title("Voter disenfranchisement fears", text_rect, font)
-    assert len(lines) == 3
+    assert len(lines) == worst_case_title_lines(max_chars) == 2
 
 
-def test_fit_cover_title_still_rejects_text_needing_three_lines_on_night_report(night_report_dir):
+def test_fit_cover_title_still_rejects_text_needing_more_lines_on_night_report(night_report_dir):
     template = load_template(night_report_dir)
     font = load_channel_assets("8bitnews-us").font(FONT_PX)
     text_rect = template.data["cover"]["layout"]["text_rect"]
     with pytest.raises(BuildError):
         fit_cover_title(
-            "This cover title is deliberately far too long to fit in two lines at all",
+            "This cover title is deliberately far too long to fit in the lines the rect holds, even at "
+            "twenty-eight characters a line, however it wraps",
             text_rect,
             font,
         )

@@ -13,6 +13,7 @@ Run from the studio/ directory: `python3 scripts/generate_assets.py`
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 from PIL import Image
@@ -40,10 +41,8 @@ SUIT_LIGHT = hx("#008888")
 DESK = hx("#ac7c00")
 DESK_DARK = hx("#503000")
 WALL = hx("#0058f8")
-WALL_DARK = hx("#0000bc")
 SCREEN_BG = hx("#000000")
 NIGHT_WALL = hx("#004058")
-NIGHT_WALL_DARK = hx("#000000")
 NIGHT_DESK = hx("#787878")
 ACCENT_RED = hx("#f83800")
 ACCENT_GREEN = hx("#00b800")
@@ -187,24 +186,23 @@ def build_anchor_set() -> None:
 # ---------------------------------------------------------------------------
 # Template asset packs
 # ---------------------------------------------------------------------------
+DESK_Y = 318  # the desk's top edge: below every anchor's face at studio.anchor y=196
+
+
 def build_nes_desk_assets() -> None:
     out = TEMPLATES_DIR / "nes-desk" / "assets"
     out.mkdir(parents=True, exist_ok=True)
 
+    # A plain wall and the desk in front of the anchor (`front: true`): the
+    # owner asked for nothing that carries no meaning (29.10: no windows, no box).
     back = new_rgba(270, 480)
-    rect(back, 0, 0, 270, 480, WALL_DARK)
-    rect(back, 0, 0, 270, 300, WALL)
-    for x in range(10, 260, 60):
-        rect(back, x, 40, x + 36, 100, hx("#0000bc"))
-        rect(back, x + 4, 44, x + 32, 96, hx("#3cbcfc"))
+    rect(back, 0, 0, 270, 480, WALL)
     back.save(out / "background_layer0.png")
 
-    front = new_rgba(270, 480)
-    rect(front, 0, 300, 270, 480, DESK_DARK)
-    rect(front, 0, 300, 270, 330, DESK)
-    rect(front, 20, 260, 100, 310, hx("#881400"))
-    rect(front, 25, 265, 95, 300, hx("#f83800"))
-    front.save(out / "background_layer1.png")
+    desk = new_rgba(270, 480)
+    rect(desk, 0, DESK_Y, 270, 480, DESK_DARK)
+    rect(desk, 0, DESK_Y, 270, DESK_Y + 12, DESK)
+    desk.save(out / "desk.png")
 
     screen = new_rgba(270, 480)
     rect(screen, 170, 60, 260, 170, BLACK)
@@ -223,17 +221,13 @@ def build_night_report_assets() -> None:
     out.mkdir(parents=True, exist_ok=True)
 
     back = new_rgba(270, 480)
-    rect(back, 0, 0, 270, 480, NIGHT_WALL_DARK)
-    rect(back, 0, 0, 270, 320, NIGHT_WALL)
-    rect(back, 20, 20, 250, 60, hx("#000000"))
-    for x in range(30, 240, 50):
-        rect(back, x, 70, x + 10, 220, hx("#787878"))
+    rect(back, 0, 0, 270, 480, NIGHT_WALL)
     back.save(out / "background_layer0.png")
 
-    front = new_rgba(270, 480)
-    rect(front, 0, 320, 270, 480, hx("#000000"))
-    rect(front, 0, 320, 270, 340, NIGHT_DESK)
-    front.save(out / "background_layer1.png")
+    desk = new_rgba(270, 480)
+    rect(desk, 0, DESK_Y, 270, 480, hx("#000000"))
+    rect(desk, 0, DESK_Y, 270, DESK_Y + 12, NIGHT_DESK)
+    desk.save(out / "desk.png")
 
     screen = new_rgba(270, 480)
     rect(screen, 160, 50, 250, 160, BLACK)
@@ -247,7 +241,11 @@ def build_night_report_assets() -> None:
     sample.save(out / "sample_scene.png")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and sys.argv[1:] == ["templates"]:
+    build_nes_desk_assets()
+    build_night_report_assets()
+    print("template assets generated")
+elif __name__ == "__main__":
     build_logo()
     build_anchor_set()
     build_nes_desk_assets()

@@ -20,9 +20,9 @@ from .audio import decode, fit, measure, silences, voice_over_rest_db
 from .channel_assets import load_channel_assets
 from .config import audio_settings, check_settings, max_file_size_bytes, max_keyframe_cell_diff
 from .constants import FONT_PX, FPS, LOGICAL_H, LOGICAL_W, OUTPUT_H, OUTPUT_W, SCALE
-from .engine import _compose_anchor_sprite, _draw_plate, active_plates, cover_plates, scene_transition_duration
+from .engine import _compose_anchor_sprite, active_plates, ai_label_text, cover_plates, draw_ai_label, scene_transition_duration
 from .errors import TemplateValidationError
-from .palette import channel_palette_set, hex_to_rgb
+from .palette import hex_to_rgb
 from .srt import parse_srt
 from .template_pkg import load_template
 from .timeline import load_timeline
@@ -289,9 +289,10 @@ def _logical(img: Image.Image) -> np.ndarray:
     return np.asarray(img.convert("RGB"))[::SCALE, ::SCALE]
 
 
-@register("keyframes_grid_palette")
-def _check_keyframes_grid_palette(package_dir: Path, package: dict, channel_profile: dict) -> dict:
-    palette = channel_palette_set(package["channel_id"])
+@register("keyframes_grid")
+def _check_keyframes_grid(package_dir: Path, package: dict, channel_profile: dict) -> dict:
+    """Pixel art on the 270x480 grid. Not one palette any more: scene
+    pictures keep the generator's colors (owner, 29.10)."""
     paths = [kf["path"] for kf in _keyframes(package_dir, package)] + [package["files"]["cover"]["path"]]
     problems = []
     for rel in paths:
@@ -304,11 +305,7 @@ def _check_keyframes_grid_palette(package_dir: Path, package: dict, channel_prof
         if not (cells == cells[:, :1, :, :1, :]).all():
             bad = int((~(cells == cells[:, :1, :, :1, :]).all(axis=(1, 3, 4))).sum())
             problems.append(f"{rel}: {bad} of {LOGICAL_W * LOGICAL_H} {SCALE}x{SCALE} cells are not one color")
-        packed = np.unique(a.reshape(-1, 3).astype(np.uint32) @ np.array([1 << 16, 1 << 8, 1], dtype=np.uint32))
-        off = sorted(f"#{int(c):06x}" for c in packed if f"#{int(c):06x}" not in palette)
-        if off:
-            problems.append(f"{rel}: {len(off)} color(s) outside the channel NES palette: {', '.join(off[:5])}")
-    return _result("keyframes_grid_palette", problems, f"{len(paths)} images: 1080x1920, 4x4 grid, NES palette only")
+    return _result("keyframes_grid", problems, f"{len(paths)} images: 1080x1920, 4x4 grid")
 
 
 class _Context:
@@ -346,25 +343,21 @@ class _Context:
         return False
 
 
-_AI_PLATES = {"ai_voice", "ai_icon", "ai_illustration"}
-_AI_PLATE_TEXT = {"ai_voice": "AI · AI voice", "ai_icon": "AI", "ai_illustration": "AI illustration"}  # format.md
-_AI_VOICE_S = 3.0  # format.md: «AI · AI voice» for the first 3 s
+_AI_VOICE = "AI voice"  # format.md 'Текст в кадре': the AI line
+_AI_ILLUSTRATION = "AI illustration"
 
 
-def _plate_problem(frame: np.ndarray, ctx: "_Context", name: str) -> str | None:
-    """The plate's rect must be exactly that plate with its format.md label:
-    nothing else is drawn over the AI plates, and keyframes are lossless."""
-    cfg = ctx.template.plate(name)
-    r = cfg["rect"]
-    canvas = Image.new("RGBA", (LOGICAL_W, LOGICAL_H), (0, 0, 0, 255))
-    _draw_plate(canvas, cfg, [_AI_PLATE_TEXT[name]], ctx.assets.font(FONT_PX))
-    want = np.asarray(canvas.convert("RGB"))[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]]
-    got = frame[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]]
-    if got.shape != want.shape:
-        return f"rect {r} is outside the {frame.shape[1]}x{frame.shape[0]} image"
-    differ = int((got != want).any(axis=2).sum())
+def _label_problem(frame: np.ndarray, ctx: "_Context", text: str) -> str | None:
+    """The AI line must be exactly `text` drawn where the template puts it:
+    every glyph and outline pixel, nothing drawn over them (keyframes are
+    lossless). The line has no plate, so only its own pixels are compared."""
+    canvas = Image.new("RGBA", (LOGICAL_W, LOGICAL_H), (0, 0, 0, 0))
+    draw_ai_label(canvas, ctx.template, text, ctx.assets.font(FONT_PX))
+    want = np.asarray(canvas)
+    drawn = want[:, :, 3] == 255
+    differ = int((frame[drawn] != want[drawn][:, :3]).any(axis=1).sum())
     if differ:
-        return f"{differ} of {r['w'] * r['h']} pixels differ from the {_AI_PLATE_TEXT[name]!r} plate"
+        return f"{differ} of {int(drawn.sum())} pixels differ from the {text!r} line"
     return None
 
 
@@ -375,8 +368,12 @@ def _image(package_dir: Path, rel: str) -> np.ndarray:
     return _logical(img)
 
 
-@register("ai_plates")
-def _check_ai_plates(package_dir: Path, package: dict, channel_profile: dict) -> dict:
+@register("ai_label")
+def _check_ai_label(package_dir: Path, package: dict, channel_profile: dict) -> dict:
+    """format.md, stated independently of the engine: every frame says "AI
+    voice", joined by "AI illustration" while a real person is in frame; an
+    S* cover says "AI illustration" when that applies, and so does a cover
+    the image model drew (build._render_custom_cover)."""
     ctx = _Context(package_dir, package)
     problems = []
     frames = [(kf["path"], kf["scene_id"], kf["t_s"], False) for kf in _keyframes(package_dir, package)]
@@ -385,35 +382,35 @@ def _check_ai_plates(package_dir: Path, package: dict, channel_profile: dict) ->
         st = ctx.timing(cover_frame)
         frames.append((package["files"]["cover"]["path"], cover_frame, (st.start_s + st.end_s) / 2, True))
     checked = 0
-    # A custom cover the image model drew carries the plate as well
-    # (build._render_custom_cover): it shows the story, maybe its people.
     if cover_frame == "custom" and any(s["id"] == "cover" for s in package.get("images", {}).get("scenes", [])):
         checked += 1
         rel = package["files"]["cover"]["path"]
-        why = _plate_problem(_image(package_dir, rel), ctx, "ai_illustration")
+        why = _label_problem(_image(package_dir, rel), ctx, _AI_ILLUSTRATION)
         if why:
-            problems.append(f"{rel} (a cover drawn by the image model): ai_illustration plate missing: {why}")
+            problems.append(f"{rel} (a cover drawn by the image model): no {_AI_ILLUSTRATION!r} line: {why}")
     for rel, scene_id, t, is_cover in frames:
-        if not is_cover and ctx.in_transition(scene_id, t):
+        st = ctx.timing(scene_id)
+        person = ctx.real_person_in_frame(scene_id)
+        mid_transition = not is_cover and ctx.in_transition(scene_id, t)
+        if mid_transition:
+            # the AI line holds still over a transition, and both scenes are in frame
+            prev = ctx.timeline.scenes[ctx.timeline.scenes.index(st) - 1]
+            person = person or ctx.real_person_in_frame(prev.scene_id)
+        if is_cover:
+            want = _AI_ILLUSTRATION if person else None
+            shown = ai_label_text(cover_plates(ctx.script, st, ctx.template, t), cover=True)
+        else:
+            want = f"{_AI_VOICE} · {_AI_ILLUSTRATION}" if person else _AI_VOICE
+            shown = ai_label_text(active_plates(ctx.script, st, ctx.template, t))
+        if shown != want and not mid_transition:  # active_plates is one scene's; render_frame adds the other's
+            problems.append(f"{rel} ({scene_id}, {t:.2f}s): the engine draws the AI line {shown!r}, not {want!r}")
+        if want is None:
             continue
         checked += 1
-        st = ctx.timing(scene_id)
-        if is_cover:
-            shown = cover_plates(ctx.script, st, ctx.template, t)
-            required = {"ai_illustration"} if ctx.real_person_in_frame(scene_id) else set()
-        else:
-            shown = active_plates(ctx.script, st, ctx.template, t) & _AI_PLATES
-            required = {"ai_voice" if t < _AI_VOICE_S else "ai_icon"}
-            if ctx.real_person_in_frame(scene_id):
-                required.add("ai_illustration")
-        for name in sorted(required - shown):
-            problems.append(f"{rel} ({scene_id}, {t:.2f}s): the engine does not put {name} on this frame")
-        frame = _image(package_dir, rel)
-        for name in sorted(required | shown):
-            why = _plate_problem(frame, ctx, name)
-            if why:
-                problems.append(f"{rel} ({scene_id}, {t:.2f}s): {name} plate missing: {why}")
-    return _result("ai_plates", problems, f"AI plates in place on {checked} images")
+        why = _label_problem(_image(package_dir, rel), ctx, want)
+        if why:
+            problems.append(f"{rel} ({scene_id}, {t:.2f}s): AI line missing: {why}")
+    return _result("ai_label", problems, f"AI line in place on {checked} images")
 
 
 @register("face_clear")
@@ -490,7 +487,7 @@ def _check_no_black_frames(package_dir: Path, package: dict, channel_profile: di
     """No black frame anywhere in the video (a frame outside every scene
     renders black: the pauses between scenes once did)."""
     # pic_th=1.0: only an entirely black picture counts -- a dark night-report
-    # scene still carries the AI plate's light lettering.
+    # scene still carries the AI line's light lettering.
     cmd = ["ffmpeg", "-nostats", "-i", str(package_dir / package["files"]["video"]["path"]),
            "-vf", f"blackdetect=d={1 / FPS:.3f}:pix_th=0.10:pic_th=1.0", "-an", "-f", "null", "-"]
     proc = subprocess.run(cmd, capture_output=True, text=True)

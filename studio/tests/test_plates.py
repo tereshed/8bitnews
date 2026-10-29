@@ -113,8 +113,8 @@ def test_validate_rejects_plate_too_low_for_its_max_lines(nes_desk_dir, tmp_path
 
 
 def test_validate_rejects_cover_rect_too_small_for_a_30_char_title(night_report_dir, tmp_path):
-    # h=22 holds 2 lines; "Voter disenfranchisement fears" needs 3
-    d = _edited_template(night_report_dir, tmp_path, lambda d: d["cover"]["layout"]["text_rect"].update(h=22))
+    # 23 characters a line, h=22 holds 2 lines; "Voter disenfranchisement fears" needs 3
+    d = _edited_template(night_report_dir, tmp_path, lambda d: d["cover"]["layout"]["text_rect"].update(w=188, h=22))
     assert "fits 2 line(s) of 23 characters; a 30-character title can need 3" in _problems(d)
 
 
@@ -156,9 +156,9 @@ def test_validate_rejects_cover_rect_over_the_face(nes_desk_dir, tmp_path):
     assert "cover.layout.text_rect" in _problems(d) and "overlaps the face of anchor" in _problems(d)
 
 
-def test_validate_rejects_cover_rect_over_the_ai_illustration_plate(nes_desk_dir, tmp_path):
+def test_validate_rejects_cover_rect_over_the_ai_line(nes_desk_dir, tmp_path):
     d = _edited_template(nes_desk_dir, tmp_path, lambda d: d["cover"]["layout"]["text_rect"].update(y=340))
-    assert "overlaps plates.ai_illustration" in _problems(d)
+    assert "overlaps the AI line" in _problems(d)
 
 
 # --- pauses between scenes hold the previous scene, not a black frame ---

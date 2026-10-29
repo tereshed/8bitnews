@@ -20,7 +20,7 @@ def test_bad_safezone_fails_with_readable_reason(bad_safezone_dir):
         validate_template(bad_safezone_dir)
     message = str(exc_info.value)
     assert "safe zone" in message
-    assert "ai_voice" in message
+    assert "ai_label" in message
 
 
 def test_bad_palette_fails_with_readable_reason(bad_palette_dir):
@@ -43,7 +43,7 @@ def test_bad_face_overlap_fails_with_readable_reason(bad_face_overlap_dir):
         validate_template(bad_face_overlap_dir)
     message = str(exc_info.value)
     assert "face" in message
-    assert "ai_illustration" in message
+    assert "ai_label" in message
 
 
 def test_bad_plate_too_small_fails_with_readable_reason(bad_plate_too_small_dir):
@@ -51,7 +51,7 @@ def test_bad_plate_too_small_fails_with_readable_reason(bad_plate_too_small_dir)
         validate_template(bad_plate_too_small_dir)
     message = str(exc_info.value)
     assert "too small" in message
-    assert "ai_illustration" in message
+    assert "scene_title" in message
 
 
 def test_bad_referenced_file_fails_with_readable_reason(bad_referenced_file_dir):

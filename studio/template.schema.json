@@ -30,7 +30,7 @@
     },
     "studio": {
       "type": "object",
-      "description": "The anchor desk: background/foreground layers for parallax, and where the anchor (any of the channel's anchors: they share one canvas) and the over-the-shoulder screen sit.",
+      "description": "The anchor desk: background layers, the layers in front of the anchor (the desk), and where the anchor (any of the channel's anchors: they share one canvas) and the screen behind the anchor sit.",
       "required": ["layers", "anchor", "screen"],
       "properties": {
         "layers": {
@@ -49,6 +49,11 @@
                 "maximum": 1,
                 "default": 0,
                 "description": "0 = fixed background, 1 = moves at full foreground speed"
+              },
+              "front": {
+                "type": "boolean",
+                "default": false,
+                "description": "Drawn over the anchor (the desk in front of them); must not cover any anchor's face."
               }
             }
           }
@@ -68,8 +73,15 @@
         },
         "screen": {
           "type": "object",
-          "description": "The screen over the anchor's shoulder that shows the scene image during anchor shots.",
-          "$ref": "#/$defs/rect"
+          "description": "The screen behind the anchor that shows a picture during anchor shots (the anchor scene's own, else the next scene shot's); its shape sets the screen picture's aspect.",
+          "required": ["x", "y", "w", "h"],
+          "properties": {
+            "x": { "type": "integer", "minimum": 0 },
+            "y": { "type": "integer", "minimum": 0 },
+            "w": { "type": "integer", "exclusiveMinimum": 0 },
+            "h": { "type": "integer", "exclusiveMinimum": 0 },
+            "border_color": { "$ref": "#/$defs/hex_color", "description": "A 2-px frame around the picture; none when absent." }
+          }
         }
       }
     },
@@ -92,18 +104,25 @@
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/hex_color" },
-          "description": "What scene pictures snap to in normal mode; default the whole NES palette (channels/8bitnews-us/palette.json). The template's own colors stay for what it draws itself."
+          "description": "What scene pictures snap to in normal mode; when absent they keep the generator's own colors (fitted to the 270x480 grid). The template's own colors stay for what it draws itself."
         }
       }
     },
     "plates": {
       "type": "object",
-      "description": "Placement and style for every text plate format.md requires, each confined to a safe zone.",
-      "required": ["ai_voice", "ai_icon", "ai_illustration", "scene_title", "source_plate"],
+      "description": "The text format.md requires in frame, each confined to a safe zone: the AI line, and the source and title plates (centered, as wide as their text).",
+      "required": ["ai_label", "scene_title", "source_plate"],
       "properties": {
-        "ai_voice": { "$ref": "#/$defs/plate_style" },
-        "ai_icon": { "$ref": "#/$defs/plate_style" },
-        "ai_illustration": { "$ref": "#/$defs/plate_style" },
+        "ai_label": {
+          "type": "object",
+          "description": "One line centered in the frame, no plate behind it: 'AI voice', joined by 'AI illustration' while a real person is in frame.",
+          "required": ["y", "text_color", "outline_color"],
+          "properties": {
+            "y": { "type": "integer", "minimum": 0 },
+            "text_color": { "$ref": "#/$defs/hex_color" },
+            "outline_color": { "$ref": "#/$defs/hex_color" }
+          }
+        },
         "scene_title": { "$ref": "#/$defs/plate_style" },
         "source_plate": { "$ref": "#/$defs/plate_style" }
       }
@@ -213,7 +232,15 @@
         "color": { "$ref": "#/$defs/hex_color" },
         "outline_color": { "$ref": "#/$defs/hex_color" },
         "max_lines": { "type": "integer", "minimum": 1, "maximum": 2, "default": 2 },
-        "max_chars_per_line": { "type": "integer", "minimum": 1, "maximum": 32, "default": 32 }
+        "max_chars_per_line": { "type": "integer", "minimum": 1, "maximum": 32, "default": 32 },
+        "bg_color": { "$ref": "#/$defs/hex_color", "description": "A plate behind the lines, as wide as the longest; without it the text is outlined." },
+        "font_scale": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2,
+          "default": 1,
+          "description": "Glyph size in whole multiples of the channel font; max_chars_per_line counts at this size. A cue with a longer word drops to scale 1."
+        }
       }
     },
     "plate_style": {
@@ -229,6 +256,10 @@
           "maximum": 3,
           "default": 2,
           "description": "Lines of scene text the plate holds (scene_title, source_plate). The rect must be at least 10*max_lines+2 px high; studio build fails on text that needs more lines."
+        },
+        "below": {
+          "enum": ["scene_title", "source_plate"],
+          "description": "Sit under that plate when it is shown, else at the rect's own top."
         }
       }
     }
