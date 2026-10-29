@@ -344,7 +344,8 @@ AI_ILLUSTRATION_LABEL = "AI illustration"
 def ai_label_text(plates: set[str], cover: bool = False) -> str | None:
     """The one AI line (format.md 'Текст в кадре'): "AI voice" on every
     frame, joined by "AI illustration" while a real person is in frame. A
-    still cover has no voice: only "AI illustration", when it applies."""
+    still cover has no voice: only "AI illustration" (`cover_plates` gives
+    every S* cover one)."""
     illustration = "ai_illustration" in plates
     if cover:
         return AI_ILLUSTRATION_LABEL if illustration else None

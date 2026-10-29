@@ -335,8 +335,8 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
     if cover_rect is not None:
         if not rect_within(cover_rect, safe_rect):
             problems.append(f"cover.layout.text_rect {cover_rect} is outside the common safe zone {safe_rect}")
-        # The title is drawn over S* covers too: anchor frames keep the face
-        # and the AI-illustration plate, so it must clear both.
+        # The title is drawn over S* covers too: anchor frames keep the face,
+        # and every cover keeps the AI line, so it must clear both.
         if covered := covered_faces(cover_rect):
             problems.append(f"cover.layout.text_rect {cover_rect} overlaps the face of anchor {covered}")
         if rects_intersect(cover_rect, ai_rect):
