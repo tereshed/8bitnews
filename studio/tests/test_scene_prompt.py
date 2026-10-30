@@ -162,3 +162,14 @@ def test_every_trial_visual_cleans_to_something():
 def test_screen_content_is_what_the_anchor_scene_puts_on_the_screen(visual, expected):
     from studio.scene_prompt import screen_content
     assert screen_content(visual) == expected
+
+
+@pytest.mark.parametrize("visual", [
+    "A plain federal office building facade with a flagpole out front, empty of people.",
+    "Two flag poles by the door.",
+    "A flagstaff at half-mast.",
+])
+def test_a_flagpole_flies_a_plain_flag(visual):
+    """Trial 2, S5: a bare flagpole got an American flag every time, and no picture passed the check."""
+    out = clean_visual(visual, [])
+    assert "flying a plain one-color flag" in out and out.lower().count("plain one-color") == 1, out

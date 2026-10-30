@@ -23,7 +23,8 @@ cleaned of what the picture must not show.
     and newspapers are asked for blank;
   - motifs of known games (a question mark, a "?" block, power-ups, "GAME
     OVER", Tetris, Pac-Man) become neutral ones (format.md forbids them);
-  - flags become plain one-color flags (a half-mast flag stays possible);
+  - flags become plain one-color flags (a half-mast flag stays possible), and
+    a flagpole flies one;
     seals of a state or office, coats of arms, emblems and logos become plain
     shapes (a seal on a rock stays a seal).
 Every prompt then ends with the same prohibitions, whatever the visual says.
@@ -79,11 +80,14 @@ _CAPITALIZED = r"(?:(?!(?:A|An|The|This|That|Its|His|Her|Their)\b)[A-Z][\w.'-]*[
 # Case-sensitive outside (?i:...): a capitalized word in front names whose
 # flag or seal it is ("California flag", "Great Seal").
 SYMBOLS = (
-    (rf"{_CAPITALIZED}*(?i:(?:state|national|official|american|u\.s\.)\s+)?(?i:flags?)", "plain one-color flag"),
+    (rf"{_CAPITALIZED}*(?i:(?:state|national|official|american|u\.s\.)\s+)?(?i:flags?)(?![\s-]?(?i:poles?|staffs?))",
+     "plain one-color flag"),
     (rf"(?:{_CAPITALIZED}+|(?i:(?:state|official|government|great|presidential|federal|national|city|county)[\s-]+))"
      r"(?i:seals?)", "plain round shape"),
     (r"(?i:seals?\s+of\s+(?:the\s+)?)[A-Z][\w.'-]*(?:\s+(?:(?:of|the)\s+)*[A-Z][\w.'-]*)*", "plain round shape"),
     (rf"{_CAPITALIZED}*(?i:coats? of arms|emblems?|crests?|logos?|insignias?)", "plain round shape"),
+    # After the flags: a bare flagpole got an American flag from the image model every time (trial 2, S5).
+    (r"(?i:flag[\s-]?poles?|flagstaffs?)", "flagpole flying a plain one-color flag"),
 )
 _LABELED = re.compile(
     r"\s*,?\s*\b(?:labeled|labelled|marked|reading|that reads|which reads|saying|stamped|titled|with the (?:words?|text|label))"
