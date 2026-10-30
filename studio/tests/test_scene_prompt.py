@@ -177,3 +177,15 @@ def test_a_flagpole_flies_one_plain_flag(visual, want):
     """Trial 2, S5: a bare flagpole got an American flag every time, and no picture passed the check."""
     out = clean_visual(visual, [])
     assert want in out and out.lower().count("plain one-color") == 1 and "American" not in out, out
+
+
+
+@pytest.mark.parametrize("visual", [
+    "A talk-radio studio desk with an on-air microphone and a lit red ON AIR lamp above it, an empty chair facing it.",
+    "A studio with an on-air sign glowing.",
+    "A red On-Air light over the door.",
+])
+def test_an_on_air_lamp_is_a_plain_lamp(visual):
+    """Trial 2, S6: the lamp came back lettered "ON AIR" every time."""
+    out = clean_visual(visual, [])
+    assert "plain red lamp" in out and "air lamp" not in out.lower() and "air sign" not in out.lower() and "air light" not in out.lower(), out
