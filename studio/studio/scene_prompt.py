@@ -75,6 +75,8 @@ TEXT_OBJECTS = (
     (r"(?:blank\s+)?(?:(?:wall|desk|digital|paper)\s+)?calendars?(?:\s+pages?)?", "blank calendar page"),
     (r"(?:blank\s+)?(?:handwritten\s+)?(?:password\s+|sticky\s+)?notes?", "blank note"),
     (r"(?:blank\s+)?newspapers?", "newspaper with blank grey columns"),
+    # Trial 2, S6: Legal's "lit red ON AIR lamp" came back lettered "ON AIR" every time, and the check refused it.
+    (r"(?:lit\s+)?(?:red\s+)?on[\s-]air\s+(?:lamps?|lights?|signs?)", "plain red lamp"),
 )
 _CAPITALIZED = r"(?:(?!(?:A|An|The|This|That|Its|His|Her|Their)\b)[A-Z][\w.'-]*[\s-]+)"
 # Case-sensitive outside (?i:...): a capitalized word in front names whose
