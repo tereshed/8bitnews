@@ -344,7 +344,8 @@ AI_ILLUSTRATION_LABEL = "AI illustration"
 def ai_label_text(plates: set[str], cover: bool = False) -> str | None:
     """The one AI line (format.md 'Текст в кадре'): "AI voice" on every
     frame, joined by "AI illustration" while a real person is in frame. A
-    still cover has no voice: only "AI illustration", when it applies."""
+    still cover has no voice: only "AI illustration" (`cover_plates` gives
+    every S* cover one)."""
     illustration = "ai_illustration" in plates
     if cover:
         return AI_ILLUSTRATION_LABEL if illustration else None
@@ -442,11 +443,12 @@ def _draw_content_plates(frame: Image.Image, scene: dict, plates: set[str], temp
 
 
 def cover_plates(script: dict, scene_timing: SceneTiming, template: TemplatePackage, t_abs: float) -> set[str]:
-    """Plates on a `cover.frame: S*` cover: only ai_illustration, by the same
-    rule as the timed frame (a real person in the scene or on the screen
-    behind the anchor). The cover's own title replaces scene_title and
-    source_plate, and a still cover has no voice to label."""
-    return active_plates(script, scene_timing, template, t_abs) & {"ai_illustration"}
+    """Plates on a `cover.frame: S*` cover: ai_illustration, always. A cover
+    is seen in the feed out of context, and what it shows -- a scene picture,
+    the anchor and the screen behind them -- is drawn by the image model (QA,
+    29.10). The cover's own title replaces scene_title and source_plate, and
+    a still cover has no voice to label."""
+    return {"ai_illustration"}
 
 
 def render_cover_frame(

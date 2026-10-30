@@ -430,10 +430,10 @@ for, checked before TTS; each line is centered in the rect. `studio
 template validate` requires the rect to hold any 30-character title and to
 clear the anchor's face and the AI line.
 - `cover.frame: S*` — that scene's middle frame (`engine.render_cover_frame`)
-  with `engine.cover_plates` only: the AI line says "AI illustration" by the
-  same rule as the video (a real person in the scene or on the screen behind
-  the anchor) and is absent otherwise (a still cover has no voice), no scene
-  title or source plate (the cover title replaces them), no subtitles. The title is drawn at 270×480
+  with `engine.cover_plates` only: the AI line says "AI illustration" on
+  every cover (QA, 29.10: a cover is seen in the feed out of context, and its
+  picture and the anchor are generated; a still cover has no voice to label),
+  no scene title or source plate (the cover title replaces them), no subtitles. The title is drawn at 270×480
   before the ×4 upscale and the frame is not re-quantized, so the anchor
   keeps its colors.
 - `cover.frame: custom` — `<assets>/cover.png` fitted to 270×480 (its own
@@ -478,7 +478,7 @@ check fails. Each check is a function registered under a fixed `id` with
 | `package_schema` | `package.json` against `video_package.schema.json`; `sha256`/`bytes` of every file record (`files.*` including `files.template` = `template/template.json`, scenes' keyframes) against the file, no path outside the package; every keyframe the package lists has its `timeline.json` record (scene, `t_s = frame/30`) |
 | `template_valid` | the package's `template/` copy passes `studio template validate` and is the template `package.template` names |
 | `keyframes_grid` | keyframes and cover: 1080×1920, every 4×4 cell one color (no palette: scene pictures keep their colors) |
-| `ai_label` | on every keyframe, by pixels: the AI line's glyph and outline pixels equal the line drawn with its format.md text — «AI voice», «AI voice · AI illustration» whenever a real person is in frame (scene or the screen behind the anchor); on an `S*` cover and a cover the image model drew, «AI illustration» when that applies — stated independently of `engine.active_plates`, which must agree |
+| `ai_label` | on every keyframe, by pixels: the AI line's glyph and outline pixels equal the line drawn with its format.md text — «AI voice», «AI voice · AI illustration» whenever a real person is in frame (scene or the screen behind the anchor); «AI illustration» on every `S*` cover and on a cover the image model drew — stated independently of `engine.active_plates`, which must agree |
 | `face_clear` | on anchor keyframes and an anchor cover, the face rect equals the anchor sprite for that moment (pose, blink, mouth) |
 | `video_matches_keyframes` | each keyframe PNG against the video frame with the same number, per 4×4 cell: no cell's mean difference above `max_keyframe_cell_diff` (`studio/config.json`) |
 | `no_black_frames` | ffmpeg `blackdetect` (whole picture black, `pic_th=1.0`): no black frame anywhere; an unreadable video fails |
