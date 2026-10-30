@@ -164,12 +164,16 @@ def test_screen_content_is_what_the_anchor_scene_puts_on_the_screen(visual, expe
     assert screen_content(visual) == expected
 
 
-@pytest.mark.parametrize("visual", [
-    "A plain federal office building facade with a flagpole out front, empty of people.",
-    "Two flag poles by the door.",
-    "A flagstaff at half-mast.",
+@pytest.mark.parametrize("visual,want", [
+    ("A plain federal office building facade with a flagpole out front, empty of people.", "a flagpole flying a plain one-color flag"),
+    ("A flag staff by the gate.", "A flagpole flying a plain one-color flag"),
+    ("A flag-pole by the door.", "A flagpole flying a plain one-color flag"),
+    ("Three flagpoles outside the hall.", "flagpoles flying plain one-color flags"),
+    # a flag the visual names itself is the one: plain, and only one
+    ("A flagpole flying an American flag.", "A flagpole flying a plain one-color flag"),
+    ("A flag at half-mast on a flagpole.", "A plain one-color flag at half-mast on a flagpole"),
 ])
-def test_a_flagpole_flies_a_plain_flag(visual):
+def test_a_flagpole_flies_one_plain_flag(visual, want):
     """Trial 2, S5: a bare flagpole got an American flag every time, and no picture passed the check."""
     out = clean_visual(visual, [])
-    assert "flying a plain one-color flag" in out and out.lower().count("plain one-color") == 1, out
+    assert want in out and out.lower().count("plain one-color") == 1 and "American" not in out, out

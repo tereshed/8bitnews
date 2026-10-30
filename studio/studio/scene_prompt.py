@@ -80,15 +80,25 @@ _CAPITALIZED = r"(?:(?!(?:A|An|The|This|That|Its|His|Her|Their)\b)[A-Z][\w.'-]*[
 # Case-sensitive outside (?i:...): a capitalized word in front names whose
 # flag or seal it is ("California flag", "Great Seal").
 SYMBOLS = (
-    (rf"{_CAPITALIZED}*(?i:(?:state|national|official|american|u\.s\.)\s+)?(?i:flags?)(?![\s-]?(?i:poles?|staffs?))",
+    (rf"{_CAPITALIZED}*(?i:(?:state|national|official|american|u\.s\.)\s+)?(?i:flags?)(?![\s-]?(?i:(?:pole|staff)s?))",
      "plain one-color flag"),
     (rf"(?:{_CAPITALIZED}+|(?i:(?:state|official|government|great|presidential|federal|national|city|county)[\s-]+))"
      r"(?i:seals?)", "plain round shape"),
     (r"(?i:seals?\s+of\s+(?:the\s+)?)[A-Z][\w.'-]*(?:\s+(?:(?:of|the)\s+)*[A-Z][\w.'-]*)*", "plain round shape"),
     (rf"{_CAPITALIZED}*(?i:coats? of arms|emblems?|crests?|logos?|insignias?)", "plain round shape"),
-    # After the flags: a bare flagpole got an American flag from the image model every time (trial 2, S5).
-    (r"(?i:flag[\s-]?poles?|flagstaffs?)", "flagpole flying a plain one-color flag"),
 )
+
+# A bare flagpole got an American flag from the image model every time (trial 2, S5): when the visual names
+# no flag of its own (that one is plain already, SYMBOLS), its flagpoles fly a plain one.
+_FLAGPOLE = re.compile(r"(?<![\w])flag[\s-]?(?:pole|staff)(s?)(?![\w])", re.I)
+_A_FLAG = re.compile(r"(?<![\w])flags?(?![\s-]?(?:pole|staff)s?)(?![\w])", re.I)
+
+
+def _plain_flag_on_poles(text: str) -> str:
+    if _A_FLAG.search(text):
+        return text
+    return _FLAGPOLE.sub(
+        lambda m: "flagpoles flying plain one-color flags" if m.group(1) else "flagpole flying a plain one-color flag", text)
 _LABELED = re.compile(
     r"\s*,?\s*\b(?:labeled|labelled|marked|reading|that reads|which reads|saying|stamped|titled|with the (?:words?|text|label))"
     r"\s+(?:'[^']*'|\"[^\"]*\")",
@@ -198,6 +208,7 @@ def clean_visual(visual: str, real_people: list[str]) -> str:
     text = _NUMBER.sub("", text)
     text = _neutralize(text, GAME_MOTIFS + TEXT_OBJECTS, case_insensitive=True)
     text = _neutralize(text, SYMBOLS, case_insensitive=False)
+    text = _plain_flag_on_poles(text)
     text = re.sub(r"\b([Aa])n(\s+(?:plain|small|blank|stacked|standoff|glow|dark|newspaper)\b)", r"\1\2", text)
     text = re.sub(r"\s+([,.;:])", r"\1", text)
     text = re.sub(r"\s{2,}", " ", text).strip()
