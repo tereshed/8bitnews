@@ -50,9 +50,10 @@ def _image_size(png: bytes) -> tuple[int, int] | None:
 CHECK_PROMPT = (
     "You check one illustration for a news video before it is published. Answer with JSON only, one boolean per "
     "key, true only for what you can actually see in the picture: {\"text\": any letters, words, numbers or "
-    "text-like glyphs anywhere, \"logos\": any logo, brand mark or trademark, \"flags_or_seals\": the flag of a real "
-    "country, state or organization (a plain one-color flag is fine), a coat of arms, government seal or official "
-    "emblem, \"game_elements\": anything from a known video game (a \"?\" block, "
+    "text-like glyphs anywhere, \"logos\": any logo, brand mark or trademark, \"flags_or_seals\": a flag whose "
+    "design tells which country, state or organization it belongs to (stars, stripes, a cross, an emblem, a pattern "
+    "of colors), a coat of arms, a government seal or an official emblem -- a flag of one or two plain colors with "
+    "no design on it is false, \"game_elements\": anything from a known video game (a \"?\" block, "
     "pipes, coins, power-ups, health bars, game characters), \"photorealistic\": it looks like a photograph rather "
     "than pixel art, \"gore\": blood, wounds, dead bodies or a moment of violence, \"extra_people\": a person, "
     "human figure, face or hand that the scene description below does not ask for (any person at all when it "
