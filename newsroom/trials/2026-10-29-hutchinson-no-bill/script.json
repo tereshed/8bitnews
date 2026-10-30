@@ -1,0 +1,282 @@
+{
+ "cover": {
+  "text": "NO BILL ON HUTCHINSON",
+  "frame": "S1",
+  "visual": "A dusk view of a U.S. federal courthouse with tall columns and marble steps, empty of people."
+ },
+ "music": {
+  "cue": "Track enters softly under the hook, ducks low under every on-screen quote and source plate, swells briefly between the three local-opinion scenes, and fades out completely under the anchor's closing line.",
+  "mood": "tense",
+  "energy": 2,
+  "enabled": true
+ },
+ "notes": [
+  "No real people are depicted in any scene visual; the SUV/steering-wheel account (F9/F10) is handled only through narration and an on-screen 'driver denies' plate, per the dossier's depiction-risk note, never dramatized as settled fact.",
+  "L1/L2/L3 each get one scene of comparable length (17-20 words) in a neutral order (referring lawmakers, cross-partisan skeptics, Trump critics) that does not imply who is right.",
+  "Single-source/unverified claims used (F4 Loudermilk quote, F16 Cassidy quote, Gateway Pundit quote) are each kept explicitly attributed to their one outlet/speaker on screen and in narration, with no channel endorsement.",
+  "'No bill' is never described as exoneration; F6 (DOJ can still seek indictment) is stated in S2 and repeated in the unknown block to avoid implying the case is closed.",
+  "Rework per script_editor review e014d583: S9 narration no longer implies world outlets named Hutchinson's case by name, only that Al Jazeera/Guardian/CBC frame the wider pattern of cases as strategy or grudge (critical fix, per W1/W2 on_development). S6 narration adds a 'without evidence' qualifier on the fabrication claim, alongside Hutchinson's on-record denial already in S3 (major fix, risks[0]). S4 narration is split into two sentences so the disputed weapons claim and the disputed SUV account read as separate points (major fix). S1/S3 spell out 'January' and 'Representative' instead of abbreviations; S5/S8 narration split into shorter sentences; S7 narration and on_screen_text now say 'weaponization' to match Sen. Cassidy's verbatim quote instead of the unquoted 'weaponized' (minor fixes). Total word_count correspondingly moved from 198 to 197.",
+  "Rework per legal_review fa7d5d2f-ce6c-4c86-9114-61039c37bec1 (fix: R1, R3, P1). R1 (high): S4 narration now says he 'lunged for' the SUV wheel, matching dossier F9 exactly instead of the inflated 'grabbed' (word_count 24->25, total 197->198, still within the 198-word budget). R3 (medium): S6 visual renamed the alarm-style 'warning lamp' to a neutral 'on-air signal lamp' so its tone matches the sober S7/S8 visuals for the other two opinion camps. P1 (medium): S9 source_plate now reads 'Al Jazeera (state media)', matching the dossier's own state-media label and the channel's prior-release convention. R2 and P2 carry forward unchanged (fix_owner: none)."
+ ],
+ "scenes": [
+  {
+   "id": "S1",
+   "shot": "anchor",
+   "blocks": [
+    "hook"
+   ],
+   "visual": "A wide dusk view of a U.S. federal courthouse, broad marble steps and tall columns, empty of people. The screen behind the anchor shows this same courthouse image.",
+   "fact_ids": [
+    "F1"
+   ],
+   "narration": "A grand jury just refused to indict January 6th witness Cassidy Hutchinson.",
+   "duration_s": 5.5,
+   "word_count": 12,
+   "real_people": [],
+   "on_screen_text": "NO BILL ON HUTCHINSON"
+  },
+  {
+   "id": "S2",
+   "shot": "scene",
+   "blocks": [
+    "whats_new"
+   ],
+   "visual": "Inside a federal courthouse hallway, a row of closed wooden jury-room doors under bright overhead lights, empty of people.",
+   "fact_ids": [
+    "F1",
+    "F6"
+   ],
+   "narration": "On Tuesday, a federal grand jury returned a no bill, refusing to indict her. Prosecutors could still retry.",
+   "duration_s": 8.2,
+   "word_count": 18,
+   "real_people": [],
+   "source_plate": "Source: AP, NBC News · Oct 27",
+   "on_screen_text": "NO BILL: DOJ CAN RETRY"
+  },
+  {
+   "id": "S3",
+   "shot": "scene",
+   "blocks": [
+    "whats_new"
+   ],
+   "visual": "An empty lectern crowded with microphones in a government briefing room, no people present.",
+   "fact_ids": [
+    "F4",
+    "F5"
+   ],
+   "narration": "Representative Barry Loudermilk says the outcome raises serious questions about accountability. Hutchinson says she stands by her testimony.",
+   "duration_s": 8.2,
+   "word_count": 18,
+   "real_people": [],
+   "source_plate": "Source: Fox News Digital · Oct 28",
+   "on_screen_text": "\"SERIOUS QUESTIONS\" — LOUDERMILK"
+  },
+  {
+   "id": "S4",
+   "shot": "scene",
+   "blocks": [
+    "known"
+   ],
+   "visual": "A locked government records room, rows of tall filing cabinets and a single wall clock, no people present.",
+   "fact_ids": [
+    "F9",
+    "F10"
+   ],
+   "narration": "In 2022, Hutchinson testified Trump played down weapons at the Capitol riot. She said, secondhand, he lunged for the SUV's wheel; the driver denies it.",
+   "duration_s": 10.9,
+   "word_count": 25,
+   "real_people": [],
+   "source_plate": "Source: Secret Service transcript · 2024",
+   "on_screen_text": "DRIVER DENIES SUV ACCOUNT"
+  },
+  {
+   "id": "S5",
+   "shot": "scene",
+   "blocks": [
+    "known"
+   ],
+   "visual": "A plain federal office building facade with a flagpole out front, empty of people.",
+   "fact_ids": [
+    "F11",
+    "F13"
+   ],
+   "narration": "In March, two Republican lawmakers referred her case to the Justice Department. It joins a string of grand jury refusals against Trump's critics.",
+   "duration_s": 10.5,
+   "word_count": 23,
+   "real_people": [],
+   "source_plate": "Source: NBC News, Reason · Oct 28",
+   "on_screen_text": "PATTERN: REPEATED NO-BILLS"
+  },
+  {
+   "id": "S6",
+   "shot": "scene",
+   "blocks": [
+    "local"
+   ],
+   "visual": "A talk-radio studio desk with an on-air microphone and a lit red on-air signal lamp above it, an empty chair facing it.",
+   "fact_ids": [],
+   "group_ids": [
+    "L1"
+   ],
+   "narration": "Loudermilk's camp says the no bill leaves it unresolved; some allies call her account fabricated, without evidence.",
+   "duration_s": 7.7,
+   "word_count": 17,
+   "real_people": [],
+   "source_plate": "Cristina Laila, Gateway Pundit · Oct 27",
+   "on_screen_text": "\"SHE MADE IT ALL UP\""
+  },
+  {
+   "id": "S7",
+   "shot": "scene",
+   "blocks": [
+    "local"
+   ],
+   "visual": "A quiet law-library reading room, tall bookshelves and a long wooden table, empty of people.",
+   "fact_ids": [],
+   "group_ids": [
+    "L2"
+   ],
+   "narration": "A smaller, cross-partisan group says the case was weak and politically driven. Senator Bill Cassidy calls it Justice Department 'weaponization.'",
+   "duration_s": 9.5,
+   "word_count": 20,
+   "real_people": [],
+   "source_plate": "Sen. Bill Cassidy (R-La.) · Aug 2026",
+   "on_screen_text": "\"WEAPONIZATION\" JUSTICE DEPT"
+  },
+  {
+   "id": "S8",
+   "shot": "scene",
+   "blocks": [
+    "local"
+   ],
+   "visual": "A television newsroom control room, a bank of dark monitor screens and empty swivel chairs.",
+   "fact_ids": [],
+   "group_ids": [
+    "L3"
+   ],
+   "narration": "Trump's critics call the attempt itself the scandal, grouping it with the Comey and James cases. They still call her credible.",
+   "duration_s": 9.5,
+   "word_count": 21,
+   "real_people": [],
+   "source_plate": "Source: MSNBC (MS NOW) · Oct 28",
+   "on_screen_text": "BRINGING IT WAS THE SCANDAL"
+  },
+  {
+   "id": "S9",
+   "shot": "scene",
+   "blocks": [
+    "world"
+   ],
+   "visual": "A world globe resting on a wooden desk beside an old rotary telephone, no people in frame.",
+   "fact_ids": [],
+   "narration": "World outlets haven't named her case. Al Jazeera and The Guardian call the pattern a strategy; CBC calls it a grudge.",
+   "duration_s": 9.5,
+   "word_count": 21,
+   "cluster_ids": [
+    "W1",
+    "W2"
+   ],
+   "real_people": [],
+   "source_plate": "Source: Al Jazeera (state media), Guardian, CBC",
+   "on_screen_text": "WORLD: STRATEGY VS. GRUDGE"
+  },
+  {
+   "id": "S10",
+   "shot": "scene",
+   "blocks": [
+    "unknown"
+   ],
+   "visual": "A courthouse records counter with blinds half-drawn and a closed sign-in binder, no people present.",
+   "fact_ids": [
+    "F6",
+    "F7"
+   ],
+   "narration": "Unknown: whether the Justice Department will try again, and why the grand jury said no.",
+   "duration_s": 6.8,
+   "word_count": 15,
+   "real_people": [],
+   "source_plate": "Source: NBC News · Oct 27",
+   "on_screen_text": "DOJ: NO COMMENT"
+  },
+  {
+   "id": "S11",
+   "shot": "anchor",
+   "blocks": [
+    "outro"
+   ],
+   "visual": "The anchor sits again at the news desk, posture relaxed, hands folded on the desktop.",
+   "fact_ids": [],
+   "narration": "Sources are in the description. Follow for updates.",
+   "duration_s": 3.7,
+   "word_count": 8,
+   "real_people": [],
+   "on_screen_text": "SOURCES IN DESCRIPTION"
+  }
+ ],
+ "dossier": "4d66438a-c592-4262-b58b-bc11fd7aa296",
+ "language": "en-US",
+ "metadata": {
+  "tiktok": {
+   "title": "Grand Jury Won't Indict Cassidy Hutchinson Over Jan. 6 Testimony",
+   "summary": "A federal grand jury refused to indict former White House aide Cassidy Hutchinson over her 2022 Jan. 6 testimony. Loudermilk says questions remain; Hutchinson stands by her account.",
+   "hashtags": [
+    "#8BitNews",
+    "#DOJ",
+    "#Jan6",
+    "#GrandJury",
+    "#Politics"
+   ]
+  },
+  "youtube": {
+   "tags": [
+    "Cassidy Hutchinson",
+    "Jan 6 committee",
+    "grand jury",
+    "Justice Department",
+    "Barry Loudermilk",
+    "DOJ",
+    "indictment",
+    "Capitol riot testimony",
+    "news analysis"
+   ],
+   "title": "Grand Jury Won't Indict Cassidy Hutchinson Over Jan. 6 Testimony",
+   "summary": "A federal grand jury refused to indict former White House aide Cassidy Hutchinson over her 2022 Jan. 6 testimony. Loudermilk says the case leaves questions unresolved, Hutchinson stands by her account, and the Justice Department could still try again.",
+   "hashtags": [
+    "#8BitNews",
+    "#DOJ",
+    "#Jan6",
+    "#GrandJury",
+    "#Politics"
+   ]
+  },
+  "instagram": {
+   "title": "Grand Jury Won't Indict Cassidy Hutchinson Over Jan. 6 Testimony",
+   "summary": "A federal grand jury refused to indict former White House aide Cassidy Hutchinson over her 2022 Jan. 6 testimony. Loudermilk says questions remain; Hutchinson stands by her account.",
+   "hashtags": [
+    "#8BitNews",
+    "#DOJ",
+    "#Jan6",
+    "#GrandJury",
+    "#Politics"
+   ]
+  }
+ },
+ "hook_type": "new_fact",
+ "channel_id": "8bitnews-us",
+ "duration_s": 90,
+ "word_count": 198,
+ "serious_mode": false,
+ "pronunciations": [
+  {
+   "say": "LOW-der-milk",
+   "text": "Loudermilk"
+  }
+ ],
+ "_run_diagnostics": [
+  {
+   "code": "result_submitted",
+   "message": "результат сдан командой devteam-result: kind=script",
+   "severity": "info"
+  }
+ ]
+}

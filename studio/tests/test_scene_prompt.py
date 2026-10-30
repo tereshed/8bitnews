@@ -184,6 +184,8 @@ def test_a_flagpole_flies_one_plain_flag(visual, want):
     "A talk-radio studio desk with an on-air microphone and a lit red ON AIR lamp above it, an empty chair facing it.",
     "A studio with an on-air sign glowing.",
     "A red On-Air light over the door.",
+    # the script Legal approved, word for word
+    "A talk-radio studio desk with an on-air microphone and a lit red on-air signal lamp above it, an empty chair facing it.",
 ])
 def test_an_on_air_lamp_is_a_plain_lamp(visual):
     """Trial 2, S6: the lamp came back lettered "ON AIR" every time."""
