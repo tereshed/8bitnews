@@ -23,7 +23,7 @@ cleaned of what the picture must not show.
     and newspapers are asked for blank;
   - motifs of known games (a question mark, a "?" block, power-ups, "GAME
     OVER", Tetris, Pac-Man) become neutral ones (format.md forbids them);
-  - flags become plain one-color flags (a half-mast flag stays possible), and
+  - flags become plain light grey flags (a half-mast flag stays possible), and
     a flagpole flies one;
     seals of a state or office, coats of arms, emblems and logos become plain
     shapes (a seal on a rock stays a seal).
@@ -84,7 +84,7 @@ _CAPITALIZED = r"(?:(?!(?:A|An|The|This|That|Its|His|Her|Their)\b)[A-Z][\w.'-]*[
 # flag or seal it is ("California flag", "Great Seal").
 SYMBOLS = (
     (rf"{_CAPITALIZED}*(?i:(?:state|national|official|american|u\.s\.)\s+)?(?i:flags?)(?![\s-]?(?i:(?:pole|staff)s?))",
-     "plain one-color flag"),
+     "plain light grey flag"),
     (rf"(?:{_CAPITALIZED}+|(?i:(?:state|official|government|great|presidential|federal|national|city|county)[\s-]+))"
      r"(?i:seals?)", "plain round shape"),
     (r"(?i:seals?\s+of\s+(?:the\s+)?)[A-Z][\w.'-]*(?:\s+(?:(?:of|the)\s+)*[A-Z][\w.'-]*)*", "plain round shape"),
@@ -92,7 +92,8 @@ SYMBOLS = (
 )
 
 # A bare flagpole got an American flag from the image model every time (trial 2, S5): when the visual names
-# no flag of its own (that one is plain already, SYMBOLS), its flagpoles fly a plain one.
+# no flag of its own (that one is plain already, SYMBOLS), its flagpoles fly a plain one. Grey, because "one-color"
+# came back red, and QA read a red flag in a story about Republican lawmakers as a hint.
 _FLAGPOLE = re.compile(r"(?<![\w])flag[\s-]?(?:pole|staff)(s?)(?![\w])", re.I)
 _A_FLAG = re.compile(r"(?<![\w])flags?(?![\s-]?(?:pole|staff)s?)(?![\w])", re.I)
 
@@ -101,7 +102,7 @@ def _plain_flag_on_poles(text: str) -> str:
     if _A_FLAG.search(text):
         return text
     return _FLAGPOLE.sub(
-        lambda m: "flagpoles flying plain one-color flags" if m.group(1) else "flagpole flying a plain one-color flag", text)
+        lambda m: "flagpoles flying plain light grey flags" if m.group(1) else "flagpole flying a plain light grey flag", text)
 _LABELED = re.compile(
     r"\s*,?\s*\b(?:labeled|labelled|marked|reading|that reads|which reads|saying|stamped|titled|with the (?:words?|text|label))"
     r"\s+(?:'[^']*'|\"[^\"]*\")",
@@ -236,21 +237,36 @@ _BEHIND = re.compile(
 )
 # "… as she delivers the closing line": the screen picture has no anchor in it.
 _ANCHOR_TAIL = re.compile(r",?\s+(?:as|while|when|and)\s+(?:the\s+(?:anchor|host)|she|he|they)\b.*$", re.I)
+# "the screen shows this same courthouse image": the picture is described elsewhere in the visual.
+_SAME_PICTURE = re.compile(
+    r"(?:this|that|(?:the|its)\s+same)\s+(?:same\s+)?(?:[\w-]+\s+){0,2}(?:image|picture|view|shot|illustration|scene)",
+    re.I)
+# A sentence about the anchor, the studio or the delivery, not about a picture.
+_STUDIO_CLAUSE = re.compile(r"\b(?:anchor|host|presenter|desk|studio|camera|delivery|tone|posture)\b", re.I)
 
 
 def screen_content(visual: str) -> str | None:
     """What an anchor scene's `visual` says the screen behind the anchor
     shows ("…; behind them, a screen shows a courthouse icon as she …" -> "a
     courthouse icon"; "…; behind her a stylized map pulses …" -> "a stylized
-    map pulses …"), or None when it doesn't say."""
+    map pulses …"), or None when it doesn't say. A screen that shows "this
+    same image" shows what the rest of the visual describes."""
     protected = _ABBREV.sub(lambda m: m.group(0).replace(".", "\0"), visual)
     clauses = [c.strip() for c in re.split(r";|[.!?](?=\s|$)", protected) if c.strip()]
+    reference = None
     for pattern in (_SCREEN, _BEHIND):
         for clause in clauses:
             m = pattern.search(clause)
             if not m:
                 continue
             what = _ANCHOR_TAIL.sub("", m.group("what")).replace("\0", ".").strip(" ,:")
-            if len(what.split()) >= 2:
+            if _SAME_PICTURE.fullmatch(what):
+                # Trial 2, S1: "this same courthouse image" went to the generator as the whole scene, and the
+                # courthouse the visual describes "empty of people" came back with people on its steps.
+                picture = [c for c in clauses if not (_STUDIO_CLAUSE.search(c) or _SCREEN.search(c) or _BEHIND.search(c))]
+                if picture:
+                    return ". ".join(picture).replace("\0", ".")
+                reference = reference or what
+            elif len(what.split()) >= 2:
                 return what
-    return None
+    return reference
