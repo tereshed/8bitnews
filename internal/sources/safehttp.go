@@ -53,6 +53,12 @@ func newSafeHTTPClient(timeout time.Duration, allowPrivate bool) *http.Client {
 	}
 	transport := &http.Transport{
 		DialContext: dialer.DialContext,
+		// A custom DialContext turns HTTP/2 off unless asked for. Some bot
+		// walls (CBC's, 2026-11-01) never answer an HTTP/1.1 request from a
+		// bot and reset an HTTP/2 one at once: over HTTP/1.1 the check sat
+		// out its whole timeout and left Save Page Now no time to archive
+		// the page before release_submit's deadline.
+		ForceAttemptHTTP2: true,
 	}
 	return &http.Client{
 		Timeout:   timeout,

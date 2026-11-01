@@ -53,7 +53,7 @@ func runServe(_ []string) {
 	}
 
 	checker := sources.NewChecker(cfg.SourceCheckTimeout, cfg.SourceAllowPrivate)
-	wayback := sources.NewWaybackClient(cfg.WaybackBaseURL, cfg.SourceCheckTimeout, cfg.WaybackAccessKey, cfg.WaybackSecretKey, cfg.SourceAllowPrivate)
+	wayback := sources.NewWaybackClient(cfg.WaybackBaseURL, cfg.WaybackSaveTimeout, cfg.WaybackAccessKey, cfg.WaybackSecretKey, cfg.SourceAllowPrivate)
 	availability := sources.NewAvailabilityClient(cfg.WaybackAvailabilityBaseURL, cfg.SourceCheckTimeout, cfg.SourceAllowPrivate)
 
 	svc := service.New(service.Deps{
