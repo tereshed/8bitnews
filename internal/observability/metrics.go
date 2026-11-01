@@ -42,13 +42,20 @@ func (m *Metrics) Handler() http.Handler {
 }
 
 // Middleware records request count and duration for every request that
-// reaches next, keyed by the request's URL path and method.
+// reaches next, keyed by the route that served it and the method. The route
+// is the ServeMux pattern ("GET /s/{code}"), not the path: public pages and
+// stray requests would otherwise make a series per URL. A request no route
+// matched counts as "unmatched".
 func (m *Metrics) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		start := time.Now()
 		next.ServeHTTP(rec, r)
-		m.requests.WithLabelValues(r.URL.Path, r.Method, strconv.Itoa(rec.status)).Inc()
-		m.duration.WithLabelValues(r.URL.Path, r.Method).Observe(time.Since(start).Seconds())
+		route := r.Pattern // set in place by the innermost ServeMux that matched
+		if route == "" {
+			route = "unmatched"
+		}
+		m.requests.WithLabelValues(route, r.Method, strconv.Itoa(rec.status)).Inc()
+		m.duration.WithLabelValues(route, r.Method).Observe(time.Since(start).Seconds())
 	})
 }

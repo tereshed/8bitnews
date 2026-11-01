@@ -53,6 +53,10 @@ services:
       # Telegram moderation bot (E4); an empty token leaves it off.
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_MODERATION_CHAT_ID: ${TELEGRAM_MODERATION_CHAT_ID:-}
+      # The publication package (E4): the public sources pages' address and
+      # the corrections contact.
+      HUB_PUBLIC_URL: ${HUB_PUBLIC_URL:-}
+      HUB_CORRECTIONS_CONTACT: ${HUB_CORRECTIONS_CONTACT:-}
     volumes:
       - ${HUB_REPO_DIR:-/opt/8bitnews/repo}/channels:/repo/channels:ro
       - ${HUB_REPO_DIR:-/opt/8bitnews/repo}/countries:/repo/countries:ro

@@ -2,6 +2,8 @@
 # leaning — ориентировочная позиция редакции в американском спектре (по открытым рейтингам медиа-предвзятости),
 # а не истина: агенты используют её, чтобы покрыть весь спектр, а не чтобы оценивать материалы.
 # ownership: private | public_broadcaster | state_funded | state_controlled
+# paywall: true — большинство материалов за платным или лимитированным доступом. В списках источников hub помечает
+# такие ссылки «(paywall)», а state_funded и state_controlled — «(state media)» (policy.md, «Источники в ролике»).
 
 country: US
 language: en-US
@@ -10,13 +12,13 @@ local:
   # агентства и деловые
   - { outlet: Associated Press, domain: apnews.com, kind: wire, leaning: center }
   - { outlet: Reuters, domain: reuters.com, kind: wire, leaning: center }
-  - { outlet: Bloomberg, domain: bloomberg.com, kind: press, leaning: center }
-  - { outlet: The Wall Street Journal, domain: wsj.com, kind: press, leaning: center, note: "редакция новостей — центр, редакционная полоса — правее" }
+  - { outlet: Bloomberg, domain: bloomberg.com, kind: press, leaning: center, paywall: true }
+  - { outlet: The Wall Street Journal, domain: wsj.com, kind: press, leaning: center, note: "редакция новостей — центр, редакционная полоса — правее", paywall: true }
   - { outlet: Axios, domain: axios.com, kind: press, leaning: center }
   - { outlet: The Hill, domain: thehill.com, kind: press, leaning: center }
   # левее центра
-  - { outlet: The New York Times, domain: nytimes.com, kind: press, leaning: lean_left }
-  - { outlet: The Washington Post, domain: washingtonpost.com, kind: press, leaning: lean_left }
+  - { outlet: The New York Times, domain: nytimes.com, kind: press, leaning: lean_left, paywall: true }
+  - { outlet: The Washington Post, domain: washingtonpost.com, kind: press, leaning: lean_left, paywall: true }
   - { outlet: CNN, domain: cnn.com, kind: press, leaning: lean_left }
   - { outlet: NPR, domain: npr.org, kind: press, leaning: lean_left }
   - { outlet: NBC News, domain: nbcnews.com, kind: press, leaning: lean_left }
@@ -40,9 +42,9 @@ world:
     outlets:
       - { outlet: BBC News, domain: bbc.com, language: en, ownership: public_broadcaster }
       - { outlet: The Guardian, domain: theguardian.com, language: en, ownership: private }
-      - { outlet: Financial Times, domain: ft.com, language: en, ownership: private }
-      - { outlet: The Telegraph, domain: telegraph.co.uk, language: en, ownership: private }
-      - { outlet: The Economist, domain: economist.com, language: en, ownership: private }
+      - { outlet: Financial Times, domain: ft.com, language: en, ownership: private, paywall: true }
+      - { outlet: The Telegraph, domain: telegraph.co.uk, language: en, ownership: private, paywall: true }
+      - { outlet: The Economist, domain: economist.com, language: en, ownership: private, paywall: true }
   - region: Western Europe
     outlets:
       - { outlet: Le Monde, domain: lemonde.fr, language: fr, ownership: private }
@@ -64,12 +66,12 @@ world:
       - { outlet: Global Times, domain: globaltimes.cn, language: en, ownership: state_controlled }
       - { outlet: South China Morning Post, domain: scmp.com, language: en, ownership: private }
       - { outlet: NHK World, domain: nhk.or.jp, language: en, ownership: public_broadcaster }
-      - { outlet: Nikkei Asia, domain: asia.nikkei.com, language: en, ownership: private }
+      - { outlet: Nikkei Asia, domain: asia.nikkei.com, language: en, ownership: private, paywall: true }
       - { outlet: Yonhap, domain: en.yna.co.kr, language: en, ownership: state_funded }
   - region: Middle East
     outlets:
       - { outlet: Al Jazeera, domain: aljazeera.com, language: en, ownership: state_funded }
-      - { outlet: Haaretz, domain: haaretz.com, language: en, ownership: private }
+      - { outlet: Haaretz, domain: haaretz.com, language: en, ownership: private, paywall: true }
       - { outlet: The Times of Israel, domain: timesofisrael.com, language: en, ownership: private }
       - { outlet: Arab News, domain: arabnews.com, language: en, ownership: private, note: "близок к официальной позиции Саудовской Аравии" }
       - { outlet: Tehran Times, domain: tehrantimes.com, language: en, ownership: state_controlled }
@@ -91,7 +93,7 @@ world:
   - region: Canada and Oceania
     outlets:
       - { outlet: CBC News, domain: cbc.ca, language: en, ownership: public_broadcaster }
-      - { outlet: The Globe and Mail, domain: theglobeandmail.com, language: en, ownership: private }
+      - { outlet: The Globe and Mail, domain: theglobeandmail.com, language: en, ownership: private, paywall: true }
       - { outlet: ABC News Australia, domain: abc.net.au, language: en, ownership: public_broadcaster }
 
 primary:

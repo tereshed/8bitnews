@@ -181,7 +181,7 @@ func newMCPTestClientSession(t *testing.T, svc *service.Service, apiKey string) 
 
 	mcpHandler := mcpapi.NewHTTPHandler(svc)
 	metrics := observability.NewMetrics()
-	router := api.NewRouter(svc, mcpHandler, metrics, slog.Default(), map[string]bool{apiKey: true}, true)
+	router := api.NewRouter(svc, mcpHandler, nil, metrics, slog.Default(), map[string]bool{apiKey: true}, true)
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)
 

@@ -90,6 +90,40 @@ type apiResponse struct {
 	Result      json.RawMessage `json:"result"`
 	Description string          `json:"description"`
 	ErrorCode   int             `json:"error_code"`
+	Parameters  struct {
+		RetryAfter int `json:"retry_after"`
+	} `json:"parameters"`
+}
+
+// APIError is the Bot API refusing a call. RetryAfter is set when Telegram
+// asks to slow down (429: a bot sends at most 20 messages a minute to a
+// group).
+type APIError struct {
+	Method      string
+	Code        int
+	Description string
+	RetryAfter  time.Duration
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("telegram %s: %d %s", e.Method, e.Code, e.Description)
+}
+
+// A call Telegram asks to repeat later is tried callAttempts times in all,
+// waiting as asked, unless the wait is longer than maxRetryWait.
+const (
+	callAttempts = 3
+	maxRetryWait = time.Minute
+)
+
+// retryWait is how long Telegram asked to wait before trying err's call
+// again, if it did and the wait is short enough.
+func retryWait(err error) (time.Duration, bool) {
+	var e *APIError
+	if errors.As(err, &e) && e.RetryAfter > 0 && e.RetryAfter <= maxRetryWait {
+		return e.RetryAfter, true
+	}
+	return 0, false
 }
 
 // errBadURL: the request URL didn't parse. It carries the token, so the
@@ -107,12 +141,18 @@ func (t *Telegram) call(ctx context.Context, method string, params any, out any)
 	if err != nil {
 		return fmt.Errorf("telegram %s: encoding: %w", method, err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.url(method), bytes.NewReader(body))
-	if err != nil {
-		return errBadURL(method)
+	for attempt := 1; ; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.url(method), bytes.NewReader(body))
+		if err != nil {
+			return errBadURL(method)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		err = t.do(req, method, out)
+		wait, again := retryWait(err)
+		if !again || attempt == callAttempts || !sleep(ctx, wait) {
+			return err
+		}
 	}
-	req.Header.Set("Content-Type", "application/json")
-	return t.do(req, method, out)
 }
 
 func (t *Telegram) do(req *http.Request, method string, out any) error {
@@ -131,7 +171,8 @@ func (t *Telegram) do(req *http.Request, method string, out any) error {
 		return fmt.Errorf("telegram %s: HTTP %d, unreadable reply", method, resp.StatusCode)
 	}
 	if !r.OK {
-		return fmt.Errorf("telegram %s: %d %s", method, r.ErrorCode, r.Description)
+		return &APIError{Method: method, Code: r.ErrorCode, Description: r.Description,
+			RetryAfter: time.Duration(r.Parameters.RetryAfter) * time.Second}
 	}
 	if out != nil {
 		if err := json.Unmarshal(r.Result, out); err != nil {
@@ -161,17 +202,34 @@ func (t *Telegram) GetUpdates(ctx context.Context, offset int64, timeout time.Du
 
 // SendVideo uploads a video to chatID with a caption and buttons.
 func (t *Telegram) SendVideo(ctx context.Context, chatID int64, filename string, video io.Reader, caption string, keyboard *Keyboard) (Message, error) {
-	fields := map[string]string{
-		"chat_id":            strconv.FormatInt(chatID, 10),
-		"caption":            caption,
-		"supports_streaming": "true",
-	}
+	fields := map[string]string{"supports_streaming": "true"}
 	if keyboard != nil {
 		raw, err := json.Marshal(keyboard)
 		if err != nil {
 			return Message{}, fmt.Errorf("telegram sendVideo: encoding keyboard: %w", err)
 		}
 		fields["reply_markup"] = string(raw)
+	}
+	return t.sendFile(ctx, "sendVideo", "video", chatID, filename, video, caption, 0, fields)
+}
+
+// SendDocument uploads a file to chatID as it is (a document is never
+// recompressed), as a reply to replyTo when it isn't 0.
+func (t *Telegram) SendDocument(ctx context.Context, chatID int64, filename string, file io.Reader, caption string, replyTo int64) (Message, error) {
+	return t.sendFile(ctx, "sendDocument", "document", chatID, filename, file, caption, replyTo, map[string]string{})
+}
+
+// sendFile streams one file to a Bot API upload method, with the fields
+// besides the chat, the caption and the reply.
+func (t *Telegram) sendFile(ctx context.Context, method, field string, chatID int64, filename string, file io.Reader, caption string, replyTo int64, fields map[string]string) (Message, error) {
+	fields["chat_id"] = strconv.FormatInt(chatID, 10)
+	fields["caption"] = caption
+	if replyTo != 0 {
+		raw, err := json.Marshal(map[string]any{"message_id": replyTo, "allow_sending_without_reply": true})
+		if err != nil {
+			return Message{}, fmt.Errorf("telegram %s: encoding reply: %w", method, err)
+		}
+		fields["reply_parameters"] = string(raw)
 	}
 	pr, pw := io.Pipe()
 	form := multipart.NewWriter(pw)
@@ -182,25 +240,25 @@ func (t *Telegram) SendVideo(ctx context.Context, chatID int64, filename string,
 					return err
 				}
 			}
-			part, err := form.CreateFormFile("video", filename)
+			part, err := form.CreateFormFile(field, filename)
 			if err != nil {
 				return err
 			}
-			if _, err := io.Copy(part, video); err != nil {
+			if _, err := io.Copy(part, file); err != nil {
 				return err
 			}
 			return form.Close()
 		}()
 		pw.CloseWithError(err)
 	}()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.url("sendVideo"), pr)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.url(method), pr)
 	if err != nil {
 		pr.CloseWithError(err)
-		return Message{}, errBadURL("sendVideo")
+		return Message{}, errBadURL(method)
 	}
 	req.Header.Set("Content-Type", form.FormDataContentType())
 	var m Message
-	err = t.do(req, "sendVideo", &m)
+	err = t.do(req, method, &m)
 	pr.CloseWithError(io.ErrClosedPipe) // unblocks the writer if the request ended early
 	return m, err
 }
@@ -208,7 +266,20 @@ func (t *Telegram) SendVideo(ctx context.Context, chatID int64, filename string,
 // SendMessage posts text to chatID, as a reply to replyTo when it isn't 0,
 // with markup (a *Keyboard, or forceReply) when it isn't nil.
 func (t *Telegram) SendMessage(ctx context.Context, chatID int64, text string, replyTo int64, markup any) (Message, error) {
+	return t.sendMessage(ctx, chatID, text, "", replyTo, markup)
+}
+
+// SendHTML posts text in Telegram's HTML markup (<b>, <pre>…), as a reply to
+// replyTo when it isn't 0.
+func (t *Telegram) SendHTML(ctx context.Context, chatID int64, html string, replyTo int64) (Message, error) {
+	return t.sendMessage(ctx, chatID, html, "HTML", replyTo, nil)
+}
+
+func (t *Telegram) sendMessage(ctx context.Context, chatID int64, text, parseMode string, replyTo int64, markup any) (Message, error) {
 	params := map[string]any{"chat_id": chatID, "text": text, "link_preview_options": map[string]bool{"is_disabled": true}}
+	if parseMode != "" {
+		params["parse_mode"] = parseMode
+	}
 	if replyTo != 0 {
 		params["reply_parameters"] = map[string]any{"message_id": replyTo, "allow_sending_without_reply": true}
 	}
@@ -222,8 +293,13 @@ func (t *Telegram) SendMessage(ctx context.Context, chatID int64, text string, r
 
 // RemoveKeyboard takes the buttons off a message.
 func (t *Telegram) RemoveKeyboard(ctx context.Context, chatID, messageID int64) error {
+	return t.SetKeyboard(ctx, chatID, messageID, &Keyboard{InlineKeyboard: [][]Button{}})
+}
+
+// SetKeyboard replaces a message's buttons.
+func (t *Telegram) SetKeyboard(ctx context.Context, chatID, messageID int64, keyboard *Keyboard) error {
 	return t.call(ctx, "editMessageReplyMarkup", map[string]any{
-		"chat_id": chatID, "message_id": messageID, "reply_markup": Keyboard{InlineKeyboard: [][]Button{}},
+		"chat_id": chatID, "message_id": messageID, "reply_markup": keyboard,
 	}, nil)
 }
 

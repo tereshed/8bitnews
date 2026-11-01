@@ -18,13 +18,14 @@ import (
 const maxRequestBodyBytes = 5 << 20 // 5 MiB
 
 // NewRouter builds the hub's full HTTP surface: REST under /api/v1, the
-// MCP endpoint at /mcp, and the unauthenticated /healthz. apiKeys is the
-// set of accepted bearer tokens (task E1 §4); empty means no key will ever
-// be accepted. When requireMetricsAuth is true, /metrics is mounted here
-// behind the same bearer-key auth as every other route; when false, the
-// caller is serving /metrics unauthenticated on a separate address instead
-// (HUB_METRICS_ADDR), so it is not mounted here at all.
-func NewRouter(svc *service.Service, mcpHandler http.Handler, metrics *observability.Metrics, logger *slog.Logger, apiKeys map[string]bool, requireMetricsAuth bool) http.Handler {
+// MCP endpoint at /mcp, and, with no API key, /healthz and the public pages
+// (a video's sources at /s/, a channel's videos at /c/; nil: none). apiKeys
+// is the set of accepted bearer tokens (task E1 §4); empty means no key
+// will ever be accepted. When requireMetricsAuth is true, /metrics is
+// mounted here behind the same bearer-key auth as every other route; when
+// false, the caller is serving /metrics unauthenticated on a separate
+// address instead (HUB_METRICS_ADDR), so it is not mounted here at all.
+func NewRouter(svc *service.Service, mcpHandler, pages http.Handler, metrics *observability.Metrics, logger *slog.Logger, apiKeys map[string]bool, requireMetricsAuth bool) http.Handler {
 	h := &handler{svc: svc, log: logger}
 
 	mux := http.NewServeMux()
@@ -45,6 +46,13 @@ func NewRouter(svc *service.Service, mcpHandler http.Handler, metrics *observabi
 	mux.Handle("/mcp", mcpHandler)
 
 	authed := requireAPIKey(apiKeys, mux, "/healthz")
+	if pages != nil {
+		public := http.NewServeMux()
+		public.Handle("GET /s/", pages)
+		public.Handle("GET /c/", pages)
+		public.Handle("/", authed)
+		authed = public
+	}
 	limited := limitRequestBody(authed)
 	return observability.RequestLogging(logger)(metrics.Middleware(limited))
 }
