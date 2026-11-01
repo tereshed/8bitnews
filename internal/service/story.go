@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/tereshed/8bitnews/internal/store"
 )
@@ -77,6 +78,21 @@ func (s *Service) StoryRegister(ctx context.Context, req StoryRegisterRequest) (
 	}
 	if req.ReportedAt.IsZero() {
 		return StoryRegisterResponse{}, invalidf("reported_at is required")
+	}
+
+	// An agent's tool call sometimes sends the string "null" (or "") for a new
+	// storyline instead of JSON null: they mean the same. Anything else must be
+	// a story id, or the database answers with a cryptic uuid error.
+	if req.StoryID != nil {
+		if id := strings.TrimSpace(*req.StoryID); id == "" || strings.EqualFold(id, "null") {
+			req.StoryID = nil
+		} else {
+			canonical, err := parseID("story_id", id)
+			if err != nil {
+				return StoryRegisterResponse{}, invalidf("story_id %q is not a story id: pass an id from story_find_similar, or null for a new storyline", id)
+			}
+			req.StoryID = &canonical
+		}
 	}
 
 	var storyID string

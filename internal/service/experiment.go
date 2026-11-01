@@ -23,6 +23,11 @@ func (s *Service) ExperimentAssign(ctx context.Context, req ExperimentAssignRequ
 	if req.DevelopmentID == "" {
 		return ExperimentAssignResponse{}, invalidf("development_id is required")
 	}
+	id, err := parseID("development_id", req.DevelopmentID)
+	if err != nil {
+		return ExperimentAssignResponse{}, err
+	}
+	req.DevelopmentID = id
 
 	if _, err := s.store.GetDevelopment(ctx, req.DevelopmentID); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
