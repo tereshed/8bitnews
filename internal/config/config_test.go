@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestParseAPIKeys(t *testing.T) {
 	cases := []struct {
@@ -45,5 +48,24 @@ func TestModerationSettings(t *testing.T) {
 	cfg, err = Load()
 	if err != nil || cfg.Moderation.ChatID != -5012345678 || cfg.Moderation.PollInterval <= 0 {
 		t.Fatalf("with both: %+v, %v", cfg.Moderation, err)
+	}
+}
+
+// One source the hub can't reach goes check -> Save Page Now -> availability
+// lookup, one after another; the default deadline must fit that chain and
+// still answer before newsroom/tools/hublib.py gives up (120 s). With a 25 s
+// deadline, a check that hung for 15 s left Save Page Now 10 s, and a CBC
+// source with no archive copy yet was refused (trial 2, 2026-11-01).
+func TestSourceDeadlineFitsOneSlowSource(t *testing.T) {
+	for _, k := range []string{"HUB_SOURCE_CHECK_TIMEOUT", "HUB_WAYBACK_SAVE_TIMEOUT", "HUB_SOURCES_CHECK_DEADLINE"} {
+		t.Setenv(k, "")
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain := cfg.SourceCheckTimeout + cfg.WaybackSaveTimeout + cfg.SourceCheckTimeout
+	if cfg.SourcesCheckDeadline < chain || cfg.SourcesCheckDeadline >= 120*time.Second {
+		t.Fatalf("deadline %s: want at least %s (check + save + lookup) and under 120s", cfg.SourcesCheckDeadline, chain)
 	}
 }

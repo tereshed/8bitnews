@@ -23,7 +23,7 @@ const (
 // that never calls ReleaseSubmit's source-checking path).
 const (
 	defaultSourcesConcurrency              = 8
-	defaultSourcesCheckDeadline            = 25 * time.Second
+	defaultSourcesCheckDeadline            = 90 * time.Second
 	defaultSourcesBackgroundArchiveTimeout = 5 * time.Minute
 )
 

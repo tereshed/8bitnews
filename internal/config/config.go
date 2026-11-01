@@ -47,10 +47,14 @@ type Config struct {
 	WaybackAccessKey string
 	WaybackSecretKey string
 
-	// SourceCheckTimeout bounds each individual outbound HTTP call
-	// release_submit's source checking/archiving makes (one link check,
-	// one Save Page Now call, one availability lookup).
+	// SourceCheckTimeout bounds each individual link check and
+	// availability lookup release_submit's source checking makes.
 	SourceCheckTimeout time.Duration
+
+	// WaybackSaveTimeout bounds one Save Page Now call. Archiving a page
+	// takes Wayback tens of seconds (a CBC article: about 40 s), far longer
+	// than a link check.
+	WaybackSaveTimeout time.Duration
 
 	// SourceAllowPrivate lifts the SSRF protection in internal/sources,
 	// letting it dial loopback/private/link-local addresses. It exists
@@ -66,7 +70,9 @@ type Config struct {
 	// phase of release_submit (parallel Checker.Check calls, plus the
 	// synchronous Save-Page-Now/Availability-API calls needed to decide
 	// pass/fail for a non-ok source), regardless of how many sources there
-	// are.
+	// are. It must leave room for one source's whole chain (a check, a
+	// Save Page Now call, an availability lookup) and stay under the
+	// submitting client's timeout (newsroom/tools/hublib.py: 120 s).
 	SourcesCheckDeadline time.Duration
 
 	// SourcesBackgroundArchiveTimeout bounds the background job that
@@ -121,9 +127,10 @@ func Load() (Config, error) {
 		WaybackAccessKey:                getEnv("HUB_WAYBACK_ACCESS_KEY", ""),
 		WaybackSecretKey:                getEnv("HUB_WAYBACK_SECRET_KEY", ""),
 		SourceCheckTimeout:              getDuration("HUB_SOURCE_CHECK_TIMEOUT", 15*time.Second),
+		WaybackSaveTimeout:              getDuration("HUB_WAYBACK_SAVE_TIMEOUT", 50*time.Second),
 		SourceAllowPrivate:              getBool("HUB_SOURCE_ALLOW_PRIVATE", false),
 		SourcesConcurrency:              getInt("HUB_SOURCES_CONCURRENCY", 8),
-		SourcesCheckDeadline:            getDuration("HUB_SOURCES_CHECK_DEADLINE", 25*time.Second),
+		SourcesCheckDeadline:            getDuration("HUB_SOURCES_CHECK_DEADLINE", 90*time.Second),
 		SourcesBackgroundArchiveTimeout: getDuration("HUB_SOURCES_BACKGROUND_ARCHIVE_TIMEOUT", 5*time.Minute),
 		MetricsAddr:                     getEnv("HUB_METRICS_ADDR", ""),
 		Moderation: ModerationConfig{
