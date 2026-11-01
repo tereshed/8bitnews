@@ -118,7 +118,7 @@ def test_game_motifs_become_neutral(motif):
 def test_flags_become_plain_and_seals_logos_go(visual):
     out = clean_visual(visual, ["Gavin Newsom"])
     assert "seal" not in out.lower() and "logo" not in out.lower() and "arms" not in out.lower()
-    assert all(m.lower() == "plain one-color " for m in re.findall(r"(\S+ \S+ )(?=flag)", out, flags=re.I)), out
+    assert all(m.lower() == "plain light grey " for m in re.findall(r"(\S+ \S+ \S+ )(?=flag)", out, flags=re.I)), out
     assert "California" not in out and "American" not in out and "Great" not in out
 
 
@@ -158,6 +158,23 @@ def test_every_trial_visual_cleans_to_something():
     ("Anchor at the desk; behind the anchor, a screen with a map of Ohio.", "a map of Ohio"),
     ("Anchor at the desk; the big screen: a map of Texas counties.", "a map of Texas counties"),
     ("Anchor at the desk. Screen shows a stack of ballots.", "a stack of ballots"),
+    # the screen shows the picture the rest of the visual describes (trial 2, S1)
+    ("A wide dusk view of a U.S. federal courthouse, broad marble steps and tall columns, empty of people. "
+     "The screen behind the anchor shows this same courthouse image.",
+     "A wide dusk view of a U.S. federal courthouse, broad marble steps and tall columns, empty of people"),
+    ("The anchor sits at the desk; a quiet harbor at dawn; the screen shows the same view.", "a quiet harbor at dawn"),
+    ("A senator at a podium, his hand raised. The screen behind the anchor shows this same image.",
+     "A senator at a podium, his hand raised"),
+    ("The anchor at the desk. Calm, serious delivery. A harbor at dawn. Camera slowly pushes in. "
+     "The screen behind the anchor shows that picture.", "A harbor at dawn"),
+    # nothing else describes it: the reference is all there is
+    ("The anchor sits at the desk; the screen shows this image.", "this image"),
+    # a description that merely starts with "the" is still a description
+    ("Anchor at the desk; the screen shows the image of a courthouse at night.", "the image of a courthouse at night"),
+    ("Anchor at the desk; the screen shows the satellite view.", "the satellite view"),
+    ("The anchor at the desk. Calm, serious delivery. The screen behind the anchor shows the same courthouse from "
+     "the opening, now at night.", "the same courthouse from the opening, now at night"),
+    ("Anchor at the desk; the screen shows the same image: a courthouse at dusk.", "the same image: a courthouse at dusk"),
 ])
 def test_screen_content_is_what_the_anchor_scene_puts_on_the_screen(visual, expected):
     from studio.scene_prompt import screen_content
@@ -165,18 +182,18 @@ def test_screen_content_is_what_the_anchor_scene_puts_on_the_screen(visual, expe
 
 
 @pytest.mark.parametrize("visual,want", [
-    ("A plain federal office building facade with a flagpole out front, empty of people.", "a flagpole flying a plain one-color flag"),
-    ("A flag staff by the gate.", "A flagpole flying a plain one-color flag"),
-    ("A flag-pole by the door.", "A flagpole flying a plain one-color flag"),
-    ("Three flagpoles outside the hall.", "flagpoles flying plain one-color flags"),
+    ("A plain federal office building facade with a flagpole out front, empty of people.", "a flagpole flying a plain light grey flag"),
+    ("A flag staff by the gate.", "A flagpole flying a plain light grey flag"),
+    ("A flag-pole by the door.", "A flagpole flying a plain light grey flag"),
+    ("Three flagpoles outside the hall.", "flagpoles flying plain light grey flags"),
     # a flag the visual names itself is the one: plain, and only one
-    ("A flagpole flying an American flag.", "A flagpole flying a plain one-color flag"),
-    ("A flag at half-mast on a flagpole.", "A plain one-color flag at half-mast on a flagpole"),
+    ("A flagpole flying an American flag.", "A flagpole flying a plain light grey flag"),
+    ("A flag at half-mast on a flagpole.", "A plain light grey flag at half-mast on a flagpole"),
 ])
 def test_a_flagpole_flies_one_plain_flag(visual, want):
     """Trial 2, S5: a bare flagpole got an American flag every time, and no picture passed the check."""
     out = clean_visual(visual, [])
-    assert want in out and out.lower().count("plain one-color") == 1 and "American" not in out, out
+    assert want in out and out.lower().count("plain light grey") == 1 and "American" not in out, out
 
 
 

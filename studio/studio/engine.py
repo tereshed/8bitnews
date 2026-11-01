@@ -172,20 +172,19 @@ def _render_scene_shot(
         ox, oy = round(dx * progress), round(dy * progress)
         return big.crop((ox, oy, ox + LOGICAL_W, oy + LOGICAL_H))
 
-    # "zoom": целыми кратностями, без нецелого ресайза (see README "Motion") --
-    # the first half of the preset's duration shows the plain frame, the second
-    # half swaps in an N-times-oversized render (N picked from max_px, an
-    # integer >= 2) and crops the same LOGICAL_W x LOGICAL_H window out of its
-    # center. Only Image.crop is used: no resize, so every pixel of the
-    # result is already an exact NES-grid pixel.
-    if progress < 0.5:
+    # "zoom": the picture is fitted to a canvas up to `max_px` wider (and as
+    # much taller as keeps the frame's shape), growing 2 px at a time, and the
+    # frame is the center of it (see README "Motion"). Like a pan, the frame
+    # is a crop of a render at logical size, never a resized frame, so every
+    # pixel is still an exact NES-grid pixel. Trial 2: a 2x jump left half the
+    # picture on screen, and QA saw a staircase where S4 drew filing cabinets.
+    grow = 2 * int(max(0, motion["params"].get("max_px", 0)) * progress / 2)
+    if grow == 0:
         return _render_scene_base(scene, assets_dir, palette, font, LOGICAL_W, LOGICAL_H)
-    max_px = motion["params"].get("max_px", 0)
-    factor = 3 if max_px > LOGICAL_W / 6 else 2
-    big = _render_scene_base(scene, assets_dir, palette, font, LOGICAL_W * factor, LOGICAL_H * factor)
-    cx, cy = (LOGICAL_W * factor) // 2, (LOGICAL_H * factor) // 2
-    box = (cx - LOGICAL_W // 2, cy - LOGICAL_H // 2, cx + LOGICAL_W // 2, cy + LOGICAL_H // 2)
-    return big.crop(box)
+    w, h = LOGICAL_W + grow, round(LOGICAL_H * (LOGICAL_W + grow) / LOGICAL_W)
+    big = _render_scene_base(scene, assets_dir, palette, font, w, h)
+    left, top = (w - LOGICAL_W) // 2, (h - LOGICAL_H) // 2
+    return big.crop((left, top, left + LOGICAL_W, top + LOGICAL_H))
 
 
 def _compose_anchor_sprite(assets: ChannelAssets, pose: str, eyes_state: str, mouth_level: int) -> Image.Image:

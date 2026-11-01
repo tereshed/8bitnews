@@ -13,6 +13,7 @@ from studio.channel_assets import load_channel_assets
 from studio.constants import LOGICAL_H, LOGICAL_W
 from studio.engine import render_frame
 from studio.template_pkg import load_template
+from studio.timeline import SceneTiming
 
 
 def test_scene_motion_presets_are_selected_round_robin_by_scene_index(nes_desk_dir):
@@ -26,10 +27,10 @@ def test_scene_motion_presets_are_selected_round_robin_by_scene_index(nes_desk_d
 
 
 def test_zoom_progress_past_half_crops_an_oversized_render_not_a_resize(nes_desk_dir):
-    """The zoom preset ('zoom-in', duration_s=3.0): before half its duration
-    the scene shot is the plain frame; after half, a 2x-oversized render is
-    cropped (never resized) to the same logical size -- so the two halves
-    must differ in content but never in size."""
+    """The zoom preset ('zoom-in', duration_s=3.0): at the start the scene
+    shot is the plain frame; later, a slightly oversized render is cropped
+    (never resized) to the same logical size -- so the frames must differ in
+    content but never in size."""
     template = load_template(nes_desk_dir)
     scene = BUILTIN_SCRIPT["scenes"][1]  # S2, a `shot: scene` scene
     timeline = builtin_timeline()
@@ -41,6 +42,38 @@ def test_zoom_progress_past_half_crops_an_oversized_render_not_a_resize(nes_desk
     assert early.size == (LOGICAL_W, LOGICAL_H)
     assert late.size == (LOGICAL_W, LOGICAL_H)
     assert not np.array_equal(np.array(early), np.array(late))
+
+
+def test_zoom_is_gentle_and_keeps_the_picture_in_view(nes_desk_dir, tmp_path):
+    """The zoom eases in over the preset's duration and then holds, cutting
+    off only a sliver at the edges: a mark 5% in from the side stays on
+    screen the whole scene (trial 2: a 2x jump cut S4's filing cabinets down
+    to something QA read as a staircase)."""
+    template = load_template(nes_desk_dir)
+    duration = next(p for p in template.data["motion_presets"] if p["type"] == "zoom")["params"]["duration_s"]
+    index = next(i for i in range(10) if engine._select_scene_motion(template, i)["type"] == "zoom")
+    script = {"scenes": [{"id": f"S{i + 1}", "shot": "scene", "visual": "a picture"} for i in range(index + 1)]}
+    scene = script["scenes"][index]
+    # a generated picture is about 4x the frame: a black band at its very left edge and one 5-7% in
+    pic = Image.new("RGB", (LOGICAL_W * 4, LOGICAL_H * 4), (255, 255, 255))
+    pic.paste((0, 0, 0), (0, 0, 8, pic.height))
+    pic.paste((0, 0, 0), (54, 0, 76, pic.height))
+    pic.save(tmp_path / f"{scene['id']}.png")
+    timing = SceneTiming(scene["id"], "scene", 10.0, 20.0)
+
+    def frame(t):
+        img = engine._render_scene_shot(script, scene, timing, template, 10.0 + t, tmp_path, template.palette(), None)
+        assert img.size == (LOGICAL_W, LOGICAL_H)
+        return np.array(img.convert("L"))
+
+    def inner_band_on_screen(f):
+        return bool((f[:, 1:30] < 128).all(axis=0).any())
+
+    start, end, held = frame(0.0), frame(duration), frame(9.9)
+    assert (start[:, 0] < 128).all() and inner_band_on_screen(start)
+    assert (end[:, 0] > 128).all()  # zoomed in past the very edge
+    assert all(inner_band_on_screen(frame(t)) for t in (duration / 3, duration / 2, duration, 9.9))
+    assert np.array_equal(end, held)  # holds after the preset's duration
 
 
 def test_pan_shifts_crop_window_by_integer_pixels(nes_desk_dir):

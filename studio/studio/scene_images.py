@@ -63,7 +63,7 @@ FINDINGS = {
     "text": "Absolutely no text: every sign, screen, paper, label, calendar and badge is blank, with no letters, "
             "words, numbers or symbols.",
     "logos": "No logos or brand marks of any kind.",
-    "flags_or_seals": "No flags of real countries, states or organizations (a plain one-color flag at most), no "
+    "flags_or_seals": "No flags of real countries, states or organizations (a plain light grey flag at most), no "
                       "coats of arms, no seals, no emblems: plain shapes and plain colors only.",
     "game_elements": "Nothing from any video game: no blocks, pipes, coins, power-ups, health bars or game characters.",
     "photorealistic": "Strictly flat NES 8-bit pixel art with big visible pixels, not a photograph, not realistic.",

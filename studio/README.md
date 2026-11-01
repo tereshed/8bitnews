@@ -135,18 +135,18 @@ with none would leave some scenes with no motion at all.
   and the visible window crops a `LOGICAL_W`×`LOGICAL_H` rectangle that
   slides across it by whole pixels as the scene plays. No resize is ever
   applied to produce the pan itself — only `Image.crop`.
-- **`zoom`** (`max_px`, `duration_s`): for the first half of the preset's
-  duration the plain frame is shown; for the second half, the scene is
-  rendered again at an integer multiple of the logical size -- 3× if
-  `max_px` is more than a sixth of the frame width, 2× otherwise -- and a
-  centered `LOGICAL_W`×`LOGICAL_H` window is cropped out of it. This is the
-  "целыми кратностями ... без нецелого ресайза" approach the review asked
-  for: the only resize involved is the deliberate integer-multiple render,
-  and the zoom step itself is a crop, never a resize-back-up (which is what
-  produced inconsistent pixel widths in the previous version). The
-  trade-off is a single discrete zoom step rather than a continuous ramp;
-  that was the simplest implementation that guarantees every logical pixel
-  of the output stays an exact 1:1 NES-grid pixel.
+- **`zoom`** (`max_px`, `duration_s`): over the preset's duration the
+  picture is fitted to a canvas that grows 2 px at a time up to `max_px`
+  wider than the frame (and as much taller as keeps the 9:16 shape), and a
+  centered `LOGICAL_W`×`LOGICAL_H` window is cropped out of it; after
+  `duration_s` it holds. As with a pan, the picture is fitted from its
+  source straight to that logical canvas and the frame is a crop, never a
+  resize of a rendered frame (which is what produced inconsistent pixel
+  widths in an early version), so every logical pixel of the output stays
+  an exact 1:1 NES-grid pixel. An earlier version jumped to a 2× crop
+  halfway through and held it for the rest of the scene: half the picture
+  was off screen, and in trial 2 QA read S4's filing cabinets as a
+  staircase.
 - **`parallax`** (`layer_indices`, `shift_px`): while an anchor shot plays,
   the studio's background/foreground layers whose index is in
   `layer_indices` drift horizontally by `layer.parallax * shift_px`,
@@ -301,8 +301,10 @@ tests:
   ninth-circuit trial. Calendars, notes and newspapers are asked for blank;
 - motifs of known games (a question mark, a "?" block, power-ups, "GAME
   OVER", pipes, Tetris, Pac-Man) become neutral ones; a flag becomes a plain
-  one-color flag (format.md's half-mast flag stays possible); the seal of a
-  state or office, coats of arms, emblems and logos become plain shapes.
+  light grey flag (format.md's half-mast flag stays possible; a "one-color"
+  flag came back red, a party color), and a bare flagpole flies one; the
+  seal of a state or office, coats of arms, emblems and logos become plain
+  shapes.
 
 **The check.** Every picture goes to a vision model that answers in JSON
 whether it shows text, logos, the flag of a real country or organization or
