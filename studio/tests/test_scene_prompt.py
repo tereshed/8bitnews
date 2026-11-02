@@ -196,6 +196,116 @@ def test_a_flagpole_flies_one_plain_flag(visual, want):
     assert want in out and out.lower().count("plain light grey") == 1 and "American" not in out, out
 
 
+@pytest.mark.parametrize("visual", [
+    "No flags, poles, stands, or tall or conical objects anywhere in the room",
+    "NO flags anywhere",
+    "a bare room with no flags or seals",
+    "no logos, seals or flags",
+    "commanders with no insignia on caps or uniforms",
+    "a podium, not a flag, in front of the wall",
+    "Neither flags nor emblems on the walls",
+    "a wall with no logos",
+    "a room with no flagpoles",
+    "a flagpole with no flag",
+    "flagpoles without flags outside the embassy",
+    # lists and one-word qualifiers after the negation
+    "No poles, stands or flags anywhere in the room.",
+    "No stands, poles, flags or tall objects.",
+    "a room with no visible flags",
+    "no posters or flags on the walls",
+    "no foreign flags",
+    "no tall or conical flags",
+    "commanders with no military insignia on caps",
+    "no campaign logos",
+    # a pole the visual leaves empty stays empty
+    "a flagpole out front, no flag on it",
+    "An embassy gate, a bare flagpole, no flag, no people present.",
+])
+def test_what_the_visual_rules_out_stays_ruled_out(visual):
+    """Trial 3, S3: "No flags, poles, stands, or tall or conical objects" lost its "No" to the flag pattern
+    ("No" read as a flag's name, like "California") and asked the model for a flag, poles and cones."""
+    out = clean_visual(visual, [])
+    assert out == visual, out
+
+
+@pytest.mark.parametrize("visual,want", [
+    ("No American flags anywhere in the room.", "No flags anywhere in the room."),
+    ("NO AMERICAN FLAGS.", "NO flags."),
+    ("No state flags", "No flags"),
+    ("Without American flags, the hall looks bare.", "Without flags, the hall looks bare."),
+    ("No Great Seal on the lectern.", "No seal on the lectern."),
+    ("a lectern without any American flag", "a lectern without any flag"),
+    ("commanders with no Iranian flag behind them", "commanders with no flag behind them"),
+    ("Not the American flag but a plain banner.", "Not the flag but a plain banner."),
+    ("a flagpole by the door, no American flag", "a flagpole by the door, no flag"),
+])
+def test_a_ruled_out_symbol_loses_its_name_and_stays_ruled_out(visual, want):
+    """No name reaches the model, and no plain flag is described to a scene that has none."""
+    assert clean_visual(visual, []) == want
+
+
+@pytest.mark.parametrize("visual,want", [
+    # the "no" belongs to something else: a comma, a conjunction, a preposition or a verb ends it
+    ("A room with no people, a California flag on the wall.", "no people, a plain light grey flag on the wall"),
+    ("No people; a flag by the door.", "a plain light grey flag by the door"),
+    ("An empty podium with no people and an American flag beside it.", "no people and a plain light grey flag"),
+    ("An empty lectern with no people beside the US flag.", "beside the plain light grey flag"),
+    ("protesters with no signs wave Mexican flags", "wave plain light grey flag"),
+    ("protesters with no signs wave flags", "wave plain light grey flag"),
+    ("a man with no hat salutes the American flag", "salutes the plain light grey flag"),
+    ("no longer a California flag", "no longer a plain light grey flag"),
+    ("not far from the Texas flag", "not far from the plain light grey flag"),
+    ("no people and flags", "no people and plain light grey flag"),
+    ("Not far away, the State Seal.", "the plain round shape"),
+    ("no flag\nthe Great Seal on the podium", "the plain round shape on the podium"),
+    # names that start with a negation are names
+    ("the No Kings flag", "the plain light grey flag"),
+    ("No Kings protesters wave American flags", "wave plain light grey flag"),
+    ("No Kings protesters wave flags", "wave plain light grey flag"),
+    ("the No Labels logo on a banner", "the plain round shape on a banner"),
+    ("Doctors Without Borders logo", "plain round shape"),
+    ("Never Trump flag", "plain light grey flag"),
+    # a comma joins a list only when the list goes on after the symbol
+    ("An empty stage, no people, American flags at the back.", "no people, plain light grey flag at the back"),
+    ("protesters, no signs, Mexican flags in their hands", "no signs, plain light grey flag in their hands"),
+    ("An empty briefing room, no people, flags behind the lectern.", "no people, plain light grey flag behind"),
+])
+def test_a_symbol_the_visual_asks_for_is_still_made_plain(visual, want):
+    out = clean_visual(visual, [])
+    assert want in out, out
+    # "No Kings protesters" stay protesters: only the symbol loses its name
+    for name in ("California", "American", "US", "Mexican", "Texas", "Seal", "Labels", "Borders", "Trump"):
+        assert name not in out, out
+
+
+def test_a_flagpole_flies_a_plain_flag_when_the_flag_ruled_out_is_elsewhere():
+    out = clean_visual("No flags in the room; outside, a flagpole.", [])
+    assert out == "No flags in the room; outside, a flagpole flying a plain light grey flag.", out
+
+
+def test_the_trial_3_command_room_keeps_its_prohibitions():
+    visual = ("Iran's supreme leader stands before a row of senior military commanders in a bare, plain command room, "
+              "only a wall map silhouette of the Gulf region behind them. No flags, poles, stands, or tall or conical "
+              "objects anywhere in the room; no insignia on caps or uniforms; no text visible.")
+    assert clean_visual(visual, []) == visual
+
+
+def test_only_a_scene_with_a_flag_hears_about_flags():
+    """Trial 3: "(a plain light grey flag is fine)" in every prompt put grey flags rolled on stands into rooms
+    that named none (S3), and QA and Legal read them as missiles next to a retaliation order. Now the prompt
+    describes a flag only to a scene that has one, and asks for it hanging open."""
+    from studio.paths import TEMPLATES_DIR
+    from studio.scene_images import PLAIN_FLAG_LOOK, load_style, scene_prompt
+    from studio.template_pkg import load_template
+    style = load_style("8bitnews-us")
+    template = load_template(TEMPLATES_DIR / "nes-desk")
+    assert "grey flag" not in style["prohibitions"] and "no flag at all unless the scene names one" in style["prohibitions"]
+    without = scene_prompt(style, template, clean_visual("A bare command room. No flags or poles.", []))
+    with_flag = scene_prompt(style, template, clean_visual("A lectern with a small American flag beside it.", []))
+    assert "grey flag" not in without and PLAIN_FLAG_LOOK not in without
+    assert PLAIN_FLAG_LOOK in with_flag and "American" not in with_flag
+
+
 
 @pytest.mark.parametrize("visual", [
     "A talk-radio studio desk with an on-air microphone and a lit red ON AIR lamp above it, an empty chair facing it.",

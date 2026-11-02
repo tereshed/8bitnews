@@ -27,7 +27,7 @@ from .errors import BuildError
 from .openrouter import NoImageError, OpenRouterClient
 from .palette import hex_to_rgb
 from .paths import channel_dir
-from .scene_prompt import clean_visual, leaked_names, screen_content
+from .scene_prompt import PLAIN_FLAG, clean_visual, leaked_names, screen_content
 from .template_pkg import TemplatePackage
 
 DEFAULT_MODEL = "google/gemini-3.1-flash-image"
@@ -63,7 +63,7 @@ FINDINGS = {
     "text": "Absolutely no text: every sign, screen, paper, label, calendar and badge is blank, with no letters, "
             "words, numbers or symbols.",
     "logos": "No logos or brand marks of any kind.",
-    "flags_or_seals": "No flags of real countries, states or organizations (a plain light grey flag at most), no "
+    "flags_or_seals": "No flags of real countries, states or organizations and no flag the scene doesn't name, no "
                       "coats of arms, no seals, no emblems: plain shapes and plain colors only.",
     "game_elements": "Nothing from any video game: no blocks, pipes, coins, power-ups, health bars or game characters.",
     "photorealistic": "Strictly flat NES 8-bit pixel art with big visible pixels, not a photograph, not realistic.",
@@ -82,6 +82,8 @@ def load_style(channel_id: str) -> dict:
         return json.load(f)
 
 
+# Trial 3: a plain grey flag on a stand came back rolled up, a grey cone that QA and Legal read as a missile.
+PLAIN_FLAG_LOOK = "The plain light grey flag is a simple cloth with no design; on a pole it hangs open, not rolled up."
 SCREEN_PROMPT = ("This picture fills the TV screen behind a news anchor: show only what is on the screen, filling the "
                  "whole frame; no anchor, no desk, no studio, no TV frame around it.")
 
@@ -101,6 +103,8 @@ def scene_prompt(style: dict, template: TemplatePackage, visual: str, stronger: 
     # the source and title plates sit at the top of a scene shot, and reach the top of the screen behind the anchor
     parts.append(style.get("top_room", ""))
     parts.append("Scene: " + _sentence(visual))
+    if PLAIN_FLAG in visual:
+        parts.append(PLAIN_FLAG_LOOK)
     parts.append(style["people"])
     parts.append(style["prohibitions"])
     parts.extend(stronger)
