@@ -80,11 +80,17 @@ TEXT_OBJECTS = (
     (r"(?:lit\s+)?(?:red\s+)?on[\s-]air\s+(?:(?:signal|warning|indicator)\s+)?(?:lamps?|lights?|signs?|signals?)",
      "plain red lamp"),
 )
-_CAPITALIZED = r"(?:(?!(?:A|An|The|This|That|Its|His|Her|Their|No|Not|Nor|Without|Neither|Never)\b)[A-Z][\w.'-]*[\s-]+)"
+_CAPITALIZED = r"(?:(?!(?:A|An|The|This|That|Its|His|Her|Their)\b)[A-Z][\w.'-]*[\s-]+)"
 # "No flags, poles or tall objects", "no insignia": a symbol the visual rules out stays ruled out. Trial 3, S3:
 # "No flags" became "plain light grey flag, poles, stands, or tall or conical objects", and the model drew them.
-# Up to three words may stand between ("no tall or conical flags"); a comma ends it ("no people, a flag").
-_NEGATED = re.compile(r"\b(?:no|not|nor|without|neither|never)\s+(?:[\w'-]+\s+){0,3}$", re.I)
+# Only the bare word is kept: a named one ("no American flag", "the No Kings flag") is made plain all the same.
+# Up to three words may stand between ("no tall or conical flags"), but not a comma or a word that starts
+# something else ("no people and a flag", "not far from the flag").
+_NEGATION = r"(?:no|not|nor|without|neither|never)"
+_GAP_WORD = r"(?!(?:and|but|with|beside|near|behind|under|by|from|of|only|just|longer|than|while|in|on|at|to|for)\b)[\w'-]+"
+_NEGATED = re.compile(rf"\b{_NEGATION}[^\S\n]+(?:{_GAP_WORD}[^\S\n]+){{0,3}}$", re.I)
+_LEADING_NEGATION = re.compile(rf"{_NEGATION}\s+", re.I)
+_BARE_SYMBOL = re.compile(r"(?:flags?|seals?|logos?|emblems?|crests?|insignias?|coats? of arms)", re.I)
 # Case-sensitive outside (?i:...): a capitalized word in front names whose
 # flag or seal it is ("California flag", "Great Seal").
 SYMBOLS = (
@@ -100,14 +106,18 @@ SYMBOLS = (
 # no flag of its own (that one is plain already, SYMBOLS), its flagpoles fly a plain one. Grey, because "one-color"
 # came back red, and QA read a red flag in a story about Republican lawmakers as a hint.
 _FLAGPOLE = re.compile(r"(?<![\w])flag[\s-]?(?:pole|staff)(s?)(?![\w])", re.I)
-_A_FLAG = re.compile(r"(?<![\w])flags?(?![\s-]?(?:pole|staff)s?)(?![\w])", re.I)
+PLAIN_FLAG = "plain light grey flag"
 
 
 def _plain_flag_on_poles(text: str) -> str:
-    if _A_FLAG.search(text):
+    if PLAIN_FLAG in text:  # the visual's own flag, made plain (a flag it rules out doesn't count)
         return text
-    return _FLAGPOLE.sub(
-        lambda m: "flagpoles flying plain light grey flags" if m.group(1) else "flagpole flying a plain light grey flag", text)
+
+    def fly(m: re.Match) -> str:
+        if _NEGATED.search(m.string, max(0, m.start() - 60), m.start()):
+            return m.group(0)  # "no flagpoles"
+        return "flagpoles flying plain light grey flags" if m.group(1) else "flagpole flying a plain light grey flag"
+    return _FLAGPOLE.sub(fly, text)
 _LABELED = re.compile(
     r"\s*,?\s*\b(?:labeled|labelled|marked|reading|that reads|which reads|saying|stamped|titled|with the (?:words?|text|label))"
     r"\s+(?:'[^']*'|\"[^\"]*\")",
@@ -202,12 +212,20 @@ _LABELED_PEOPLE = re.compile(
     rf"\s*\b(?:labeled|labelled|marked|named|reading)\s+{PERSON}(?:\s*,\s*{PERSON})*(?:,?\s+(?:and|or)\s+{PERSON})?", re.I)
 
 
+def _ruled_out(m: re.Match) -> bool:
+    """A bare symbol word the visual rules out: "No flags" (the capitalized "No" is taken in as if it named the
+    flag), "no tall or conical flags", "nor emblems"."""
+    found = m.group(0)
+    lead = _LEADING_NEGATION.match(found)
+    if lead:
+        return bool(_BARE_SYMBOL.fullmatch(found[lead.end():]))
+    return bool(_BARE_SYMBOL.fullmatch(found)) and bool(_NEGATED.search(m.string, max(0, m.start() - 60), m.start()))
+
+
 def _neutralize(text: str, table: tuple, case_insensitive: bool, keep_negated: bool = False) -> str:
     for pattern, neutral in table:
         def swap(m: re.Match, neutral: str = neutral) -> str:
-            if keep_negated and _NEGATED.search(m.string, max(0, m.start() - 60), m.start()):
-                return m.group(0)
-            return neutral
+            return m.group(0) if keep_negated and _ruled_out(m) else neutral
         text = re.sub(rf"(?<![\w])(?:{pattern})(?![\w])", swap, text, flags=re.I if case_insensitive else 0)
     return text
 
