@@ -196,6 +196,50 @@ def test_a_flagpole_flies_one_plain_flag(visual, want):
     assert want in out and out.lower().count("plain light grey") == 1 and "American" not in out, out
 
 
+@pytest.mark.parametrize("visual", [
+    "No flags, poles, stands, or tall or conical objects anywhere in the room",
+    "a bare room with no flags or seals",
+    "commanders with no insignia on caps or uniforms",
+    "a lectern without any American flag",
+    "no tall or conical flags",
+    "a podium, not a flag, in front of the wall",
+    "Neither flags nor emblems on the walls",
+    "a wall with no logos",
+])
+def test_what_the_visual_rules_out_stays_ruled_out(visual):
+    """Trial 3, S3: "No flags, poles, stands, or tall or conical objects" lost its "No" to the flag pattern
+    ("No" read as a flag's name, like "California") and asked the model for a flag, poles and cones."""
+    out = clean_visual(visual, [])
+    assert out == visual, out
+
+
+@pytest.mark.parametrize("visual,want", [
+    # a comma ends the negation: the flag here is asked for
+    ("A room with no people, a California flag on the wall.", "no people, a plain light grey flag on the wall"),
+    ("No people; a flag by the door.", "a plain light grey flag by the door"),
+    ("Not far away, the State Seal.", "the plain round shape"),
+])
+def test_a_symbol_after_the_negation_is_still_made_plain(visual, want):
+    out = clean_visual(visual, [])
+    assert want in out and "California" not in out and "Seal" not in out, out
+
+
+def test_the_trial_3_command_room_keeps_its_prohibitions():
+    visual = ("Iran's supreme leader stands before a row of senior military commanders in a bare, plain command room, "
+              "only a wall map silhouette of the Gulf region behind them. No flags, poles, stands, or tall or conical "
+              "objects anywhere in the room; no insignia on caps or uniforms; no text visible.")
+    assert clean_visual(visual, []) == visual
+
+
+def test_the_channel_style_asks_for_no_flag_the_scene_does_not_name():
+    """Trial 3: "(a plain light grey flag is fine)" in every prompt put grey flags rolled on stands into rooms
+    that named none (S3), and QA and Legal read them as missiles next to a retaliation order."""
+    from studio.scene_images import load_style
+    prohibitions = load_style("8bitnews-us")["prohibitions"]
+    assert "is fine" not in prohibitions
+    assert "only where the scene asks for one" in prohibitions and "never rolled up or furled" in prohibitions
+
+
 
 @pytest.mark.parametrize("visual", [
     "A talk-radio studio desk with an on-air microphone and a lit red ON AIR lamp above it, an empty chair facing it.",

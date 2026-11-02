@@ -26,7 +26,8 @@ cleaned of what the picture must not show.
   - flags become plain light grey flags (a half-mast flag stays possible), and
     a flagpole flies one;
     seals of a state or office, coats of arms, emblems and logos become plain
-    shapes (a seal on a rock stays a seal).
+    shapes (a seal on a rock stays a seal); what the visual rules out ("no
+    flags", "without insignia") stays as written, ruled out.
 Every prompt then ends with the same prohibitions, whatever the visual says.
 """
 from __future__ import annotations
@@ -79,7 +80,11 @@ TEXT_OBJECTS = (
     (r"(?:lit\s+)?(?:red\s+)?on[\s-]air\s+(?:(?:signal|warning|indicator)\s+)?(?:lamps?|lights?|signs?|signals?)",
      "plain red lamp"),
 )
-_CAPITALIZED = r"(?:(?!(?:A|An|The|This|That|Its|His|Her|Their)\b)[A-Z][\w.'-]*[\s-]+)"
+_CAPITALIZED = r"(?:(?!(?:A|An|The|This|That|Its|His|Her|Their|No|Not|Nor|Without|Neither|Never)\b)[A-Z][\w.'-]*[\s-]+)"
+# "No flags, poles or tall objects", "no insignia": a symbol the visual rules out stays ruled out. Trial 3, S3:
+# "No flags" became "plain light grey flag, poles, stands, or tall or conical objects", and the model drew them.
+# Up to three words may stand between ("no tall or conical flags"); a comma ends it ("no people, a flag").
+_NEGATED = re.compile(r"\b(?:no|not|nor|without|neither|never)\s+(?:[\w'-]+\s+){0,3}$", re.I)
 # Case-sensitive outside (?i:...): a capitalized word in front names whose
 # flag or seal it is ("California flag", "Great Seal").
 SYMBOLS = (
@@ -197,9 +202,13 @@ _LABELED_PEOPLE = re.compile(
     rf"\s*\b(?:labeled|labelled|marked|named|reading)\s+{PERSON}(?:\s*,\s*{PERSON})*(?:,?\s+(?:and|or)\s+{PERSON})?", re.I)
 
 
-def _neutralize(text: str, table: tuple, case_insensitive: bool) -> str:
+def _neutralize(text: str, table: tuple, case_insensitive: bool, keep_negated: bool = False) -> str:
     for pattern, neutral in table:
-        text = re.sub(rf"(?<![\w])(?:{pattern})(?![\w])", neutral, text, flags=re.I if case_insensitive else 0)
+        def swap(m: re.Match, neutral: str = neutral) -> str:
+            if keep_negated and _NEGATED.search(m.string, max(0, m.start() - 60), m.start()):
+                return m.group(0)
+            return neutral
+        text = re.sub(rf"(?<![\w])(?:{pattern})(?![\w])", swap, text, flags=re.I if case_insensitive else 0)
     return text
 
 
@@ -211,7 +220,7 @@ def clean_visual(visual: str, real_people: list[str]) -> str:
     text = _DATES.sub("", text)
     text = _NUMBER.sub("", text)
     text = _neutralize(text, GAME_MOTIFS + TEXT_OBJECTS, case_insensitive=True)
-    text = _neutralize(text, SYMBOLS, case_insensitive=False)
+    text = _neutralize(text, SYMBOLS, case_insensitive=False, keep_negated=True)
     text = _plain_flag_on_poles(text)
     text = re.sub(r"\b([Aa])n(\s+(?:plain|small|blank|stacked|standoff|glow|dark|newspaper)\b)", r"\1\2", text)
     text = re.sub(r"\s+([,.;:])", r"\1", text)
