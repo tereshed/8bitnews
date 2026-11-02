@@ -245,6 +245,7 @@ var challengeMarkers = []string{
 	"checking your browser",
 	"cf-chl",
 	"challenge-platform",
+	`name="js_challenge"`,
 }
 
 func looksLikeChallenge(body []byte) bool {

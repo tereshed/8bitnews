@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -298,53 +299,101 @@ func TestReleaseSubmit_DeadSourceWithoutArchive(t *testing.T) {
 	}
 }
 
+// newFakeArchive stands in for the archive holding one capture of each URL in
+// captured, showing an ordinary article.
+func newFakeArchive(t *testing.T, captured ...string) *httptest.Server {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/web/") {
+			_, _ = w.Write([]byte(`<html><body><h1>An article</h1></body></html>`))
+			return
+		}
+		target := r.URL.Query().Get("url")
+		if slices.Contains(captured, target) {
+			_, _ = fmt.Fprintf(w, `[["timestamp","original"],["20261001000000",%q]]`, target)
+			return
+		}
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
 // A page gone from the web still counts if the archive holds a copy of it from
 // when it answered 200 (policy.md). Trial 3: the lookup was refused with 429 on
 // every source, so sources with a copy were refused as if they had none.
-func TestReleaseSubmit_DeadSourceWithArchiveCopy(t *testing.T) {
-	st := newTestStore(t)
-	media := newTestMedia(t)
-	seedChannel(t, st, "test-channel")
-
-	sourceSrv := newFakeSourceServer(t)
-	waybackSrv := newFakeWaybackServer(t)
-	availabilitySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = fmt.Fprintf(w, `[["timestamp","original"],["20261001000000",%q]]`, r.URL.Query().Get("url"))
+//
+// The copy must be of the page the source cites: one that now redirects to the
+// site's home page isn't vouched for by a capture of the home page.
+func TestReleaseSubmit_GoneSourceAndItsArchiveCopy(t *testing.T) {
+	sourceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/":
+			_, _ = w.Write([]byte(`<html><body><h1>Home</h1></body></html>`))
+		case "/moved-home":
+			http.Redirect(w, r, "/", http.StatusFound)
+		default:
+			http.NotFound(w, r)
+		}
 	}))
-	t.Cleanup(availabilitySrv.Close)
-	checker := sources.NewChecker(5*time.Second, true)
-	wayback := sources.NewWaybackClient(waybackSrv.URL, 5*time.Second, "", "", true)
-	availability := sources.NewAvailabilityClient(availabilitySrv.URL, 5*time.Second, true)
+	t.Cleanup(sourceSrv.Close)
+	home, movedHome, dead := sourceSrv.URL+"/", sourceSrv.URL+"/moved-home", sourceSrv.URL+"/dead"
 
-	svc := service.New(service.Deps{Store: st, Media: media, Checker: checker, Wayback: wayback, Availability: availability, Log: slog.Default()})
-	devID := registerDevelopment(t, svc, "test-channel", "Archived source story")
+	for _, c := range []struct {
+		name, source string
+		captured     []string
+		wantRefused  bool
+	}{
+		{"dead with a copy", dead, []string{dead}, false},
+		{"dead without one", dead, nil, true},
+		{"redirected home with a copy of itself", movedHome, []string{movedHome, home}, false},
+		{"redirected home with a copy of the home page only", movedHome, []string{home}, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			media := newTestMedia(t)
+			seedChannel(t, st, "test-channel")
+			archive := newFakeArchive(t, c.captured...)
+			svc := service.New(service.Deps{
+				Store:        st,
+				Media:        media,
+				Checker:      sources.NewChecker(5*time.Second, true),
+				Wayback:      sources.NewWaybackClient(newFakeWaybackServer(t).URL, 5*time.Second, "", "", true),
+				Availability: sources.NewAvailabilityClient(archive.URL, 5*time.Second, true),
+				Log:          slog.Default(),
+			})
+			devID := registerDevelopment(t, svc, "test-channel", "Archived source story")
+			video := uploadFixture(t, svc, devID, "video.mp4")
+			subtitles := uploadFixture(t, svc, devID, "subtitles.srt")
+			cover := uploadFixture(t, svc, devID, "cover.png")
+			dossier, script := dossierAndScript(c.source)
 
-	video := uploadFixture(t, svc, devID, "video.mp4")
-	subtitles := uploadFixture(t, svc, devID, "subtitles.srt")
-	cover := uploadFixture(t, svc, devID, "cover.png")
-
-	deadURL := sourceSrv.URL + "/dead"
-	dossier, script := dossierAndScript(deadURL)
-
-	resp, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
-		DevelopmentID:    devID,
-		ChannelID:        "test-channel",
-		Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
-		ResearchDossier:  dossier,
-		Script:           script,
-		VideoPackage:     json.RawMessage(`{}`),
-		ValidationReport: json.RawMessage(passValidationReport),
-		LegalReview:      json.RawMessage(passLegalReview),
-	})
-	if err != nil {
-		t.Fatalf("a dead source with an archive copy was refused: %v", err)
-	}
-	stored, err := st.ListReleaseSources(context.Background(), resp.ReleaseID)
-	if err != nil || len(stored) != 1 {
-		t.Fatalf("sources: %+v, %v", stored, err)
-	}
-	if want := availabilitySrv.URL + "/web/20261001000000/" + deadURL; stored[0].ArchiveURL != want {
-		t.Fatalf("archive URL = %q, want %q", stored[0].ArchiveURL, want)
+			resp, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+				DevelopmentID:    devID,
+				ChannelID:        "test-channel",
+				Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
+				ResearchDossier:  dossier,
+				Script:           script,
+				VideoPackage:     json.RawMessage(`{}`),
+				ValidationReport: json.RawMessage(passValidationReport),
+				LegalReview:      json.RawMessage(passLegalReview),
+			})
+			if c.wantRefused {
+				if err == nil || !strings.Contains(err.Error(), c.source) {
+					t.Fatalf("want a refusal naming %s, got %v", c.source, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("refused: %v", err)
+			}
+			stored, err := st.ListReleaseSources(context.Background(), resp.ReleaseID)
+			if err != nil || len(stored) != 1 {
+				t.Fatalf("sources: %+v, %v", stored, err)
+			}
+			if want := archive.URL + "/web/20261001000000/" + c.source; stored[0].ArchiveURL != want {
+				t.Fatalf("archive URL = %q, want %q", stored[0].ArchiveURL, want)
+			}
+		})
 	}
 }
 

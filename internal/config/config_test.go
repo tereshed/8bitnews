@@ -51,8 +51,8 @@ func TestModerationSettings(t *testing.T) {
 	}
 }
 
-// One source the hub can't reach goes check -> Save Page Now -> availability
-// lookup, one after another; the default deadline must fit that chain and
+// One source the hub can't reach goes check -> Save Page Now -> snapshot
+// lookup -> reading the snapshot, one after another; the default deadline must fit that chain and
 // still answer before newsroom/tools/hublib.py gives up (120 s). With a 25 s
 // deadline, a check that hung for 15 s left Save Page Now 10 s, and a CBC
 // source with no archive copy yet was refused (trial 2, 2026-11-01).
@@ -64,9 +64,9 @@ func TestSourceDeadlineFitsOneSlowSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	chain := cfg.SourceCheckTimeout + cfg.WaybackSaveTimeout + cfg.SourceCheckTimeout
+	chain := cfg.SourceCheckTimeout + cfg.WaybackSaveTimeout + 2*cfg.SourceCheckTimeout
 	if cfg.SourcesCheckDeadline < chain || cfg.SourcesCheckDeadline >= 120*time.Second {
-		t.Fatalf("deadline %s: want at least %s (check + save + lookup) and under 120s", cfg.SourcesCheckDeadline, chain)
+		t.Fatalf("deadline %s: want at least %s (check + save + lookup + read) and under 120s", cfg.SourcesCheckDeadline, chain)
 	}
 }
 

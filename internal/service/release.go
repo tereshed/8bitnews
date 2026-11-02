@@ -204,6 +204,10 @@ type sourceOutcome struct {
 //     only archive that error response, so it is not attempted at all —
 //     only a *pre-existing* snapshot (recorded with HTTP 200 before the
 //     page went bad) counts.
+//
+// An existing snapshot is always looked up by the URL the source cites, not
+// where the check ended up: a page that now redirects to the site's home page
+// isn't vouched for by a capture of the home page.
 //   - blocked: the URL's scheme or destination address is one this
 //     process refuses to connect to at all (SSRF protection). It never
 //     passes, and no archive lookup is attempted either — the hub must
@@ -247,7 +251,7 @@ func (s *Service) resolveSource(ctx context.Context, c sources.Candidate, now ti
 			return sourceOutcome{record: rec}
 		}
 		s.log.Warn("archiving source failed, falling back to existing snapshot lookup", "url", c.URL, "error", err)
-		if archiveURL, found, err := s.availability.Closest(ctx, archiveTarget); err != nil {
+		if archiveURL, found, err := s.availability.Closest(ctx, c.URL); err != nil {
 			s.log.Warn("availability lookup failed", "url", c.URL, "error", err)
 		} else if found {
 			rec.ArchiveURL = archiveURL
@@ -256,7 +260,7 @@ func (s *Service) resolveSource(ctx context.Context, c sources.Candidate, now ti
 		return sourceOutcome{record: rec, bad: true}
 
 	case sources.StatusDead, sources.StatusSoft404:
-		if archiveURL, found, err := s.availability.Closest(ctx, archiveTarget); err != nil {
+		if archiveURL, found, err := s.availability.Closest(ctx, c.URL); err != nil {
 			s.log.Warn("availability lookup failed", "url", c.URL, "error", err)
 		} else if found {
 			rec.ArchiveURL = archiveURL
