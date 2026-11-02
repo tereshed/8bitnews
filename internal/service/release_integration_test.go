@@ -61,17 +61,16 @@ func newFakeWaybackServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
-// newFakeAvailabilityServer stands in for the Wayback Availability JSON
-// API (https://archive.org/wayback/available). It reports no existing
+// newFakeAvailabilityServer stands in for the Internet Archive's CDX API
+// (https://web.archive.org/cdx/search/cdx). It reports no existing
 // snapshot for every URL; these tests' "dead" sources need exactly that
 // (no pre-existing archive copy, so the policy decision in
 // countries/us/policy.md "Источники в ролике" rejects them), and their
 // "ok" sources never consult it at all.
 func newFakeAvailabilityServer(t *testing.T) *httptest.Server {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		target := r.URL.Query().Get("url")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"url":"` + target + `","archived_snapshots":{}}`))
+		_, _ = w.Write([]byte(`[]`))
 	}))
 	t.Cleanup(srv.Close)
 	return srv
@@ -296,6 +295,56 @@ func TestReleaseSubmit_DeadSourceWithoutArchive(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), deadURL) {
 		t.Fatalf("error %q does not mention the broken URL %q", err.Error(), deadURL)
+	}
+}
+
+// A page gone from the web still counts if the archive holds a copy of it from
+// when it answered 200 (policy.md). Trial 3: the lookup was refused with 429 on
+// every source, so sources with a copy were refused as if they had none.
+func TestReleaseSubmit_DeadSourceWithArchiveCopy(t *testing.T) {
+	st := newTestStore(t)
+	media := newTestMedia(t)
+	seedChannel(t, st, "test-channel")
+
+	sourceSrv := newFakeSourceServer(t)
+	waybackSrv := newFakeWaybackServer(t)
+	availabilitySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintf(w, `[["timestamp","original"],["20261001000000",%q]]`, r.URL.Query().Get("url"))
+	}))
+	t.Cleanup(availabilitySrv.Close)
+	checker := sources.NewChecker(5*time.Second, true)
+	wayback := sources.NewWaybackClient(waybackSrv.URL, 5*time.Second, "", "", true)
+	availability := sources.NewAvailabilityClient(availabilitySrv.URL, 5*time.Second, true)
+
+	svc := service.New(service.Deps{Store: st, Media: media, Checker: checker, Wayback: wayback, Availability: availability, Log: slog.Default()})
+	devID := registerDevelopment(t, svc, "test-channel", "Archived source story")
+
+	video := uploadFixture(t, svc, devID, "video.mp4")
+	subtitles := uploadFixture(t, svc, devID, "subtitles.srt")
+	cover := uploadFixture(t, svc, devID, "cover.png")
+
+	deadURL := sourceSrv.URL + "/dead"
+	dossier, script := dossierAndScript(deadURL)
+
+	resp, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+		DevelopmentID:    devID,
+		ChannelID:        "test-channel",
+		Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
+		ResearchDossier:  dossier,
+		Script:           script,
+		VideoPackage:     json.RawMessage(`{}`),
+		ValidationReport: json.RawMessage(passValidationReport),
+		LegalReview:      json.RawMessage(passLegalReview),
+	})
+	if err != nil {
+		t.Fatalf("a dead source with an archive copy was refused: %v", err)
+	}
+	stored, err := st.ListReleaseSources(context.Background(), resp.ReleaseID)
+	if err != nil || len(stored) != 1 {
+		t.Fatalf("sources: %+v, %v", stored, err)
+	}
+	if want := availabilitySrv.URL + "/web/20261001000000/" + deadURL; stored[0].ArchiveURL != want {
+		t.Fatalf("archive URL = %q, want %q", stored[0].ArchiveURL, want)
 	}
 }
 

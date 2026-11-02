@@ -150,13 +150,12 @@ func newMCPFakeWaybackServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
-// newMCPFakeAvailabilityServer stands in for the Wayback Availability JSON
-// API, reporting no existing snapshot for every URL.
+// newMCPFakeAvailabilityServer stands in for the Internet Archive's CDX API,
+// reporting no existing snapshot for every URL.
 func newMCPFakeAvailabilityServer(t *testing.T) *httptest.Server {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		target := r.URL.Query().Get("url")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"url":"` + target + `","archived_snapshots":{}}`))
+		_, _ = w.Write([]byte(`[]`))
 	}))
 	t.Cleanup(srv.Close)
 	return srv

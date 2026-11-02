@@ -9,21 +9,24 @@ import (
 	"time"
 )
 
-// newFakeAvailability mimics https://archive.org/wayback/available: /found
-// returns a 200-status snapshot, /found-404 returns a snapshot whose
-// recorded status is not 200 (the archive only captured the page's own
-// error response), and anything else returns an empty result.
+// newFakeAvailability mimics https://web.archive.org/cdx/search/cdx with
+// filter=statuscode:200: /found has two captures with HTTP 200, of which
+// limit=-1 returns the last; /found-404 has only a capture of its own error
+// response, which the filter removes; anything else has none.
 func newFakeAvailability(t *testing.T) *httptest.Server {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		target := r.URL.Query().Get("url")
+		q := r.URL.Query()
+		if r.URL.Path != "/cdx/search/cdx" || q.Get("filter") != "statuscode:200" || q.Get("limit") != "-1" ||
+			q.Get("fl") != "timestamp,original" || q.Get("output") != "json" {
+			http.Error(w, "unexpected request: "+r.URL.String(), http.StatusBadRequest)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		switch target {
+		switch q.Get("url") {
 		case "https://example.com/found":
-			_, _ = w.Write([]byte(`{"url":"https://example.com/found","archived_snapshots":{"closest":{"available":true,"url":"http://web.archive.org/web/20200101000000/https://example.com/found","timestamp":"20200101000000","status":"200"}}}`))
-		case "https://example.com/found-404":
-			_, _ = w.Write([]byte(`{"url":"https://example.com/found-404","archived_snapshots":{"closest":{"available":true,"url":"http://web.archive.org/web/20200101000000/https://example.com/found-404","timestamp":"20200101000000","status":"404"}}}`))
+			_, _ = w.Write([]byte(`[["timestamp","original"],["20200102000000","https://example.com/found"]]`))
 		default:
-			_, _ = w.Write([]byte(`{"url":"` + target + `","archived_snapshots":{}}`))
+			_, _ = w.Write([]byte(`[]`))
 		}
 	}))
 	t.Cleanup(srv.Close)
@@ -41,8 +44,8 @@ func TestAvailabilityClient_Found200(t *testing.T) {
 	if !found {
 		t.Fatalf("expected a snapshot to be found")
 	}
-	if archiveURL == "" {
-		t.Fatalf("expected a non-empty archive URL")
+	if want := srv.URL + "/web/20200102000000/https://example.com/found"; archiveURL != want {
+		t.Fatalf("archive URL = %q, want %q", archiveURL, want)
 	}
 }
 
@@ -55,7 +58,7 @@ func TestAvailabilityClient_SnapshotOfErrorPageIsNotFound(t *testing.T) {
 		t.Fatalf("Closest: %v", err)
 	}
 	if found {
-		t.Fatalf("a snapshot whose recorded status is 404 must not count as found")
+		t.Fatalf("a page with only a capture of its 404 must not count as found")
 	}
 }
 
@@ -87,7 +90,7 @@ func TestAvailabilityClient_EncodesTargetURL(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotRawQuery = r.URL.RawQuery
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"archived_snapshots":{}}`))
+		_, _ = w.Write([]byte(`[]`))
 	}))
 	t.Cleanup(srv.Close)
 
@@ -102,5 +105,33 @@ func TestAvailabilityClient_EncodesTargetURL(t *testing.T) {
 	}
 	if q.Get("url") != target {
 		t.Fatalf("server saw url=%q, want %q", q.Get("url"), target)
+	}
+}
+
+func TestAvailabilityClient_EmptyBodyMeansNoSnapshot(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	t.Cleanup(srv.Close)
+	client := NewAvailabilityClient(srv.URL, 5*time.Second, true)
+
+	if _, found, err := client.Closest(context.Background(), "https://example.com/x"); err != nil || found {
+		t.Fatalf("found=%v err=%v, want no snapshot and no error", found, err)
+	}
+}
+
+func TestAvailabilityClient_ReportsAFailedLookup(t *testing.T) {
+	for name, handler := range map[string]http.HandlerFunc{
+		"rate limited": func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTooManyRequests) },
+		"not JSON":     func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`<html>busy</html>`)) },
+		"short row":    func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`[["timestamp"],["2020"]]`)) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(handler)
+			t.Cleanup(srv.Close)
+			client := NewAvailabilityClient(srv.URL, 5*time.Second, true)
+
+			if _, found, err := client.Closest(context.Background(), "https://example.com/x"); err == nil || found {
+				t.Fatalf("found=%v err=%v, want an error", found, err)
+			}
+		})
 	}
 }

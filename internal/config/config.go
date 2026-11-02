@@ -35,9 +35,9 @@ type Config struct {
 	// point at an httptest server instead of the real Wayback Machine.
 	WaybackBaseURL string
 
-	// WaybackAvailabilityBaseURL is the Wayback Availability JSON API
-	// endpoint (https://archive.org/wayback/available); overridden in
-	// tests to point at an httptest server.
+	// WaybackAvailabilityBaseURL is where the Internet Archive's CDX API
+	// lives (https://web.archive.org/cdx/search/cdx), used to find an
+	// existing snapshot; overridden in tests to point at an httptest server.
 	WaybackAvailabilityBaseURL string
 
 	// WaybackAccessKey and WaybackSecretKey are the optional Save Page Now
@@ -133,7 +133,7 @@ func Load() (Config, error) {
 		RepoRoot:                        getEnv("HUB_REPO_ROOT", "."),
 		HTTPAddr:                        getEnv("HUB_HTTP_ADDR", ":8080"),
 		WaybackBaseURL:                  getEnv("HUB_WAYBACK_BASE_URL", "https://web.archive.org"),
-		WaybackAvailabilityBaseURL:      getEnv("HUB_WAYBACK_AVAILABILITY_BASE_URL", "https://archive.org"),
+		WaybackAvailabilityBaseURL:      getEnv("HUB_WAYBACK_AVAILABILITY_BASE_URL", "https://web.archive.org"),
 		WaybackAccessKey:                getEnv("HUB_WAYBACK_ACCESS_KEY", ""),
 		WaybackSecretKey:                getEnv("HUB_WAYBACK_SECRET_KEY", ""),
 		SourceCheckTimeout:              getDuration("HUB_SOURCE_CHECK_TIMEOUT", 15*time.Second),
