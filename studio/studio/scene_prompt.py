@@ -97,13 +97,21 @@ _NEGATED = re.compile(
     rf"(?:(?:{_WORD}[^\S\n]+)?{_WORD}{_JOINT})*(?:{_WORD}[^\S\n]+)?\x00$", re.I)
 
 
+_COMMA_LAST = re.compile(rf",[^\S\n]+(?:{_WORD}[^\S\n]+)?$", re.I)
+_LIST_GOES_ON = re.compile(r",|[^\S\n]+(?:or|nor)\b", re.I)
+
+
 def _negated_before(m: re.Match) -> bool:
     """Whether a negation rules out what `m` matched ("\\x00" stands for it at the end of the window)."""
     start = max(0, m.start() - 80)
     window = m.string[start:m.start()]
     if start:  # not from the middle of a word
         window = window.split(None, 1)[-1] if " " in window else ""
-    return bool(_NEGATED.search(window + "\x00"))
+    found = _NEGATED.search(window + "\x00")
+    if not found:
+        return False
+    # "No stands, poles, flags or tall objects" is a list; "no people, American flags at the back" is two things
+    return not _COMMA_LAST.search(found.group(0)[:-1]) or bool(_LIST_GOES_ON.match(m.string, m.end()))
 
 
 # A capitalized "No" the name pattern takes in ("No flags", "No Great Seal"); "Never Trump flag" is a name, and

@@ -265,6 +265,10 @@ def test_a_ruled_out_symbol_loses_its_name_and_stays_ruled_out(visual, want):
     ("the No Labels logo on a banner", "the plain round shape on a banner"),
     ("Doctors Without Borders logo", "plain round shape"),
     ("Never Trump flag", "plain light grey flag"),
+    # a comma joins a list only when the list goes on after the symbol
+    ("An empty stage, no people, American flags at the back.", "no people, plain light grey flag at the back"),
+    ("protesters, no signs, Mexican flags in their hands", "no signs, plain light grey flag in their hands"),
+    ("An empty briefing room, no people, flags behind the lectern.", "no people, plain light grey flag behind"),
 ])
 def test_a_symbol_the_visual_asks_for_is_still_made_plain(visual, want):
     out = clean_visual(visual, [])
