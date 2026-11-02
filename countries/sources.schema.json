@@ -27,6 +27,10 @@
           "enum": ["private", "public_broadcaster", "state_funded", "state_controlled"],
           "description": "Matches newsroom/contracts/world_press_report.schema.json."
         },
+        "paywall": {
+          "type": "boolean",
+          "description": "Most articles are behind a paywall or a metered one: hub marks the outlet's links \"(paywall)\" in a video's sources (countries/<cc>/policy.md)."
+        },
         "note": { "type": "string", "minLength": 1 }
       }
     }

@@ -2,7 +2,9 @@
 // E4): every submitted release goes to the moderation group as a card -- the
 // video, a summary, QA's and Legal's notes -- with the buttons
 // «Опубликовать» / «Доработать» / «Отклонить». The group's administrators
-// decide; a rejection or a request for changes asks them why.
+// decide; a rejection or a request for changes asks them why, an approval
+// gets the publication package (package.go) and the card two new buttons:
+// the package again, and «Выложено» once the video is up (and back).
 package moderation
 
 import (
@@ -18,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tereshed/8bitnews/internal/publish"
 	"github.com/tereshed/8bitnews/internal/store"
 )
 
@@ -28,8 +31,12 @@ type Store interface {
 	ReleaseContextOf(ctx context.Context, releaseID string) (store.ReleaseContext, error)
 	ListReleaseSources(ctx context.Context, releaseID string) ([]store.ReleaseSource, error)
 	DecideRelease(ctx context.Context, releaseID, status, by string) (store.Release, bool, error)
+	GetRelease(ctx context.Context, id string) (store.Release, error)
+	SetPublished(ctx context.Context, releaseID string, published bool) (store.Release, bool, error)
 	SetModerationNote(ctx context.Context, releaseID, note string) error
 	LogEvent(ctx context.Context, kind string, data any) error
+	GetChannel(ctx context.Context, id string) (store.Channel, error)
+	GetCountry(ctx context.Context, cc string) (store.Country, error)
 }
 
 // Media opens a release's video in the object store (internal/storage).
@@ -48,7 +55,10 @@ const (
 	// Telegram takes a video of up to 50 MB from a bot; a bigger one gets a
 	// text card.
 	maxVideoBytes = 49 << 20
-	eventKind     = "moderation"
+	// «📦 Пакет ещё раз» right after a package went out is a press made while
+	// it was going out.
+	packageCooldown = time.Minute
+	eventKind       = "moderation"
 )
 
 // The prompts that ask for a reason, and how they end: "(релиз <uuid>)", so a
@@ -67,6 +77,7 @@ type Moderator struct {
 	media  Media
 	chatID int64
 	every  time.Duration
+	pub    publish.Config
 	log    *slog.Logger
 
 	botID int64
@@ -74,12 +85,13 @@ type Moderator struct {
 	mu       sync.Mutex
 	admins   map[int64]bool
 	adminsAt time.Time
+	packaged map[string]time.Time // when each release's package last finished going out
 }
 
 // New builds the bot for the group chatID, looking for new releases every
-// `every`.
-func New(tg *Telegram, st Store, media Media, chatID int64, every time.Duration, log *slog.Logger) *Moderator {
-	return &Moderator{tg: tg, store: st, media: media, chatID: chatID, every: every, log: log}
+// `every`; pub is where the publication package's sources pages live.
+func New(tg *Telegram, st Store, media Media, chatID int64, every time.Duration, pub publish.Config, log *slog.Logger) *Moderator {
+	return &Moderator{tg: tg, store: st, media: media, chatID: chatID, every: every, pub: pub, log: log, packaged: map[string]time.Time{}}
 }
 
 // Run posts cards and answers the group until ctx ends.
@@ -222,6 +234,14 @@ func (m *Moderator) onButton(ctx context.Context, q CallbackQuery) {
 		return
 	}
 	who := name(q.From)
+	switch action {
+	case actionPackage:
+		m.packageAgain(ctx, q, releaseID, who)
+		return
+	case actionPublished, actionUnpublished:
+		m.setPublished(ctx, q, releaseID, who, action == actionPublished)
+		return
+	}
 	r, changed, err := m.store.DecideRelease(ctx, releaseID, actions[action], who)
 	if errors.Is(err, store.ErrNotFound) {
 		m.answer(ctx, q.ID, "Такого релиза нет.", true)
@@ -236,14 +256,18 @@ func (m *Moderator) onButton(ctx context.Context, q CallbackQuery) {
 		m.answer(ctx, q.ID, "Уже решено: релиз "+statusText(r.Status)+".", true)
 		return
 	}
-	if err := m.tg.RemoveKeyboard(ctx, m.chatID, q.Message.MessageID); err != nil {
-		m.log.Warn("moderation: removing the buttons failed", "release_id", releaseID, "error", err)
+	// The decision is recorded: say so at once, before the package's uploads.
+	m.answer(ctx, q.ID, "Записано: релиз "+statusText(r.Status)+".", false)
+	m.event(ctx, map[string]any{"release_id": r.ID, "action": r.Status, "by": who, "telegram_user_id": q.From.ID})
+	if r.Status == "approved" {
+		m.setKeyboard(ctx, r.ID, q.Message.MessageID, approvedKeyboard(r.ID, false))
+		m.sendPackage(ctx, r, q.Message.MessageID, "✅ Одобрено — "+who+".")
+		return
 	}
+	m.setKeyboard(ctx, r.ID, q.Message.MessageID, &Keyboard{InlineKeyboard: [][]Button{}})
 	var reply string
 	var markup any
 	switch r.Status {
-	case "approved":
-		reply = fmt.Sprintf("✅ Одобрено — %s. Публикация на площадки появится следующим шагом E4.", who)
 	case "changes_requested":
 		reply = fmt.Sprintf("✏️ На доработку — %s. Что доработать? Ответьте на это сообщение (релиз %s)", who, r.ID)
 		markup = forceReply{ForceReply: true, InputFieldPlaceholder: "Что доработать"}
@@ -254,8 +278,79 @@ func (m *Moderator) onButton(ctx context.Context, q CallbackQuery) {
 	if _, err := m.tg.SendMessage(ctx, m.chatID, reply, q.Message.MessageID, markup); err != nil {
 		m.log.Error("moderation: confirming the decision failed", "release_id", releaseID, "error", err)
 	}
+}
+
+// packageAgain posts an approved release's package once more: a part that
+// didn't arrive, or a fresh copy for a later upload.
+func (m *Moderator) packageAgain(ctx context.Context, q CallbackQuery, releaseID, who string) {
+	r, err := m.store.GetRelease(ctx, releaseID)
+	if errors.Is(err, store.ErrNotFound) {
+		m.answer(ctx, q.ID, "Такого релиза нет.", true)
+		return
+	}
+	if err != nil {
+		m.log.Error("moderation: reading the release failed", "release_id", releaseID, "error", err)
+		m.answer(ctx, q.ID, "Не получилось прочитать релиз, попробуйте ещё раз.", true)
+		return
+	}
+	if r.Status != "approved" && r.Status != "published" {
+		m.answer(ctx, q.ID, "Пакет — только для одобренного релиза, а этот "+statusText(r.Status)+".", true)
+		return
+	}
+	// Presses wait while a package goes out; one made meanwhile would only
+	// send the same package twice.
+	m.mu.Lock()
+	sent, recent := m.packaged[r.ID]
+	m.mu.Unlock()
+	if recent && time.Since(sent) < packageCooldown {
+		m.answer(ctx, q.ID, "Пакет только что отправлен. Если чего-то не хватает, нажмите ещё раз через минуту.", true)
+		return
+	}
+	m.answer(ctx, q.ID, "Отправляю пакет.", false)
+	m.sendPackage(ctx, r, q.Message.MessageID, "📦 Пакет ещё раз — для "+who+".")
+}
+
+// setPublished records the moderator's word that the video is up on the
+// platforms, which makes its sources page public, or takes it back.
+func (m *Moderator) setPublished(ctx context.Context, q CallbackQuery, releaseID, who string, published bool) {
+	r, changed, err := m.store.SetPublished(ctx, releaseID, published)
+	if errors.Is(err, store.ErrNotFound) {
+		m.answer(ctx, q.ID, "Такого релиза нет.", true)
+		return
+	}
+	if err != nil {
+		m.log.Error("moderation: recording the publication failed", "release_id", releaseID, "error", err)
+		m.answer(ctx, q.ID, "Не получилось записать, попробуйте ещё раз.", true)
+		return
+	}
+	if !changed {
+		m.answer(ctx, q.ID, "Уже записано: релиз "+statusText(r.Status)+".", true)
+		return
+	}
 	m.answer(ctx, q.ID, "Записано: релиз "+statusText(r.Status)+".", false)
-	m.event(ctx, map[string]any{"release_id": r.ID, "action": r.Status, "by": who, "telegram_user_id": q.From.ID})
+	action := "published"
+	if !published {
+		action = "unpublished"
+	}
+	m.event(ctx, map[string]any{"release_id": r.ID, "action": action, "by": who, "telegram_user_id": q.From.ID})
+	m.setKeyboard(ctx, r.ID, q.Message.MessageID, approvedKeyboard(r.ID, published))
+	page := m.pub.SourcesPageURL(r.ID)
+	reply := "🟢 Выложено — " + who + "."
+	if published && page != "" {
+		reply += " Страница источников открыта: " + page
+	}
+	if !published {
+		reply = "↩️ Не выложено — " + who + ". Страница источников скрыта (до минуты держится в кэше)."
+	}
+	if _, err := m.tg.SendMessage(ctx, m.chatID, reply, q.Message.MessageID, nil); err != nil {
+		m.log.Error("moderation: confirming the publication failed", "release_id", releaseID, "error", err)
+	}
+}
+
+func (m *Moderator) setKeyboard(ctx context.Context, releaseID string, messageID int64, kb *Keyboard) {
+	if err := m.tg.SetKeyboard(ctx, m.chatID, messageID, kb); err != nil {
+		m.log.Warn("moderation: changing the card's buttons failed", "release_id", releaseID, "error", err)
+	}
 }
 
 func (m *Moderator) onMessage(ctx context.Context, msg Message) {

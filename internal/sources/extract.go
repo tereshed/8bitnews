@@ -23,6 +23,7 @@ type dossierSource struct {
 	Outlet      string `json:"outlet"`
 	Title       string `json:"title"`
 	PublishedAt string `json:"published_at"`
+	Kind        string `json:"kind"` // "primary" marks a primary document among a fact's sources
 }
 
 type dossierFact struct {
@@ -159,7 +160,7 @@ func ExtractCandidates(researchDossier, script json.RawMessage) ([]Candidate, er
 			}
 			add(Candidate{
 				URL: src.URL, Outlet: src.Outlet, Title: src.Title, PublishedAt: src.PublishedAt,
-				FactIDs: []string{f.ID},
+				FactIDs: []string{f.ID}, IsPrimary: src.Kind == "primary",
 			})
 		}
 	}

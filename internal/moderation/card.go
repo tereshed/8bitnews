@@ -24,6 +24,15 @@ var actions = map[string]string{
 	"reject":  "rejected",
 }
 
+// The card's buttons once a release is approved: its publication package
+// again, the moderator's word that the video is up on the platforms, and
+// taking that word back.
+const (
+	actionPackage     = "package"
+	actionPublished   = "published"
+	actionUnpublished = "unpublished"
+)
+
 const callbackPrefix = "mod:"
 
 func callbackData(action, releaseID string) string {
@@ -37,7 +46,9 @@ func parseCallback(data string) (action, releaseID string, ok bool) {
 		return "", "", false
 	}
 	action, releaseID, found = strings.Cut(rest, ":")
-	if _, known := actions[action]; !found || !known || releaseID == "" {
+	_, decision := actions[action]
+	known := decision || action == actionPackage || action == actionPublished || action == actionUnpublished
+	if !found || !known || releaseID == "" {
 		return "", "", false
 	}
 	return action, releaseID, true
@@ -51,6 +62,18 @@ func cardKeyboard(releaseID string) *Keyboard {
 			{Text: "❌ Отклонить", CallbackData: callbackData("reject", releaseID)},
 		},
 	}}
+}
+
+// approvedKeyboard is the card's buttons after an approval: the package
+// again, and «Выложено» — or, once pressed, the way back.
+func approvedKeyboard(releaseID string, published bool) *Keyboard {
+	rows := [][]Button{{{Text: "📦 Пакет ещё раз", CallbackData: callbackData(actionPackage, releaseID)}}}
+	if published {
+		rows = append(rows, []Button{{Text: "↩️ Скрыть страницу источников", CallbackData: callbackData(actionUnpublished, releaseID)}})
+	} else {
+		rows = append(rows, []Button{{Text: "🟢 Выложено на площадки", CallbackData: callbackData(actionPublished, releaseID)}})
+	}
+	return &Keyboard{InlineKeyboard: rows}
 }
 
 // The parts of the release's stored contracts the card shows.

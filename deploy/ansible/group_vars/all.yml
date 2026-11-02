@@ -41,6 +41,13 @@ r2_backup_bucket: "{{ lookup('env', 'R2_BACKUP_BUCKET') }}"
 telegram_bot_token: "{{ lookup('env', 'TELEGRAM_BOT_TOKEN') }}"
 telegram_moderation_chat_id: "{{ lookup('env', 'TELEGRAM_MODERATION_CHAT_ID') }}"
 
+# The publication package (E4): hub serves each video's sources page and the
+# channel's list of videos at this address (the Caddy site above proxies
+# them); HUB_PUBLIC_URL overrides it. The corrections contact goes into every
+# description and sources page; empty, the package flags it as missing.
+hub_public_url: "{{ lookup('env', 'HUB_PUBLIC_URL') | default('https://' ~ hub_domain, true) }}"
+hub_corrections_contact: "{{ lookup('env', 'HUB_CORRECTIONS_CONTACT') }}"
+
 # hub's own S3 env names (internal/config/config.go's HUB_S3_* contract);
 # mapped from the r2_* controller vars above, not read from the
 # environment directly — the app doesn't need to know these are R2.

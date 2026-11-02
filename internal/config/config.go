@@ -5,6 +5,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -87,6 +88,15 @@ type Config struct {
 	MetricsAddr string
 
 	Moderation ModerationConfig
+
+	// PublicURL is where hub's public pages (a video's sources page, a
+	// channel's list of videos) are reachable from the internet, as the
+	// publication package links them: "https://hub.8bitlang.org". Empty:
+	// the package has no sources page link and says so.
+	PublicURL string
+	// CorrectionsContact is the address viewers write to about an error,
+	// in every description and on every sources page (metadata.md).
+	CorrectionsContact string
 }
 
 // ModerationConfig is the Telegram moderation bot (E4). With no BotToken
@@ -133,6 +143,8 @@ func Load() (Config, error) {
 		SourcesCheckDeadline:            getDuration("HUB_SOURCES_CHECK_DEADLINE", 90*time.Second),
 		SourcesBackgroundArchiveTimeout: getDuration("HUB_SOURCES_BACKGROUND_ARCHIVE_TIMEOUT", 5*time.Minute),
 		MetricsAddr:                     getEnv("HUB_METRICS_ADDR", ""),
+		PublicURL:                       strings.TrimRight(strings.TrimSpace(getEnv("HUB_PUBLIC_URL", "")), "/"),
+		CorrectionsContact:              strings.TrimSpace(getEnv("HUB_CORRECTIONS_CONTACT", "")),
 		Moderation: ModerationConfig{
 			BotToken:     strings.TrimSpace(getEnv("TELEGRAM_BOT_TOKEN", "")),
 			PollInterval: getDuration("HUB_MODERATION_POLL_INTERVAL", 20*time.Second),
@@ -162,6 +174,12 @@ func Load() (Config, error) {
 	}
 	if cfg.Moderation.BotToken != "" && cfg.Moderation.ChatID == 0 {
 		return Config{}, fmt.Errorf("TELEGRAM_BOT_TOKEN is set but TELEGRAM_MODERATION_CHAT_ID is not")
+	}
+
+	if cfg.PublicURL != "" {
+		if u, err := url.Parse(cfg.PublicURL); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.Path != "" {
+			return Config{}, fmt.Errorf("HUB_PUBLIC_URL %q is not a site address like https://hub.example.org", cfg.PublicURL)
+		}
 	}
 
 	if cfg.S3.Bucket == "" {

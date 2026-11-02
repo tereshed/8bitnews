@@ -1,0 +1,344 @@
+{
+ "facts": [
+  {
+   "id": "F1",
+   "sources": [
+    {
+     "url": "https://www.pbs.org/newshour/politics/grand-jury-refuses-to-indict-former-white-house-aide-cassidy-hutchinson-ap-sources-say",
+     "outlet": "Associated Press (via PBS NewsHour)",
+     "title": "Grand jury refuses to indict former White House aide Cassidy Hutchinson, AP sources say",
+     "published_at": "2026-10-27T22:40:00Z"
+    },
+    {
+     "url": "https://www.nbcnews.com/politics/justice-department/grand-jury-declines-indict-former-trump-aide-cassidy-hutchinson-jan-6-rcna603233",
+     "outlet": "NBC News",
+     "title": "Grand jury declines to indict former Trump aide Cassidy Hutchinson, star witness of Jan. 6 committee",
+     "published_at": "2026-10-27T22:42:04Z"
+    },
+    {
+     "url": "https://www.cbsnews.com/news/grand-jury-declines-to-indict-trump-critic-cassidy-hutchinson-over-jan-6-testimony/",
+     "outlet": "CBS News",
+     "title": "Grand jury declines to indict Trump critic Cassidy Hutchinson over Jan. 6 testimony",
+     "published_at": "2026-10-27T21:48:00Z"
+    }
+   ]
+  },
+  {
+   "id": "F2",
+   "sources": [
+    {
+     "url": "https://www.cbsnews.com/news/grand-jury-declines-to-indict-trump-critic-cassidy-hutchinson-over-jan-6-testimony/",
+     "outlet": "CBS News",
+     "title": "Grand jury declines to indict Trump critic Cassidy Hutchinson over Jan. 6 testimony",
+     "published_at": "2026-10-27T21:48:00Z"
+    },
+    {
+     "url": "https://www.ms.now/news/grand-jury-rejects-indictment-cassidy-hutchinson-jan-6-trump-white-house",
+     "outlet": "MS NOW",
+     "title": "Grand jury rejects indictment against Cassidy Hutchinson, ex-Trump White House aide, over Jan. 6 testimony",
+     "published_at": "2026-10-27T22:08:27Z"
+    }
+   ]
+  },
+  {
+   "id": "F3",
+   "sources": [
+    {
+     "url": "https://www.cbsnews.com/news/grand-jury-declines-to-indict-trump-critic-cassidy-hutchinson-over-jan-6-testimony/",
+     "outlet": "CBS News",
+     "title": "Grand jury declines to indict Trump critic Cassidy Hutchinson over Jan. 6 testimony",
+     "published_at": "2026-10-27T21:48:00Z"
+    }
+   ]
+  },
+  {
+   "id": "F4",
+   "sources": [
+    {
+     "url": "https://www.foxnews.com/politics/cassidy-hutchinson-avoids-indictment-doj-effort-charge-jan-6-testimony-fails-sources",
+     "outlet": "Fox News",
+     "title": "Cassidy Hutchinson avoids indictment after DOJ effort to charge her over Jan 6 testimony fails: sources",
+     "published_at": "2026-10-28T00:51:36Z"
+    }
+   ]
+  },
+  {
+   "id": "F5",
+   "sources": [
+    {
+     "url": "https://www.nbcnews.com/politics/justice-department/grand-jury-declines-indict-former-trump-aide-cassidy-hutchinson-jan-6-rcna603233",
+     "outlet": "NBC News",
+     "title": "Grand jury declines to indict former Trump aide Cassidy Hutchinson, star witness of Jan. 6 committee",
+     "published_at": "2026-10-27T22:42:04Z"
+    },
+    {
+     "url": "https://www.foxnews.com/politics/cassidy-hutchinson-avoids-indictment-doj-effort-charge-jan-6-testimony-fails-sources",
+     "outlet": "Fox News",
+     "title": "Cassidy Hutchinson avoids indictment after DOJ effort to charge her over Jan 6 testimony fails: sources",
+     "published_at": "2026-10-28T00:51:36Z"
+    }
+   ]
+  },
+  {
+   "id": "F6",
+   "sources": [
+    {
+     "url": "https://www.nbcnews.com/politics/justice-department/grand-jury-declines-indict-former-trump-aide-cassidy-hutchinson-jan-6-rcna603233",
+     "outlet": "NBC News",
+     "title": "Grand jury declines to indict former Trump aide Cassidy Hutchinson, star witness of Jan. 6 committee",
+     "published_at": "2026-10-27T22:42:04Z"
+    },
+    {
+     "url": "https://www.foxnews.com/politics/cassidy-hutchinson-avoids-indictment-doj-effort-charge-jan-6-testimony-fails-sources",
+     "outlet": "Fox News",
+     "title": "Cassidy Hutchinson avoids indictment after DOJ effort to charge her over Jan 6 testimony fails: sources",
+     "published_at": "2026-10-28T00:51:36Z"
+    }
+   ]
+  },
+  {
+   "id": "F7",
+   "sources": [
+    {
+     "url": "https://www.nbcnews.com/politics/justice-department/grand-jury-declines-indict-former-trump-aide-cassidy-hutchinson-jan-6-rcna603233",
+     "outlet": "NBC News",
+     "title": "Grand jury declines to indict former Trump aide Cassidy Hutchinson, star witness of Jan. 6 committee",
+     "published_at": "2026-10-27T22:42:04Z"
+    },
+    {
+     "url": "https://www.cbsnews.com/news/grand-jury-declines-to-indict-trump-critic-cassidy-hutchinson-over-jan-6-testimony/",
+     "outlet": "CBS News",
+     "title": "Grand jury declines to indict Trump critic Cassidy Hutchinson over Jan. 6 testimony",
+     "published_at": "2026-10-27T21:48:00Z"
+    }
+   ]
+  },
+  {
+   "id": "F8",
+   "sources": [
+    {
+     "url": "https://www.nbcnews.com/politics/justice-department/grand-jury-declines-indict-former-trump-aide-cassidy-hutchinson-jan-6-rcna603233",
+     "outlet": "NBC News",
+     "title": "Grand jury declines to indict former Trump aide Cassidy Hutchinson, star witness of Jan. 6 committee",
+     "published_at": "2026-10-27T22:42:04Z"
+    },
+    {
+     "url": "https://www.foxnews.com/politics/cassidy-hutchinson-avoids-indictment-doj-effort-charge-jan-6-testimony-fails-sources",
+     "outlet": "Fox News",
+     "title": "Cassidy Hutchinson avoids indictment after DOJ effort to charge her over Jan 6 testimony fails: sources",
+     "published_at": "2026-10-28T00:51:36Z"
+    }
+   ]
+  },
+  {
+   "id": "F9",
+   "sources": [
+    {
+     "url": "https://www.pbs.org/newshour/politics/grand-jury-refuses-to-indict-former-white-house-aide-cassidy-hutchinson-ap-sources-say",
+     "outlet": "Associated Press (via PBS NewsHour)",
+     "title": "Grand jury refuses to indict former White House aide Cassidy Hutchinson, AP sources say",
+     "published_at": "2026-10-27T22:40:00Z"
+    },
+    {
+     "url": "https://www.nbcnews.com/politics/justice-department/grand-jury-declines-indict-former-trump-aide-cassidy-hutchinson-jan-6-rcna603233",
+     "outlet": "NBC News",
+     "title": "Grand jury declines to indict former Trump aide Cassidy Hutchinson, star witness of Jan. 6 committee",
+     "published_at": "2026-10-27T22:42:04Z"
+    },
+    {
+     "url": "https://www.cbsnews.com/news/grand-jury-declines-to-indict-trump-critic-cassidy-hutchinson-over-jan-6-testimony/",
+     "outlet": "CBS News",
+     "title": "Grand jury declines to indict Trump critic Cassidy Hutchinson over Jan. 6 testimony",
+     "published_at": "2026-10-27T21:48:00Z"
+    }
+   ]
+  },
+  {
+   "id": "F10",
+   "sources": [
+    {
+     "url": "https://www.pbs.org/newshour/politics/grand-jury-refuses-to-indict-former-white-house-aide-cassidy-hutchinson-ap-sources-say",
+     "outlet": "Associated Press (via PBS NewsHour)",
+     "title": "Grand jury refuses to indict former White House aide Cassidy Hutchinson, AP sources say",
+     "published_at": "2026-10-27T22:40:00Z"
+    },
+    {
+     "url": "https://www.ms.now/news/grand-jury-rejects-indictment-cassidy-hutchinson-jan-6-trump-white-house",
+     "outlet": "MS NOW",
+     "title": "Grand jury rejects indictment against Cassidy Hutchinson, ex-Trump White House aide, over Jan. 6 testimony",
+     "published_at": "2026-10-27T22:08:27Z"
+    }
+   ]
+  },
+  {
+   "id": "F11",
+   "sources": [
+    {
+     "url": "https://reason.com/2026/10/28/the-failed-indictment-of-cassidy-hutchinson-reflects-grand-jury-resistance-to-politically-motivated-charges/",
+     "outlet": "Reason",
+     "title": "The failed indictment of Cassidy Hutchinson reflects grand jury resistance to politically motivated charges",
+     "published_at": "2026-10-28T21:20:22Z"
+    },
+    {
+     "url": "https://www.nbcnews.com/politics/justice-department/grand-jury-declines-indict-former-trump-aide-cassidy-hutchinson-jan-6-rcna603233",
+     "outlet": "NBC News",
+     "title": "Grand jury declines to indict former Trump aide Cassidy Hutchinson, star witness of Jan. 6 committee",
+     "published_at": "2026-10-27T22:42:04Z"
+    }
+   ]
+  },
+  {
+   "id": "F12",
+   "sources": [
+    {
+     "url": "https://www.nbcnews.com/politics/justice-department/grand-jury-declines-indict-former-trump-aide-cassidy-hutchinson-jan-6-rcna603233",
+     "outlet": "NBC News",
+     "title": "Grand jury declines to indict former Trump aide Cassidy Hutchinson, star witness of Jan. 6 committee",
+     "published_at": "2026-10-27T22:42:04Z"
+    },
+    {
+     "url": "https://reason.com/2026/10/28/the-failed-indictment-of-cassidy-hutchinson-reflects-grand-jury-resistance-to-politically-motivated-charges/",
+     "outlet": "Reason",
+     "title": "The failed indictment of Cassidy Hutchinson reflects grand jury resistance to politically motivated charges",
+     "published_at": "2026-10-28T21:20:22Z"
+    }
+   ]
+  },
+  {
+   "id": "F13",
+   "sources": [
+    {
+     "url": "https://www.nbcnews.com/politics/justice-department/grand-jury-declines-indict-former-trump-aide-cassidy-hutchinson-jan-6-rcna603233",
+     "outlet": "NBC News",
+     "title": "Grand jury declines to indict former Trump aide Cassidy Hutchinson, star witness of Jan. 6 committee",
+     "published_at": "2026-10-27T22:42:04Z"
+    },
+    {
+     "url": "https://reason.com/2026/10/28/the-failed-indictment-of-cassidy-hutchinson-reflects-grand-jury-resistance-to-politically-motivated-charges/",
+     "outlet": "Reason",
+     "title": "The failed indictment of Cassidy Hutchinson reflects grand jury resistance to politically motivated charges",
+     "published_at": "2026-10-28T21:20:22Z"
+    }
+   ]
+  },
+  {
+   "id": "F14",
+   "sources": [
+    {
+     "url": "https://www.nbcnews.com/politics/justice-department/grand-jury-declines-indict-former-trump-aide-cassidy-hutchinson-jan-6-rcna603233",
+     "outlet": "NBC News",
+     "title": "Grand jury declines to indict former Trump aide Cassidy Hutchinson, star witness of Jan. 6 committee",
+     "published_at": "2026-10-27T22:42:04Z"
+    }
+   ]
+  },
+  {
+   "id": "F15",
+   "sources": [
+    {
+     "url": "https://www.nbcnews.com/politics/justice-department/grand-jury-declines-indict-former-trump-aide-cassidy-hutchinson-jan-6-rcna603233",
+     "outlet": "NBC News",
+     "title": "Grand jury declines to indict former Trump aide Cassidy Hutchinson, star witness of Jan. 6 committee",
+     "published_at": "2026-10-27T22:42:04Z"
+    }
+   ]
+  },
+  {
+   "id": "F16",
+   "sources": [
+    {
+     "url": "https://reason.com/2026/10/28/the-failed-indictment-of-cassidy-hutchinson-reflects-grand-jury-resistance-to-politically-motivated-charges/",
+     "outlet": "Reason",
+     "title": "The failed indictment of Cassidy Hutchinson reflects grand jury resistance to politically motivated charges",
+     "published_at": "2026-10-28T21:20:22Z"
+    }
+   ]
+  },
+  {
+   "id": "F17",
+   "sources": [
+    {
+     "url": "https://www.pbs.org/newshour/politics/grand-jury-refuses-to-indict-former-white-house-aide-cassidy-hutchinson-ap-sources-say",
+     "outlet": "Associated Press (via PBS NewsHour)",
+     "title": "Grand jury refuses to indict former White House aide Cassidy Hutchinson, AP sources say",
+     "published_at": "2026-10-27T22:40:00Z"
+    },
+    {
+     "url": "https://www.nbcnews.com/politics/justice-department/grand-jury-declines-indict-former-trump-aide-cassidy-hutchinson-jan-6-rcna603233",
+     "outlet": "NBC News",
+     "title": "Grand jury declines to indict former Trump aide Cassidy Hutchinson, star witness of Jan. 6 committee",
+     "published_at": "2026-10-27T22:42:04Z"
+    }
+   ]
+  }
+ ],
+ "local_groups": [
+  {
+   "id": "L1",
+   "representatives": [
+    {
+     "url": "https://www.foxnews.com/politics/cassidy-hutchinson-avoids-indictment-doj-effort-charge-jan-6-testimony-fails-sources",
+     "outlet": "Fox News",
+     "published_at": "2026-10-28T00:51:00Z"
+    },
+    {
+     "url": "https://www.thegatewaypundit.com/2026/10/breaking-grand-jury-rejects-justice-departments-effort-indict/",
+     "outlet": "The Gateway Pundit",
+     "published_at": "2026-10-27T22:20:33Z"
+    }
+   ]
+  },
+  {
+   "id": "L2",
+   "representatives": [
+    {
+     "url": "https://reason.com/2026/10/28/the-failed-indictment-of-cassidy-hutchinson-reflects-grand-jury-resistance-to-politically-motivated-charges/",
+     "outlet": "Reason",
+     "published_at": "2026-10-28T21:20:22Z"
+    },
+    {
+     "url": "https://transcripts.cnn.com/show/ip/date/2026-08-07/segment/01",
+     "outlet": "CNN (Inside Politics transcript)",
+     "published_at": "2026-08-07"
+    }
+   ]
+  },
+  {
+   "id": "L3",
+   "representatives": [
+    {
+     "url": "https://www.ms.now/rachel-maddow-show/maddowblog/cassidy-hutchinson-trump-doj-fail-weaponization-jan-6",
+     "outlet": "MSNBC (MS NOW)",
+     "published_at": "2026-10-28T13:01:52Z"
+    }
+   ]
+  }
+ ],
+ "world_clusters": [
+  {
+   "id": "W1",
+   "representatives": [
+    {
+     "url": "https://www.aljazeera.com/news/2026/10/26/former-fbi-director-james-comey-hit-with-third-set-of-charges-under-trump",
+     "outlet": "Al Jazeera (state media)",
+     "published_at": "2026-10-26T22:03:26Z"
+    },
+    {
+     "url": "https://www.theguardian.com/us-news/2026/oct/08/cassidy-hutchinson-criminal-charges-doj",
+     "outlet": "The Guardian",
+     "published_at": "2026-10-08T19:06:20Z"
+    }
+   ]
+  },
+  {
+   "id": "W2",
+   "representatives": [
+    {
+     "url": "https://www.cbc.ca/news/world/james-comey-trump-administraion-prosecuting-9.7396837",
+     "outlet": "CBC News",
+     "published_at": "2026-10-26T22:52:13Z"
+    }
+   ]
+  }
+ ]
+}

@@ -9,11 +9,13 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/tereshed/8bitnews/internal/publish"
 	"github.com/tereshed/8bitnews/internal/store"
 )
 
@@ -36,6 +38,7 @@ type call struct {
 	method string
 	params map[string]any
 	video  []byte
+	id     int64 // the message id the fake answered with
 }
 
 func (f *fakeTelegram) handler(t *testing.T) http.Handler {
@@ -49,23 +52,27 @@ func (f *fakeTelegram) handler(t *testing.T) http.Handler {
 			for k, v := range r.MultipartForm.Value {
 				c.params[k] = v[0]
 			}
-			if fh := r.MultipartForm.File["video"]; len(fh) == 1 {
-				f, _ := fh[0].Open()
-				c.video, _ = io.ReadAll(f)
+			for _, field := range []string{"video", "document"} {
+				if fh := r.MultipartForm.File[field]; len(fh) == 1 {
+					f, _ := fh[0].Open()
+					c.video, _ = io.ReadAll(f)
+					c.params["filename"] = fh[0].Filename
+				}
 			}
 		} else {
 			_ = json.NewDecoder(r.Body).Decode(&c.params)
 		}
 		f.mu.Lock()
-		f.calls = append(f.calls, c)
 		f.nextMsg++
 		id := f.nextMsg
+		c.id = 1000 + id
+		f.calls = append(f.calls, c)
 		f.mu.Unlock()
 		var result any = true
 		switch method {
 		case "getMe":
 			result = User{ID: botID, IsBot: true, FirstName: "8BitNewsBot"}
-		case "sendVideo", "sendMessage":
+		case "sendVideo", "sendMessage", "sendDocument":
 			result = Message{MessageID: 1000 + id, Chat: Chat{ID: chatID}}
 		case "getChatAdministrators":
 			result = []ChatMember{
@@ -91,11 +98,12 @@ func (f *fakeTelegram) byMethod(method string) []call {
 
 // fakeStore keeps one release in memory.
 type fakeStore struct {
-	mu      sync.Mutex
-	release store.Release
-	carded  int64
-	note    string
-	events  []map[string]any
+	mu          sync.Mutex
+	failChannel bool
+	release     store.Release
+	carded      int64
+	note        string
+	events      []map[string]any
 }
 
 func (s *fakeStore) ClaimReleaseForCard(context.Context, time.Duration) (store.Release, bool, error) {
@@ -137,6 +145,32 @@ func (s *fakeStore) DecideRelease(_ context.Context, id, status, by string) (sto
 	return s.release, true, nil
 }
 
+func (s *fakeStore) GetRelease(_ context.Context, id string) (store.Release, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if id != s.release.ID {
+		return store.Release{}, store.ErrNotFound
+	}
+	return s.release, nil
+}
+
+func (s *fakeStore) SetPublished(_ context.Context, id string, published bool) (store.Release, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if id != s.release.ID {
+		return store.Release{}, false, store.ErrNotFound
+	}
+	from, to := "approved", "published"
+	if !published {
+		from, to = to, from
+	}
+	if s.release.Status != from {
+		return s.release, false, nil
+	}
+	s.release.Status = to
+	return s.release, true, nil
+}
+
 func (s *fakeStore) SetModerationNote(_ context.Context, _, note string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -145,6 +179,19 @@ func (s *fakeStore) SetModerationNote(_ context.Context, _, note string) error {
 	}
 	s.note = note
 	return nil
+}
+
+func (s *fakeStore) GetChannel(context.Context, string) (store.Channel, error) {
+	if s.failChannel {
+		return store.Channel{}, fmt.Errorf("connection refused")
+	}
+	md, err := os.ReadFile("../../channels/8bitnews-us/metadata.md")
+	return store.Channel{ID: "8bitnews-us", Name: "8BitNewsUS", CountryCC: "US", MetadataMD: string(md),
+		Platforms: json.RawMessage(`{"youtube":{"enabled":true},"tiktok":{"enabled":true},"instagram":{"enabled":true}}`)}, err
+}
+
+func (s *fakeStore) GetCountry(context.Context, string) (store.Country, error) {
+	return store.Country{}, store.ErrNotFound
 }
 
 func (s *fakeStore) LogEvent(_ context.Context, _ string, data any) error {
@@ -156,12 +203,14 @@ func (s *fakeStore) LogEvent(_ context.Context, _ string, data any) error {
 
 type fakeMedia struct {
 	opened string
+	all    []string
 	size   int64
 	err    error
 }
 
 func (m *fakeMedia) Open(_ context.Context, key string) (io.ReadCloser, int64, error) {
 	m.opened = key
+	m.all = append(m.all, key)
 	if m.err != nil {
 		return nil, 0, m.err
 	}
@@ -185,7 +234,8 @@ func newBot(t *testing.T, status string) (*Moderator, *fakeTelegram, *fakeStore,
 		LegalReview:      json.RawMessage(`{"verdict":"pass","publish_notes":["No paid promotion."]}`),
 	}}
 	media := &fakeMedia{}
-	m := New(NewTelegram(srv.URL, "123:SECRET"), st, media, chatID, time.Minute, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	pub := publish.Config{PublicURL: "https://hub.example.org", CorrectionsContact: "corrections@example.org"}
+	m := New(NewTelegram(srv.URL, "123:SECRET"), st, media, chatID, time.Minute, pub, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	m.botID = botID
 	return m, tg, st, media
 }
@@ -242,14 +292,184 @@ func TestAnAdministratorApproves(t *testing.T) {
 	if st.release.Status != "approved" || st.release.Moderation.By != "Kostya (@kteresh)" {
 		t.Fatalf("release = %s by %q", st.release.Status, st.release.Moderation.By)
 	}
-	if len(tg.byMethod("editMessageReplyMarkup")) != 1 {
-		t.Error("the buttons stayed on the card")
+	edits := tg.byMethod("editMessageReplyMarkup")
+	if len(edits) != 1 {
+		t.Fatalf("button edits: %d", len(edits))
 	}
-	if msgs := tg.byMethod("sendMessage"); len(msgs) != 1 || !strings.Contains(msgs[0].params["text"].(string), "Одобрено — Kostya") {
+	if kb, _ := json.Marshal(edits[0].params); strings.Contains(string(kb), "mod:approve:") ||
+		!strings.Contains(string(kb), "mod:package:"+release) || !strings.Contains(string(kb), "mod:published:"+release) {
+		t.Errorf("the card's buttons after approval: %s", kb)
+	}
+	if msgs := tg.byMethod("sendMessage"); len(msgs) == 0 || !strings.Contains(msgs[0].params["text"].(string), "Одобрено — Kostya (@kteresh).") {
 		t.Errorf("confirmation = %v", msgs)
 	}
-	if len(st.events) != 1 || st.events[0]["action"] != "approved" {
+	if len(st.events) != 2 || st.events[0]["action"] != "approved" || st.events[1]["action"] != "package" {
 		t.Errorf("events = %v", st.events)
+	}
+	// The press is answered before the package goes out.
+	var order []string
+	for _, c := range tg.calls {
+		if c.method == "answerCallbackQuery" || c.method == "sendMessage" {
+			order = append(order, c.method)
+		}
+	}
+	if len(order) < 2 || order[0] != "answerCallbackQuery" {
+		t.Errorf("calls in order: %v", order)
+	}
+}
+
+func TestThePackageAgainAndPublished(t *testing.T) {
+	m, tg, st, _ := newBot(t, "pending_approval")
+	ctx := context.Background()
+	button := func(action string, from int64) Update {
+		u := press(1, from)
+		u.CallbackQuery.Data = "mod:" + action + ":" + release
+		return u
+	}
+	m.Handle(ctx, button("package", adminID))
+	if a := tg.byMethod("answerCallbackQuery"); len(a) != 1 || !strings.Contains(a[0].params["text"].(string), "только для одобренного") {
+		t.Fatalf("package before approval: %v", a)
+	}
+	m.Handle(ctx, button("published", adminID))
+	if st.release.Status != "pending_approval" {
+		t.Fatalf("«Выложено» before approval moved the release to %s", st.release.Status)
+	}
+
+	m.Handle(ctx, press(1, adminID))
+	before := len(tg.byMethod("sendMessage"))
+	m.Handle(ctx, button("package", otherID))
+	// A press queued while the package went out doesn't send it twice.
+	m.Handle(ctx, button("package", adminID))
+	if a := tg.byMethod("answerCallbackQuery"); len(tg.byMethod("sendMessage")) != before ||
+		!strings.Contains(a[len(a)-1].params["text"].(string), "Пакет только что отправлен") {
+		t.Fatalf("a package again right away: %v", a[len(a)-1].params)
+	}
+	m.packaged[release] = time.Now().Add(-2 * packageCooldown)
+	m.Handle(ctx, button("package", adminID))
+	msgs := tg.byMethod("sendMessage")
+	if len(msgs) <= before || !strings.Contains(msgs[before].params["text"].(string), "📦 Пакет ещё раз — для Kostya") {
+		t.Fatalf("the package again: %v", msgs[before:])
+	}
+	if !strings.Contains(msgs[before].params["text"].(string), "откроется, когда нажмёте") {
+		t.Errorf("before «Выложено» the page isn't open yet: %s", msgs[before].params["text"])
+	}
+
+	m.Handle(ctx, button("published", adminID))
+	if st.release.Status != "published" {
+		t.Fatalf("status = %s", st.release.Status)
+	}
+	msgs = tg.byMethod("sendMessage")
+	if last := msgs[len(msgs)-1].params["text"].(string); !strings.Contains(last, "🟢 Выложено — Kostya (@kteresh). Страница источников открыта: https://hub.example.org/s/7f01440f43") {
+		t.Errorf("confirmation: %s", last)
+	}
+	edits := tg.byMethod("editMessageReplyMarkup")
+	if kb, _ := json.Marshal(edits[len(edits)-1].params); !strings.Contains(string(kb), "mod:package:") ||
+		strings.Contains(string(kb), "mod:published:") || !strings.Contains(string(kb), "mod:unpublished:") {
+		t.Errorf("buttons after «Выложено»: %s", kb)
+	}
+	m.Handle(ctx, button("published", adminID))
+	if a := tg.byMethod("answerCallbackQuery"); !strings.Contains(a[len(a)-1].params["text"].(string), "Уже записано: релиз опубликован") {
+		t.Errorf("a second «Выложено»: %v", a[len(a)-1].params)
+	}
+	if last := st.events[len(st.events)-1]; last["action"] != "published" || last["by"] != "Kostya (@kteresh)" {
+		t.Errorf("events = %v", st.events)
+	}
+
+	// A mistaken «Выложено» is taken back.
+	m.Handle(ctx, button("unpublished", adminID))
+	if st.release.Status != "approved" {
+		t.Fatalf("after «Скрыть» the release is %s", st.release.Status)
+	}
+	msgs = tg.byMethod("sendMessage")
+	if last := msgs[len(msgs)-1].params["text"].(string); !strings.Contains(last, "Страница источников скрыта") {
+		t.Errorf("confirmation: %s", last)
+	}
+	edits = tg.byMethod("editMessageReplyMarkup")
+	if kb, _ := json.Marshal(edits[len(edits)-1].params); !strings.Contains(string(kb), "mod:published:") {
+		t.Errorf("buttons after «Скрыть»: %s", kb)
+	}
+}
+
+func TestTelegramIsAskedAgainWhenItSaysSlowDown(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			_, _ = w.Write([]byte(`{"ok":false,"error_code":429,"description":"Too Many Requests: retry after 1","parameters":{"retry_after":1}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":5}}`))
+	}))
+	defer srv.Close()
+	msg, err := NewTelegram(srv.URL, "123:x").SendMessage(context.Background(), chatID, "hi", 0, nil)
+	if err != nil || msg.MessageID != 5 || calls != 2 {
+		t.Fatalf("message %d, err %v, %d calls", msg.MessageID, err, calls)
+	}
+}
+
+func TestAnApprovalPostsThePublicationPackage(t *testing.T) {
+	m, tg, st, media := newBot(t, "pending_approval")
+	st.release.ChannelID = "8bitnews-us"
+	st.release.AllowedPlatforms = []string{"youtube", "tiktok", "instagram"}
+	st.release.Media = json.RawMessage(`{"video":"releases/dev/abc-video.mp4","cover":"releases/dev/c-cover.png"}`)
+	st.release.VideoPackage = json.RawMessage(`{"media":{"video_no_music":"releases/dev/n-video_no_music.mp4"}}`)
+	meta := `{"title":"Grand Jury Won't Indict Hutchinson","summary":"A grand jury refused to indict <her>.","hashtags":["#8BitNews","#DOJ"]}`
+	st.release.Script = json.RawMessage(`{"metadata":{"youtube":{"title":"Grand Jury Won't Indict Hutchinson","summary":"A grand jury refused to indict <her>.",` +
+		`"hashtags":["#8BitNews","#DOJ"],"tags":["grand jury","DOJ"]},"tiktok":` + meta + `,"instagram":` + meta + `}}`)
+	m.Handle(context.Background(), press(1, adminID))
+
+	msgs := tg.byMethod("sendMessage")
+	if len(msgs) != 4 {
+		t.Fatalf("%d messages, want the header and one per platform: %v", len(msgs), msgs)
+	}
+	header := msgs[0].params["text"].(string)
+	for _, want := range []string{"Одобрено — Kostya (@kteresh).", "YouTube Shorts, TikTok, Instagram Reels",
+		"https://hub.example.org/s/7f01440f43"} {
+		if !strings.Contains(header, want) {
+			t.Errorf("header lacks %q:\n%s", want, header)
+		}
+	}
+	for _, msg := range msgs {
+		if msg.params["parse_mode"] != "HTML" {
+			t.Errorf("not HTML: %v", msg.params)
+		}
+		if r, _ := msg.params["reply_parameters"].(map[string]any); r["message_id"] != float64(1001) {
+			t.Errorf("not under the card: %v", msg.params["reply_parameters"])
+		}
+	}
+	yt := msgs[1].params["text"].(string)
+	for _, want := range []string{"<b>YouTube Shorts</b>", "версия без музыки", "<b>Заголовок</b>\n<pre>Grand Jury Won&#39;t Indict Hutchinson</pre>",
+		"<b>Описание</b>\n<pre>A grand jury refused to indict ‹her›.", "Corrections: corrections@example.org",
+		"<b>Теги</b>\n<pre>grand jury, DOJ</pre>", "<b>Настройки</b>\n• категория News &amp; Politics;"} {
+		if !strings.Contains(yt, want) {
+			t.Errorf("youtube message lacks %q:\n%s", want, yt)
+		}
+	}
+	if tt := msgs[2].params["text"].(string); strings.Contains(tt, "Заголовок") || !strings.Contains(tt, "<b>Подпись</b>\n<pre>Grand Jury Won&#39;t Indict Hutchinson\nA grand jury refused to indict &lt;her&gt;.") ||
+		!strings.Contains(tt, "то же, что в карточке выше") {
+		t.Errorf("tiktok message:\n%s", tt)
+	}
+
+	docs := tg.byMethod("sendDocument")
+	if len(docs) != 2 || docs[0].params["filename"] != "n-video_no_music.mp4" || docs[1].params["filename"] != "c-cover.png" {
+		t.Fatalf("documents = %v", docs)
+	}
+	if !strings.Contains(docs[0].params["caption"].(string), "без музыки") ||
+		!strings.Contains(docs[0].params["reply_parameters"].(string), fmt.Sprintf(`"message_id":%d`, msgs[1].id)) {
+		t.Errorf("the YouTube file: %v", docs[0].params)
+	}
+	if strings.Join(media.all, ",") != "releases/dev/n-video_no_music.mp4,releases/dev/c-cover.png" {
+		t.Errorf("opened %v", media.all)
+	}
+}
+
+func TestAPackageThatCannotBeBuiltIsReported(t *testing.T) {
+	m, tg, st, _ := newBot(t, "pending_approval")
+	st.failChannel = true
+	m.Handle(context.Background(), press(1, adminID))
+	msgs := tg.byMethod("sendMessage")
+	if st.release.Status != "approved" || len(msgs) != 1 || !strings.Contains(msgs[0].params["text"].(string), "Пакет для публикации не собрался") {
+		t.Fatalf("release %s, messages %v", st.release.Status, msgs)
 	}
 }
 
@@ -382,7 +602,7 @@ func TestOtherMessagesAreIgnored(t *testing.T) {
 }
 
 func TestCallbackDataRoundTrips(t *testing.T) {
-	for action := range actions {
+	for _, action := range []string{"approve", "changes", "reject", actionPackage, actionPublished, actionUnpublished} {
 		a, id, ok := parseCallback(callbackData(action, release))
 		if !ok || a != action || id != release {
 			t.Errorf("%s: got %q %q %v", action, a, id, ok)
@@ -412,5 +632,29 @@ func TestTheCaptionFitsTelegram(t *testing.T) {
 	}
 	if !strings.HasSuffix(card.Caption, "Релиз "+release) {
 		t.Errorf("the release id fell off the caption: %s", card.Caption)
+	}
+}
+
+func TestALongDescriptionStillReachesTheModerator(t *testing.T) {
+	p := publish.PlatformPackage{Name: "YouTube Shorts", Title: "T", Settings: []string{"категория News & Politics;"}}
+	p.Description = strings.Repeat("a", 3000)
+	texts, asFile := platformMessages(p, true)
+	if len(texts) != 1 || asFile {
+		t.Fatalf("3000 characters: %d messages, file %v", len(texts), asFile)
+	}
+	p.Description = strings.Repeat("a", 4050)
+	texts, asFile = platformMessages(p, true)
+	if len(texts) != 2 || asFile || !strings.Contains(texts[1], "<pre>"+p.Description+"</pre>") {
+		t.Fatalf("4050 characters: %d messages, file %v", len(texts), asFile)
+	}
+	p.Description = strings.Repeat("a", 4990)
+	texts, asFile = platformMessages(p, true)
+	if len(texts) != 1 || !asFile || strings.Contains(texts[0], "aaaa") || !strings.Contains(texts[0], "файлом ниже") {
+		t.Fatalf("4990 characters: %d messages, file %v", len(texts), asFile)
+	}
+	for _, text := range texts {
+		if n := utf16Len(text); n > messageLimit {
+			t.Errorf("a message of %d units", n)
+		}
 	}
 }

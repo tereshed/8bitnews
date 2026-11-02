@@ -13,6 +13,7 @@ import (
 	"github.com/tereshed/8bitnews/internal/mcpapi"
 	"github.com/tereshed/8bitnews/internal/moderation"
 	"github.com/tereshed/8bitnews/internal/observability"
+	"github.com/tereshed/8bitnews/internal/publish"
 	"github.com/tereshed/8bitnews/internal/service"
 	"github.com/tereshed/8bitnews/internal/sources"
 	"github.com/tereshed/8bitnews/internal/storage"
@@ -67,9 +68,10 @@ func runServe(_ []string) {
 		SourcesCheckDeadline:            cfg.SourcesCheckDeadline,
 		SourcesBackgroundArchiveTimeout: cfg.SourcesBackgroundArchiveTimeout,
 	})
+	pub := publish.Config{PublicURL: cfg.PublicURL, CorrectionsContact: cfg.CorrectionsContact}
 	if cfg.Moderation.BotToken != "" {
 		tg := moderation.NewTelegram(cfg.Moderation.APIBase, cfg.Moderation.BotToken)
-		go moderation.New(tg, st, media, cfg.Moderation.ChatID, cfg.Moderation.PollInterval, logger).Run(ctx)
+		go moderation.New(tg, st, media, cfg.Moderation.ChatID, cfg.Moderation.PollInterval, pub, logger).Run(ctx)
 	} else {
 		logger.Info("moderation bot off: TELEGRAM_BOT_TOKEN is not set, releases stay 'submitted'")
 	}
@@ -81,7 +83,8 @@ func runServe(_ []string) {
 	// then served unauthenticated on that separate address instead (below),
 	// for deployments that scrape it from a private network interface.
 	requireMetricsAuth := cfg.MetricsAddr == ""
-	router := api.NewRouter(svc, mcpHandler, metrics, logger, cfg.APIKeys, requireMetricsAuth)
+	pages := publish.NewPages(st, pub, logger)
+	router := api.NewRouter(svc, mcpHandler, pages, metrics, logger, cfg.APIKeys, requireMetricsAuth)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

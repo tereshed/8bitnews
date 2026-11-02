@@ -80,3 +80,20 @@ func TestExtractCandidates_EmptyScript_UsesWholeDossier(t *testing.T) {
 		t.Fatalf("len(candidates) = %d, want 5", len(candidates))
 	}
 }
+
+func TestExtractCandidates_KindPrimaryIsPrimary(t *testing.T) {
+	dossier := `{"facts": [{"id": "F1", "sources": [
+		{"url": "https://example.com/filing.pdf", "outlet": "Court", "kind": "primary"},
+		{"url": "https://example.com/story", "outlet": "Example Press", "kind": "press"}]}]}`
+	candidates, err := ExtractCandidates(json.RawMessage(dossier), json.RawMessage(`{"scenes": [{"fact_ids": ["F1"]}]}`))
+	if err != nil {
+		t.Fatalf("ExtractCandidates: %v", err)
+	}
+	primary := map[string]bool{}
+	for _, c := range candidates {
+		primary[c.URL] = c.IsPrimary
+	}
+	if !primary["https://example.com/filing.pdf"] || primary["https://example.com/story"] {
+		t.Fatalf("primary = %v; want only the source of kind primary", primary)
+	}
+}

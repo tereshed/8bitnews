@@ -69,3 +69,19 @@ func TestSourceDeadlineFitsOneSlowSource(t *testing.T) {
 		t.Fatalf("deadline %s: want at least %s (check + save + lookup) and under 120s", cfg.SourcesCheckDeadline, chain)
 	}
 }
+
+func TestPublicURL(t *testing.T) {
+	for raw, want := range map[string]string{"": "", "https://hub.8bitlang.org/": "https://hub.8bitlang.org", " https://hub.8bitlang.org ": "https://hub.8bitlang.org"} {
+		t.Setenv("HUB_PUBLIC_URL", raw)
+		cfg, err := Load()
+		if err != nil || cfg.PublicURL != want {
+			t.Errorf("HUB_PUBLIC_URL=%q: %q, %v; want %q", raw, cfg.PublicURL, err, want)
+		}
+	}
+	for _, bad := range []string{"hub.8bitlang.org", "https://hub.8bitlang.org/s", "ftp://hub.8bitlang.org", "https://"} {
+		t.Setenv("HUB_PUBLIC_URL", bad)
+		if _, err := Load(); err == nil {
+			t.Errorf("HUB_PUBLIC_URL=%q was accepted", bad)
+		}
+	}
+}
