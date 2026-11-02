@@ -83,7 +83,7 @@ def load_style(channel_id: str) -> dict:
 
 
 # Trial 3: a plain grey flag on a stand came back rolled up, a grey cone that QA and Legal read as a missile.
-PLAIN_FLAG_LOOK = "The plain light grey flag is a simple cloth with no design, hanging open, not rolled up."
+PLAIN_FLAG_LOOK = "The plain light grey flag is a simple cloth with no design; on a pole it hangs open, not rolled up."
 SCREEN_PROMPT = ("This picture fills the TV screen behind a news anchor: show only what is on the screen, filling the "
                  "whole frame; no anchor, no desk, no studio, no TV frame around it.")
 

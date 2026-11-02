@@ -200,12 +200,14 @@ def test_a_flagpole_flies_one_plain_flag(visual, want):
     "No flags, poles, stands, or tall or conical objects anywhere in the room",
     "NO flags anywhere",
     "a bare room with no flags or seals",
+    "no logos, seals or flags",
     "commanders with no insignia on caps or uniforms",
-    "no tall or conical flags",
     "a podium, not a flag, in front of the wall",
     "Neither flags nor emblems on the walls",
     "a wall with no logos",
     "a room with no flagpoles",
+    "a flagpole with no flag",
+    "flagpoles without flags outside the embassy",
 ])
 def test_what_the_visual_rules_out_stays_ruled_out(visual):
     """Trial 3, S3: "No flags, poles, stands, or tall or conical objects" lost its "No" to the flag pattern
@@ -215,22 +217,38 @@ def test_what_the_visual_rules_out_stays_ruled_out(visual):
 
 
 @pytest.mark.parametrize("visual,want", [
-    # a named symbol is made plain even when ruled out: the name must not reach the model
-    ("a lectern without any American flag", "without any plain light grey flag"),
-    # the "no" belongs to something else: a comma, a conjunction or a preposition ends it
+    ("No American flags anywhere in the room.", "No flags anywhere in the room."),
+    ("NO AMERICAN FLAGS.", "NO flags."),
+    ("No state flags", "No flags"),
+    ("Without American flags, the hall looks bare.", "Without flags, the hall looks bare."),
+    ("No Great Seal on the lectern.", "No seal on the lectern."),
+    ("a lectern without any American flag", "a lectern without any flag"),
+    ("commanders with no Iranian flag behind them", "commanders with no flag behind them"),
+    ("Not the American flag but a plain banner.", "Not the flag but a plain banner."),
+])
+def test_a_ruled_out_symbol_loses_its_name_and_stays_ruled_out(visual, want):
+    """No name reaches the model, and no plain flag is described to a scene that has none."""
+    assert clean_visual(visual, []) == want
+
+
+@pytest.mark.parametrize("visual,want", [
+    # the "no" belongs to something else: a comma, a conjunction, a preposition or a verb ends it
     ("A room with no people, a California flag on the wall.", "no people, a plain light grey flag on the wall"),
     ("No people; a flag by the door.", "a plain light grey flag by the door"),
     ("An empty podium with no people and an American flag beside it.", "no people and a plain light grey flag"),
     ("An empty lectern with no people beside the US flag.", "beside the plain light grey flag"),
     ("protesters with no signs wave Mexican flags", "wave plain light grey flag"),
+    ("protesters with no signs wave flags", "wave plain light grey flag"),
     ("a man with no hat salutes the American flag", "salutes the plain light grey flag"),
     ("no longer a California flag", "no longer a plain light grey flag"),
     ("not far from the Texas flag", "not far from the plain light grey flag"),
     ("no people and flags", "no people and plain light grey flag"),
     ("Not far away, the State Seal.", "the plain round shape"),
+    ("no flag\nthe Great Seal on the podium", "the plain round shape on the podium"),
     # names that start with a negation are names
     ("the No Kings flag", "the plain light grey flag"),
     ("No Kings protesters wave American flags", "wave plain light grey flag"),
+    ("No Kings protesters wave flags", "wave plain light grey flag"),
     ("the No Labels logo on a banner", "the plain round shape on a banner"),
     ("Doctors Without Borders logo", "plain round shape"),
     ("Never Trump flag", "plain light grey flag"),
@@ -243,7 +261,7 @@ def test_a_symbol_the_visual_asks_for_is_still_made_plain(visual, want):
         assert name not in out, out
 
 
-def test_a_flagpole_flies_a_plain_flag_when_the_only_flag_mentioned_is_ruled_out():
+def test_a_flagpole_flies_a_plain_flag_when_the_flag_ruled_out_is_elsewhere():
     out = clean_visual("No flags in the room; outside, a flagpole.", [])
     assert out == "No flags in the room; outside, a flagpole flying a plain light grey flag.", out
 

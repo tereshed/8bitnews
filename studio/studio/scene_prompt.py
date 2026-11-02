@@ -83,14 +83,16 @@ TEXT_OBJECTS = (
 _CAPITALIZED = r"(?:(?!(?:A|An|The|This|That|Its|His|Her|Their)\b)[A-Z][\w.'-]*[\s-]+)"
 # "No flags, poles or tall objects", "no insignia": a symbol the visual rules out stays ruled out. Trial 3, S3:
 # "No flags" became "plain light grey flag, poles, stands, or tall or conical objects", and the model drew them.
-# Only the bare word is kept: a named one ("no American flag", "the No Kings flag") is made plain all the same.
-# Up to three words may stand between ("no tall or conical flags"), but not a comma or a word that starts
-# something else ("no people and a flag", "not far from the flag").
-_NEGATION = r"(?:no|not|nor|without|neither|never)"
-_GAP_WORD = r"(?!(?:and|but|with|beside|near|behind|under|by|from|of|only|just|longer|than|while|in|on|at|to|for)\b)[\w'-]+"
-_NEGATED = re.compile(rf"\b{_NEGATION}[^\S\n]+(?:{_GAP_WORD}[^\S\n]+){{0,3}}$", re.I)
-_LEADING_NEGATION = re.compile(rf"{_NEGATION}\s+", re.I)
-_BARE_SYMBOL = re.compile(r"(?:flags?|seals?|logos?|emblems?|crests?|insignias?|coats? of arms)", re.I)
+# A ruled-out symbol keeps its negation and loses any name: "No American flags" -> "No flags". The negation
+# reaches over articles, "or"/"nor" and a list of symbols ("no logos, seals or flags"), nothing else: "no people
+# and a flag", "with no signs wave flags" ask for a flag.
+_GAP_WORD = r"(?:any|a|an|the|other|more|or|nor|flags?|seals?|logos?|emblems?|crests?|insignias?|banners?)"
+_NEGATED = re.compile(rf"\b(?:no|not|nor|without|neither|never)[^\S\n]+(?:{_GAP_WORD},?[^\S\n]+){{0,4}}$", re.I)
+# A capitalized "No" the name pattern takes in ("No flags", "No Great Seal"); "Never Trump flag" is a name, and
+# so is "the No Kings flag".
+_LEADING_NEGATION = re.compile(r"(?:no|not|nor|without|neither)\s+", re.I)
+_DETERMINER_BEFORE = re.compile(r"\b(?:the|a|an|this|that|their|his|her|its|our|your)[^\S\n]+$", re.I)
+_SYMBOL_NOUN = re.compile(r"(?:flags?|seals?|logos?|emblems?|crests?|insignias?|coats? of arms)$", re.I)
 # Case-sensitive outside (?i:...): a capitalized word in front names whose
 # flag or seal it is ("California flag", "Great Seal").
 SYMBOLS = (
@@ -106,16 +108,21 @@ SYMBOLS = (
 # no flag of its own (that one is plain already, SYMBOLS), its flagpoles fly a plain one. Grey, because "one-color"
 # came back red, and QA read a red flag in a story about Republican lawmakers as a hint.
 _FLAGPOLE = re.compile(r"(?<![\w])flag[\s-]?(?:pole|staff)(s?)(?![\w])", re.I)
+_A_FLAG = re.compile(r"(?<![\w])flags?(?![\s-]?(?:pole|staff)s?)(?![\w])", re.I)
 PLAIN_FLAG = "plain light grey flag"
 
 
 def _plain_flag_on_poles(text: str) -> str:
-    if PLAIN_FLAG in text:  # the visual's own flag, made plain (a flag it rules out doesn't count)
+    if PLAIN_FLAG in text:  # the visual's own flag, made plain
         return text
 
     def fly(m: re.Match) -> str:
-        if _NEGATED.search(m.string, max(0, m.start() - 60), m.start()):
-            return m.group(0)  # "no flagpoles"
+        clause_start = max(m.string.rfind(c, 0, m.start()) for c in ";.,") + 1
+        ends = [i for i in (m.string.find(c, m.end()) for c in ";.,") if i != -1]
+        clause = m.string[clause_start:min(ends, default=len(m.string))]
+        # "no flagpoles"; "a flagpole with no flag" (the flag it names is ruled out: the pole stays bare)
+        if _NEGATED.search(m.string, max(0, m.start() - 60), m.start()) or _A_FLAG.search(clause):
+            return m.group(0)
         return "flagpoles flying plain light grey flags" if m.group(1) else "flagpole flying a plain light grey flag"
     return _FLAGPOLE.sub(fly, text)
 _LABELED = re.compile(
@@ -212,20 +219,27 @@ _LABELED_PEOPLE = re.compile(
     rf"\s*\b(?:labeled|labelled|marked|named|reading)\s+{PERSON}(?:\s*,\s*{PERSON})*(?:,?\s+(?:and|or)\s+{PERSON})?", re.I)
 
 
-def _ruled_out(m: re.Match) -> bool:
-    """A bare symbol word the visual rules out: "No flags" (the capitalized "No" is taken in as if it named the
-    flag), "no tall or conical flags", "nor emblems"."""
+def _ruled_out(m: re.Match) -> str | None:
+    """A symbol the visual rules out, as it should reach the model: its negation and the bare noun, without any
+    name ("No American flags" -> "No flags", "without any US flag" -> "without any flag"); None when it isn't."""
     found = m.group(0)
+    noun = _SYMBOL_NOUN.search(found)
+    if not noun:
+        return None
     lead = _LEADING_NEGATION.match(found)
-    if lead:
-        return bool(_BARE_SYMBOL.fullmatch(found[lead.end():]))
-    return bool(_BARE_SYMBOL.fullmatch(found)) and bool(_NEGATED.search(m.string, max(0, m.start() - 60), m.start()))
+    if lead and not _DETERMINER_BEFORE.search(m.string, max(0, m.start() - 20), m.start()):
+        rest = found[lead.end():]
+        return found if rest == noun.group(0) else found[:lead.end()] + noun.group(0).lower()
+    if _NEGATED.search(m.string, max(0, m.start() - 60), m.start()):
+        return found if found == noun.group(0) else noun.group(0).lower()
+    return None
 
 
 def _neutralize(text: str, table: tuple, case_insensitive: bool, keep_negated: bool = False) -> str:
     for pattern, neutral in table:
         def swap(m: re.Match, neutral: str = neutral) -> str:
-            return m.group(0) if keep_negated and _ruled_out(m) else neutral
+            kept = _ruled_out(m) if keep_negated else None
+            return neutral if kept is None else kept
         text = re.sub(rf"(?<![\w])(?:{pattern})(?![\w])", swap, text, flags=re.I if case_insensitive else 0)
     return text
 
