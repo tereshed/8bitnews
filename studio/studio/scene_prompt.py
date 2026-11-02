@@ -84,10 +84,28 @@ _CAPITALIZED = r"(?:(?!(?:A|An|The|This|That|Its|His|Her|Their)\b)[A-Z][\w.'-]*[
 # "No flags, poles or tall objects", "no insignia": a symbol the visual rules out stays ruled out. Trial 3, S3:
 # "No flags" became "plain light grey flag, poles, stands, or tall or conical objects", and the model drew them.
 # A ruled-out symbol keeps its negation and loses any name: "No American flags" -> "No flags". The negation
-# reaches over articles, "or"/"nor" and a list of symbols ("no logos, seals or flags"), nothing else: "no people
-# and a flag", "with no signs wave flags" ask for a flag.
-_GAP_WORD = r"(?:any|a|an|the|other|more|or|nor|flags?|seals?|logos?|emblems?|crests?|insignias?|banners?)"
-_NEGATED = re.compile(rf"\b(?:no|not|nor|without|neither|never)[^\S\n]+(?:{_GAP_WORD},?[^\S\n]+){{0,4}}$", re.I)
+# reaches over a list of items of one or two words, joined by commas, "or" or "nor" ("No poles, stands or flags",
+# "no visible flags", "no tall or conical flags"), after an optional article ("not a flag", "without any flag").
+# An article, a preposition or two words in a row without a joint end it: "no people, a flag", "no people and
+# a flag", "with no signs wave flags", "not far from the flag" ask for a flag.
+_STOP = (r"(?:a|an|the|this|that|these|those|any|and|but|with|beside|near|behind|under|by|from|of|only|just|"
+         r"longer|than|while|in|on|at|to|for|or|nor)")
+_WORD = rf"(?!{_STOP}\b)[\w'-]+"
+_JOINT = r"(?:,?[^\S\n]+(?:or|nor)|,)[^\S\n]+"
+_NEGATED = re.compile(
+    rf"\b(?:no|not|nor|without|neither|never)[^\S\n]+(?:(?:a|an|the|any|other|more)[^\S\n]+)?"
+    rf"(?:(?:{_WORD}[^\S\n]+)?{_WORD}{_JOINT})*(?:{_WORD}[^\S\n]+)?\x00$", re.I)
+
+
+def _negated_before(m: re.Match) -> bool:
+    """Whether a negation rules out what `m` matched ("\\x00" stands for it at the end of the window)."""
+    start = max(0, m.start() - 80)
+    window = m.string[start:m.start()]
+    if start:  # not from the middle of a word
+        window = window.split(None, 1)[-1] if " " in window else ""
+    return bool(_NEGATED.search(window + "\x00"))
+
+
 # A capitalized "No" the name pattern takes in ("No flags", "No Great Seal"); "Never Trump flag" is a name, and
 # so is "the No Kings flag".
 _LEADING_NEGATION = re.compile(r"(?:no|not|nor|without|neither)\s+", re.I)
@@ -112,17 +130,21 @@ _A_FLAG = re.compile(r"(?<![\w])flags?(?![\s-]?(?:pole|staff)s?)(?![\w])", re.I)
 PLAIN_FLAG = "plain light grey flag"
 
 
+_BARE_POLE = re.compile(r"\b(?:bare|empty|flagless)[^\S\n]+$", re.I)
+
+
 def _plain_flag_on_poles(text: str) -> str:
     if PLAIN_FLAG in text:  # the visual's own flag, made plain
         return text
 
     def fly(m: re.Match) -> str:
-        clause_start = max(m.string.rfind(c, 0, m.start()) for c in ";.,") + 1
-        ends = [i for i in (m.string.find(c, m.end()) for c in ";.,") if i != -1]
+        # The sentence the pole stands in: "a flagpole out front, no flag on it" rules its flag out.
+        clause_start = max(m.string.rfind(c, 0, m.start()) for c in ";.") + 1
+        ends = [i for i in (m.string.find(c, m.end()) for c in ";.") if i != -1]
         clause = m.string[clause_start:min(ends, default=len(m.string))]
-        # "no flagpoles"; "a flagpole with no flag" (the flag it names is ruled out: the pole stays bare)
-        if _NEGATED.search(m.string, max(0, m.start() - 60), m.start()) or _A_FLAG.search(clause):
-            return m.group(0)
+        if (_negated_before(m) or _A_FLAG.search(clause)
+                or _BARE_POLE.search(m.string, max(0, m.start() - 20), m.start())):
+            return m.group(0)  # "no flagpoles", "a flagpole with no flag", "a bare flagpole"
         return "flagpoles flying plain light grey flags" if m.group(1) else "flagpole flying a plain light grey flag"
     return _FLAGPOLE.sub(fly, text)
 _LABELED = re.compile(
@@ -230,7 +252,7 @@ def _ruled_out(m: re.Match) -> str | None:
     if lead and not _DETERMINER_BEFORE.search(m.string, max(0, m.start() - 20), m.start()):
         rest = found[lead.end():]
         return found if rest == noun.group(0) else found[:lead.end()] + noun.group(0).lower()
-    if _NEGATED.search(m.string, max(0, m.start() - 60), m.start()):
+    if _negated_before(m):
         return found if found == noun.group(0) else noun.group(0).lower()
     return None
 

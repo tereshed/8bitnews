@@ -208,6 +208,18 @@ def test_a_flagpole_flies_one_plain_flag(visual, want):
     "a room with no flagpoles",
     "a flagpole with no flag",
     "flagpoles without flags outside the embassy",
+    # lists and one-word qualifiers after the negation
+    "No poles, stands or flags anywhere in the room.",
+    "No stands, poles, flags or tall objects.",
+    "a room with no visible flags",
+    "no posters or flags on the walls",
+    "no foreign flags",
+    "no tall or conical flags",
+    "commanders with no military insignia on caps",
+    "no campaign logos",
+    # a pole the visual leaves empty stays empty
+    "a flagpole out front, no flag on it",
+    "An embassy gate, a bare flagpole, no flag, no people present.",
 ])
 def test_what_the_visual_rules_out_stays_ruled_out(visual):
     """Trial 3, S3: "No flags, poles, stands, or tall or conical objects" lost its "No" to the flag pattern
@@ -225,6 +237,7 @@ def test_what_the_visual_rules_out_stays_ruled_out(visual):
     ("a lectern without any American flag", "a lectern without any flag"),
     ("commanders with no Iranian flag behind them", "commanders with no flag behind them"),
     ("Not the American flag but a plain banner.", "Not the flag but a plain banner."),
+    ("a flagpole by the door, no American flag", "a flagpole by the door, no flag"),
 ])
 def test_a_ruled_out_symbol_loses_its_name_and_stays_ruled_out(visual, want):
     """No name reaches the model, and no plain flag is described to a scene that has none."""
