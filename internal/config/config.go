@@ -35,9 +35,9 @@ type Config struct {
 	// point at an httptest server instead of the real Wayback Machine.
 	WaybackBaseURL string
 
-	// WaybackAvailabilityBaseURL is the Wayback Availability JSON API
-	// endpoint (https://archive.org/wayback/available); overridden in
-	// tests to point at an httptest server.
+	// WaybackAvailabilityBaseURL is where the Internet Archive's CDX API
+	// lives (https://web.archive.org/cdx/search/cdx), used to find an
+	// existing snapshot; overridden in tests to point at an httptest server.
 	WaybackAvailabilityBaseURL string
 
 	// WaybackAccessKey and WaybackSecretKey are the optional Save Page Now
@@ -72,8 +72,8 @@ type Config struct {
 	// synchronous Save-Page-Now/Availability-API calls needed to decide
 	// pass/fail for a non-ok source), regardless of how many sources there
 	// are. It must leave room for one source's whole chain (a check, a
-	// Save Page Now call, an availability lookup) and stay under the
-	// submitting client's timeout (newsroom/tools/hublib.py: 120 s).
+	// Save Page Now call, a snapshot lookup, reading the snapshot) and stay
+	// under the submitting client's timeout (newsroom/tools/hublib.py: 120 s).
 	SourcesCheckDeadline time.Duration
 
 	// SourcesBackgroundArchiveTimeout bounds the background job that
@@ -133,14 +133,14 @@ func Load() (Config, error) {
 		RepoRoot:                        getEnv("HUB_REPO_ROOT", "."),
 		HTTPAddr:                        getEnv("HUB_HTTP_ADDR", ":8080"),
 		WaybackBaseURL:                  getEnv("HUB_WAYBACK_BASE_URL", "https://web.archive.org"),
-		WaybackAvailabilityBaseURL:      getEnv("HUB_WAYBACK_AVAILABILITY_BASE_URL", "https://archive.org"),
+		WaybackAvailabilityBaseURL:      getEnv("HUB_WAYBACK_AVAILABILITY_BASE_URL", "https://web.archive.org"),
 		WaybackAccessKey:                getEnv("HUB_WAYBACK_ACCESS_KEY", ""),
 		WaybackSecretKey:                getEnv("HUB_WAYBACK_SECRET_KEY", ""),
 		SourceCheckTimeout:              getDuration("HUB_SOURCE_CHECK_TIMEOUT", 15*time.Second),
 		WaybackSaveTimeout:              getDuration("HUB_WAYBACK_SAVE_TIMEOUT", 50*time.Second),
 		SourceAllowPrivate:              getBool("HUB_SOURCE_ALLOW_PRIVATE", false),
 		SourcesConcurrency:              getInt("HUB_SOURCES_CONCURRENCY", 8),
-		SourcesCheckDeadline:            getDuration("HUB_SOURCES_CHECK_DEADLINE", 90*time.Second),
+		SourcesCheckDeadline:            getDuration("HUB_SOURCES_CHECK_DEADLINE", 110*time.Second),
 		SourcesBackgroundArchiveTimeout: getDuration("HUB_SOURCES_BACKGROUND_ARCHIVE_TIMEOUT", 5*time.Minute),
 		MetricsAddr:                     getEnv("HUB_METRICS_ADDR", ""),
 		PublicURL:                       strings.TrimRight(strings.TrimSpace(getEnv("HUB_PUBLIC_URL", "")), "/"),

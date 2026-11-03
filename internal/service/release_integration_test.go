@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -61,17 +62,16 @@ func newFakeWaybackServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
-// newFakeAvailabilityServer stands in for the Wayback Availability JSON
-// API (https://archive.org/wayback/available). It reports no existing
+// newFakeAvailabilityServer stands in for the Internet Archive's CDX API
+// (https://web.archive.org/cdx/search/cdx). It reports no existing
 // snapshot for every URL; these tests' "dead" sources need exactly that
 // (no pre-existing archive copy, so the policy decision in
 // countries/us/policy.md "Источники в ролике" rejects them), and their
 // "ok" sources never consult it at all.
 func newFakeAvailabilityServer(t *testing.T) *httptest.Server {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		target := r.URL.Query().Get("url")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"url":"` + target + `","archived_snapshots":{}}`))
+		_, _ = w.Write([]byte(`[]`))
 	}))
 	t.Cleanup(srv.Close)
 	return srv
@@ -296,6 +296,225 @@ func TestReleaseSubmit_DeadSourceWithoutArchive(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), deadURL) {
 		t.Fatalf("error %q does not mention the broken URL %q", err.Error(), deadURL)
+	}
+}
+
+// newFakeArchive stands in for the archive holding one capture of each URL in
+// captured, showing an ordinary article.
+func newFakeArchive(t *testing.T, captured ...string) *httptest.Server {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/web/") {
+			_, _ = w.Write([]byte(`<html><body><h1>An article</h1></body></html>`))
+			return
+		}
+		target := r.URL.Query().Get("url")
+		if slices.Contains(captured, target) {
+			_, _ = fmt.Fprintf(w, `[["timestamp","original"],["20261001000000",%q]]`, target)
+			return
+		}
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// A page gone from the web still counts if the archive holds a copy of it from
+// when it answered 200 (policy.md). Trial 3: the lookup was refused with 429 on
+// every source, so sources with a copy were refused as if they had none.
+//
+// The copy must be of the page the source cites: one that now redirects to the
+// site's home page isn't vouched for by a capture of the home page.
+func TestReleaseSubmit_GoneSourceAndItsArchiveCopy(t *testing.T) {
+	sourceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/":
+			_, _ = w.Write([]byte(`<html><body><h1>Home</h1></body></html>`))
+		case "/moved-home":
+			http.Redirect(w, r, "/", http.StatusFound)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(sourceSrv.Close)
+	home, movedHome, dead := sourceSrv.URL+"/", sourceSrv.URL+"/moved-home", sourceSrv.URL+"/dead"
+
+	for _, c := range []struct {
+		name, source string
+		captured     []string
+		wantRefused  bool
+	}{
+		{"dead with a copy", dead, []string{dead}, false},
+		{"dead without one", dead, nil, true},
+		{"redirected home with a copy of itself", movedHome, []string{movedHome, home}, false},
+		{"redirected home with a copy of the home page only", movedHome, []string{home}, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			media := newTestMedia(t)
+			seedChannel(t, st, "test-channel")
+			archive := newFakeArchive(t, c.captured...)
+			svc := service.New(service.Deps{
+				Store:        st,
+				Media:        media,
+				Checker:      sources.NewChecker(5*time.Second, true),
+				Wayback:      sources.NewWaybackClient(newFakeWaybackServer(t).URL, 5*time.Second, "", "", true),
+				Availability: sources.NewAvailabilityClient(archive.URL, 5*time.Second, true),
+				Log:          slog.Default(),
+			})
+			devID := registerDevelopment(t, svc, "test-channel", "Archived source story")
+			video := uploadFixture(t, svc, devID, "video.mp4")
+			subtitles := uploadFixture(t, svc, devID, "subtitles.srt")
+			cover := uploadFixture(t, svc, devID, "cover.png")
+			dossier, script := dossierAndScript(c.source)
+
+			resp, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+				DevelopmentID:    devID,
+				ChannelID:        "test-channel",
+				Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
+				ResearchDossier:  dossier,
+				Script:           script,
+				VideoPackage:     json.RawMessage(`{}`),
+				ValidationReport: json.RawMessage(passValidationReport),
+				LegalReview:      json.RawMessage(passLegalReview),
+			})
+			if c.wantRefused {
+				if err == nil || !strings.Contains(err.Error(), c.source) {
+					t.Fatalf("want a refusal naming %s, got %v", c.source, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("refused: %v", err)
+			}
+			stored, err := st.ListReleaseSources(context.Background(), resp.ReleaseID)
+			if err != nil || len(stored) != 1 {
+				t.Fatalf("sources: %+v, %v", stored, err)
+			}
+			if want := archive.URL + "/web/20261001000000/" + c.source; stored[0].ArchiveURL != want {
+				t.Fatalf("archive URL = %q, want %q", stored[0].ArchiveURL, want)
+			}
+		})
+	}
+}
+
+// A snapshot Save Page Now just made of a bot wall isn't a copy of the page, and
+// a redirect to a login page gets the cited URL saved, not the login page.
+func TestReleaseSubmit_SnapshotOfAWallIsNotACopy(t *testing.T) {
+	var saved []string
+	sourceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/moved" {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	t.Cleanup(sourceSrv.Close)
+	waybackSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/save/"):
+			target := strings.TrimPrefix(r.URL.Path, "/save/")
+			saved = append(saved, target)
+			w.Header().Set("Location", "/web/20261024000000/"+target)
+			w.WriteHeader(http.StatusFound)
+		case strings.Contains(r.URL.Path, "id_/"):
+			_, _ = w.Write([]byte(`<html><title>Just a moment...</title></html>`))
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	t.Cleanup(waybackSrv.Close)
+
+	st := newTestStore(t)
+	media := newTestMedia(t)
+	seedChannel(t, st, "test-channel")
+	svc := service.New(service.Deps{
+		Store:        st,
+		Media:        media,
+		Checker:      sources.NewChecker(5*time.Second, true),
+		Wayback:      sources.NewWaybackClient(waybackSrv.URL, 5*time.Second, "", "", true),
+		Availability: sources.NewAvailabilityClient(newFakeArchive(t).URL, 5*time.Second, true),
+		Log:          slog.Default(),
+	})
+	devID := registerDevelopment(t, svc, "test-channel", "Walled source story")
+	video := uploadFixture(t, svc, devID, "video.mp4")
+	subtitles := uploadFixture(t, svc, devID, "subtitles.srt")
+	cover := uploadFixture(t, svc, devID, "cover.png")
+	moved := sourceSrv.URL + "/moved"
+	dossier, script := dossierAndScript(moved)
+
+	_, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+		DevelopmentID:    devID,
+		ChannelID:        "test-channel",
+		Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
+		ResearchDossier:  dossier,
+		Script:           script,
+		VideoPackage:     json.RawMessage(`{}`),
+		ValidationReport: json.RawMessage(passValidationReport),
+		LegalReview:      json.RawMessage(passLegalReview),
+	})
+	if err == nil || !strings.Contains(err.Error(), moved) {
+		t.Fatalf("want a refusal naming %s, got %v", moved, err)
+	}
+	if len(saved) != 1 || !strings.HasSuffix(saved[0], "/moved") {
+		t.Fatalf("saved %v, want the cited URL", saved)
+	}
+}
+
+// A citation that redirects home ends up, in the replay, on a snapshot of the home
+// page, and hub may get 403 from the home page itself. The home page isn't its copy.
+func TestReleaseSubmit_SnapshotOfTheRedirectTargetIsNotACopy(t *testing.T) {
+	sourceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/dead-article" {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	t.Cleanup(sourceSrv.Close)
+	cited := sourceSrv.URL + "/dead-article"
+	waybackSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/save/"):
+			w.Header().Set("Location", "/web/20261024000000/"+strings.TrimPrefix(r.URL.Path, "/save/"))
+			w.WriteHeader(http.StatusFound)
+		case strings.HasSuffix(r.URL.Path, "/dead-article"):
+			w.Header().Set("Location", "/web/20261024000000/"+sourceSrv.URL+"/")
+			w.WriteHeader(http.StatusFound)
+		default:
+			_, _ = w.Write([]byte(`<html><body><h1>Home</h1></body></html>`))
+		}
+	}))
+	t.Cleanup(waybackSrv.Close)
+
+	st := newTestStore(t)
+	media := newTestMedia(t)
+	seedChannel(t, st, "test-channel")
+	svc := service.New(service.Deps{
+		Store:        st,
+		Media:        media,
+		Checker:      sources.NewChecker(5*time.Second, true),
+		Wayback:      sources.NewWaybackClient(waybackSrv.URL, 5*time.Second, "", "", true),
+		Availability: sources.NewAvailabilityClient(newFakeArchive(t).URL, 5*time.Second, true),
+		Log:          slog.Default(),
+	})
+	devID := registerDevelopment(t, svc, "test-channel", "Redirected source story")
+	video := uploadFixture(t, svc, devID, "video.mp4")
+	subtitles := uploadFixture(t, svc, devID, "subtitles.srt")
+	cover := uploadFixture(t, svc, devID, "cover.png")
+	dossier, script := dossierAndScript(cited)
+
+	_, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+		DevelopmentID:    devID,
+		ChannelID:        "test-channel",
+		Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
+		ResearchDossier:  dossier,
+		Script:           script,
+		VideoPackage:     json.RawMessage(`{}`),
+		ValidationReport: json.RawMessage(passValidationReport),
+		LegalReview:      json.RawMessage(passLegalReview),
+	})
+	if err == nil || !strings.Contains(err.Error(), cited) {
+		t.Fatalf("want a refusal naming %s, got %v", cited, err)
 	}
 }
 

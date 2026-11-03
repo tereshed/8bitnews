@@ -204,6 +204,11 @@ type sourceOutcome struct {
 //     only archive that error response, so it is not attempted at all —
 //     only a *pre-existing* snapshot (recorded with HTTP 200 before the
 //     page went bad) counts.
+//
+// A snapshot is always made and looked up by the URL the source cites, not
+// where the check ended up: a page that now redirects to the site's home page
+// or a login page isn't vouched for by a capture of that page. A snapshot that
+// turns out to show a challenge page isn't a copy either.
 //   - blocked: the URL's scheme or destination address is one this
 //     process refuses to connect to at all (SSRF protection). It never
 //     passes, and no archive lookup is attempted either — the hub must
@@ -231,23 +236,18 @@ func (s *Service) resolveSource(ctx context.Context, c sources.Candidate, now ti
 		CheckedAt:   now,
 	}
 
-	archiveTarget := check.FinalURL
-	if archiveTarget == "" {
-		archiveTarget = c.URL
-	}
-
 	switch check.Status {
 	case sources.StatusOK:
 		return sourceOutcome{record: rec}
 
 	case sources.StatusBotProtected, sources.StatusUnreachable:
-		archiveURL, err := s.wayback.Save(ctx, archiveTarget)
-		if err == nil {
+		archiveURL, err := s.wayback.Save(ctx, c.URL)
+		if err == nil && s.availability.ShowsThePage(ctx, c.URL, archiveURL) {
 			rec.ArchiveURL = archiveURL
 			return sourceOutcome{record: rec}
 		}
 		s.log.Warn("archiving source failed, falling back to existing snapshot lookup", "url", c.URL, "error", err)
-		if archiveURL, found, err := s.availability.Closest(ctx, archiveTarget); err != nil {
+		if archiveURL, found, err := s.availability.Closest(ctx, c.URL); err != nil {
 			s.log.Warn("availability lookup failed", "url", c.URL, "error", err)
 		} else if found {
 			rec.ArchiveURL = archiveURL
@@ -256,7 +256,7 @@ func (s *Service) resolveSource(ctx context.Context, c sources.Candidate, now ti
 		return sourceOutcome{record: rec, bad: true}
 
 	case sources.StatusDead, sources.StatusSoft404:
-		if archiveURL, found, err := s.availability.Closest(ctx, archiveTarget); err != nil {
+		if archiveURL, found, err := s.availability.Closest(ctx, c.URL); err != nil {
 			s.log.Warn("availability lookup failed", "url", c.URL, "error", err)
 		} else if found {
 			rec.ArchiveURL = archiveURL

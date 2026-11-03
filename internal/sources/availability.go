@@ -7,81 +7,163 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
 
-// AvailabilityClient queries the Internet Archive's Wayback Availability
-// JSON API (https://archive.org/wayback/available?url=...) to find an
-// *existing* snapshot of a URL, independent of whether Save Page Now can
-// archive it right now. Policy (countries/us/policy.md "Источники в
-// ролике") treats a page the hub cannot reach today (dead, soft 404,
-// bot-protected, unreachable) as still citable if an earlier snapshot shows
-// the page existed with HTTP 200 — Save Page Now archiving a dead page's
-// 404 response is not that proof.
+// AvailabilityClient looks for an *existing* snapshot of a URL in the Internet
+// Archive, independent of whether Save Page Now can archive it right now.
+// Policy (countries/us/policy.md "Источники в ролике") treats a page the hub
+// cannot reach today (dead, soft 404, bot-protected, unreachable) as still
+// citable if an earlier snapshot shows the page existed with HTTP 200 — Save
+// Page Now archiving a dead page's 404 response is not that proof.
+//
+// It asks the CDX API (https://web.archive.org/cdx/search/cdx), not the
+// Availability JSON API (archive.org/wayback/available): that one answers 429
+// to an escaped url parameter whatever the rate, misses captures made minutes
+// ago, and only reports the closest capture, even when that one is an error
+// page and an earlier one isn't (trial 3, 2026-11-02). A capture's recorded
+// status isn't enough either: a challenge page or a soft 404 is recorded with
+// 200 too, so the client reads the capture before vouching for it.
 type AvailabilityClient struct {
-	baseURL string
-	http    *http.Client
+	baseURL    string
+	http       *http.Client
+	retryPause time.Duration
 }
 
 // NewAvailabilityClient builds a client against baseURL (e.g.
-// "https://archive.org"). allowPrivate lifts the SSRF protection for tests
+// "https://web.archive.org"). allowPrivate lifts the SSRF protection for tests
 // pointed at an httptest server on a loopback address; production must
 // always pass false.
 func NewAvailabilityClient(baseURL string, timeout time.Duration, allowPrivate bool) *AvailabilityClient {
 	return &AvailabilityClient{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		http:    newSafeHTTPClient(timeout, allowPrivate),
+		baseURL:    strings.TrimRight(baseURL, "/"),
+		http:       newSafeHTTPClient(timeout, allowPrivate),
+		retryPause: 2 * time.Second,
 	}
 }
 
-type availabilityResponse struct {
-	ArchivedSnapshots struct {
-		Closest struct {
-			Available bool   `json:"available"`
-			URL       string `json:"url"`
-			Timestamp string `json:"timestamp"`
-			Status    string `json:"status"`
-		} `json:"closest"`
-	} `json:"archived_snapshots"`
+// snapshotsToRead bounds how many captures one lookup reads, newest first. Each
+// read can take seconds, and the release's source check has one deadline.
+const snapshotsToRead = 3
+
+// Closest looks up the latest snapshot that shows targetURL itself. found is
+// false when the archive has none: no capture of exactly this URL recorded
+// with HTTP 200, or only captures of a challenge page or a soft 404. An error
+// means the archive couldn't answer, so whether a copy exists is unknown.
+func (a *AvailabilityClient) Closest(ctx context.Context, targetURL string) (archiveURL string, found bool, err error) {
+	query := url.Values{
+		"url":       {targetURL},
+		"matchType": {"exact"}, // without it a trailing "*" is a prefix search
+		"filter":    {"statuscode:200"},
+		"collapse":  {"digest"},
+		"fl":        {"timestamp,original"},
+		"limit":     {"-" + strconv.Itoa(snapshotsToRead)}, // the last ones
+		"output":    {"json"},
+	}
+	body, err := a.get(ctx, a.baseURL+"/cdx/search/cdx?"+query.Encode())
+	if err != nil {
+		return "", false, fmt.Errorf("looking up a snapshot of %s: %w", targetURL, err)
+	}
+
+	// A header row, then the captures, oldest first:
+	// [["timestamp","original"],["20261102155217","https://…"]]; [] when none.
+	var rows [][]string
+	if err := json.Unmarshal(body, &rows); err != nil {
+		return "", false, fmt.Errorf("parsing the snapshot lookup for %s: %w", targetURL, err)
+	}
+	var unread error
+	for i := len(rows) - 1; i >= 1; i-- {
+		if len(rows[i]) != 2 || rows[i][0] == "" || rows[i][1] == "" {
+			return "", false, fmt.Errorf("parsing the snapshot lookup for %s: unexpected row %q", targetURL, rows[i])
+		}
+		timestamp, original := rows[i][0], rows[i][1]
+		if !samePage(targetURL, original) {
+			continue
+		}
+		// id_ asks for the page as captured, without the archive's toolbar.
+		page, err := a.get(ctx, a.baseURL+"/web/"+timestamp+"id_/"+original)
+		if err != nil {
+			unread = fmt.Errorf("reading snapshot %s of %s: %w", timestamp, targetURL, err)
+			continue
+		}
+		if !looksLikeChallenge(page) && !looksLikeSoft404(page) {
+			return a.baseURL + "/web/" + timestamp + "/" + original, true, nil
+		}
+	}
+	return "", false, unread
 }
 
-// Closest looks up the closest existing snapshot of targetURL. found is
-// false when the Availability API has no snapshot at all, or when its
-// closest snapshot's recorded HTTP status was not 200 (e.g. the archive
-// only has a capture of the page's own 404).
-func (a *AvailabilityClient) Closest(ctx context.Context, targetURL string) (archiveURL string, found bool, err error) {
-	reqURL := a.baseURL + "/wayback/available?url=" + url.QueryEscape(targetURL)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+// ShowsThePage reports whether a snapshot Save Page Now just made shows the
+// cited page: not another page the citation redirected to (the replay follows
+// the redirect, so the snapshot's own URL tells), and not a challenge page or a
+// soft 404. A snapshot it can't read yet counts: a fresh capture may take a
+// while to replay, and Save Page Now did capture it.
+func (a *AvailabilityClient) ShowsThePage(ctx context.Context, citedURL, snapshotURL string) bool {
+	m := snapshotParts.FindStringSubmatch(snapshotURL)
+	if m == nil || !samePage(citedURL, m[2]) {
+		return false
+	}
+	page, err := a.get(ctx, m[1]+"id_/"+m[2])
 	if err != nil {
-		return "", false, fmt.Errorf("building availability request for %s: %w", targetURL, err)
+		return true
+	}
+	return !looksLikeChallenge(page) && !looksLikeSoft404(page)
+}
+
+var snapshotParts = regexp.MustCompile(`^(.*?/web/\d{14})/(.+)$`)
+
+// samePage reports whether a capture's URL is the page asked for. The CDX API
+// matches loosely: it ignores the scheme, www and the port, which is fine, and
+// the case of the path and query, which isn't (watch?v=dQw4 is not watch?v=DQW4).
+func samePage(target, captured string) bool {
+	t, err1 := url.Parse(target)
+	c, err2 := url.Parse(captured)
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return strings.TrimRight(t.Path, "/") == strings.TrimRight(c.Path, "/") && t.Query().Encode() == c.Query().Encode()
+}
+
+// get fetches rawURL, once more after a pause when the archive is busy (429,
+// 5xx): lookups run in parallel, and a refusal here refuses the release.
+func (a *AvailabilityClient) get(ctx context.Context, rawURL string) ([]byte, error) {
+	for attempt := 1; ; attempt++ {
+		body, status, err := a.fetch(ctx, rawURL)
+		switch {
+		case err != nil:
+			return nil, err
+		case status < 400:
+			return body, nil
+		case attempt == 2 || (status != http.StatusTooManyRequests && status < 500):
+			return nil, fmt.Errorf("HTTP %d", status)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(a.retryPause):
+		}
+	}
+}
+
+func (a *AvailabilityClient) fetch(ctx context.Context, rawURL string) ([]byte, int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, 0, err
 	}
 	req.Header.Set("User-Agent", "8bitnews-sources-bot/1.0 (+https://github.com/tereshed/8bitnews)")
 
 	resp, err := a.http.Do(req)
 	if err != nil {
-		return "", false, fmt.Errorf("calling availability API for %s: %w", targetURL, err)
+		return nil, 0, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode >= 400 {
-		return "", false, fmt.Errorf("availability API rejected %s: HTTP %d", targetURL, resp.StatusCode)
-	}
-
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 	if err != nil {
-		return "", false, fmt.Errorf("reading availability response for %s: %w", targetURL, err)
+		return nil, 0, err
 	}
-
-	var parsed availabilityResponse
-	if err := json.Unmarshal(body, &parsed); err != nil {
-		return "", false, fmt.Errorf("parsing availability response for %s: %w", targetURL, err)
-	}
-
-	closest := parsed.ArchivedSnapshots.Closest
-	if !closest.Available || closest.URL == "" || closest.Status != "200" {
-		return "", false, nil
-	}
-	return closest.URL, true, nil
+	return body, resp.StatusCode, nil
 }
