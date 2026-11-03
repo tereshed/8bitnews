@@ -246,9 +246,11 @@ var challengeMarkers = []string{
 	"cf-chl",
 	"challenge-platform",
 	`name="js_challenge"`,
-	"pardon our interruption",
-	"are you a robot",
 }
+
+// challengeHeadings are challenge pages' own words: an ordinary article can
+// quote them, so they only count in its title or headings.
+var challengeHeadings = []string{"pardon our interruption", "are you a robot"}
 
 func looksLikeChallenge(body []byte) bool {
 	// Unlike soft-404 markers, these are checked against the whole page:
@@ -259,6 +261,12 @@ func looksLikeChallenge(body []byte) bool {
 	text := strings.ToLower(string(body))
 	for _, marker := range challengeMarkers {
 		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	heading := headingText(body)
+	for _, marker := range challengeHeadings {
+		if strings.Contains(heading, marker) {
 			return true
 		}
 	}

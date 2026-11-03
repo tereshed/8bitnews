@@ -192,9 +192,30 @@ func TestAvailabilityClient_ShowsThePage(t *testing.T) {
 	client.retryPause = time.Millisecond
 
 	for page, want := range map[string]bool{"article": true, "wall": false, "slow": true} {
-		if got := client.ShowsThePage(context.Background(), srv.URL+"/web/20261102155217/https://example.com/"+page); got != want {
+		cited := "https://example.com/" + page
+		if got := client.ShowsThePage(context.Background(), cited, srv.URL+"/web/20261102155217/"+cited); got != want {
 			t.Errorf("%s: %v, want %v", page, got, want)
 		}
+	}
+	// The replay followed the citation's redirect: the page itself is fine, but it isn't the one cited.
+	home := srv.URL + "/web/20261102155217/https://example.com/"
+	if client.ShowsThePage(context.Background(), "https://example.com/article", home) {
+		t.Error("a snapshot of the home page passed for a cited article")
+	}
+	if client.ShowsThePage(context.Background(), "https://example.com/article", srv.URL+"/save/https://example.com/article") {
+		t.Error("something that isn't a snapshot passed")
+	}
+}
+
+func TestChallengeWordsCountOnlyInHeadings(t *testing.T) {
+	if !looksLikeChallenge([]byte(`<html><title>Are you a robot?</title></html>`)) {
+		t.Error("a page titled like a challenge passed")
+	}
+	if !looksLikeChallenge([]byte(`<html><h1>Pardon Our Interruption</h1></html>`)) {
+		t.Error("a page headed like a challenge passed")
+	}
+	if looksLikeChallenge([]byte(`<html><title>Bots</title><body><h1>Bots</h1><p>The form asks: are you a robot?</p></body></html>`)) {
+		t.Error("an article quoting the words was taken for a challenge")
 	}
 }
 

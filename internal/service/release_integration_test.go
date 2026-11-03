@@ -460,6 +460,64 @@ func TestReleaseSubmit_SnapshotOfAWallIsNotACopy(t *testing.T) {
 	}
 }
 
+// A citation that redirects home ends up, in the replay, on a snapshot of the home
+// page, and hub may get 403 from the home page itself. The home page isn't its copy.
+func TestReleaseSubmit_SnapshotOfTheRedirectTargetIsNotACopy(t *testing.T) {
+	sourceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/dead-article" {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	t.Cleanup(sourceSrv.Close)
+	cited := sourceSrv.URL + "/dead-article"
+	waybackSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/save/"):
+			w.Header().Set("Location", "/web/20261024000000/"+strings.TrimPrefix(r.URL.Path, "/save/"))
+			w.WriteHeader(http.StatusFound)
+		case strings.HasSuffix(r.URL.Path, "/dead-article"):
+			w.Header().Set("Location", "/web/20261024000000/"+sourceSrv.URL+"/")
+			w.WriteHeader(http.StatusFound)
+		default:
+			_, _ = w.Write([]byte(`<html><body><h1>Home</h1></body></html>`))
+		}
+	}))
+	t.Cleanup(waybackSrv.Close)
+
+	st := newTestStore(t)
+	media := newTestMedia(t)
+	seedChannel(t, st, "test-channel")
+	svc := service.New(service.Deps{
+		Store:        st,
+		Media:        media,
+		Checker:      sources.NewChecker(5*time.Second, true),
+		Wayback:      sources.NewWaybackClient(waybackSrv.URL, 5*time.Second, "", "", true),
+		Availability: sources.NewAvailabilityClient(newFakeArchive(t).URL, 5*time.Second, true),
+		Log:          slog.Default(),
+	})
+	devID := registerDevelopment(t, svc, "test-channel", "Redirected source story")
+	video := uploadFixture(t, svc, devID, "video.mp4")
+	subtitles := uploadFixture(t, svc, devID, "subtitles.srt")
+	cover := uploadFixture(t, svc, devID, "cover.png")
+	dossier, script := dossierAndScript(cited)
+
+	_, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+		DevelopmentID:    devID,
+		ChannelID:        "test-channel",
+		Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
+		ResearchDossier:  dossier,
+		Script:           script,
+		VideoPackage:     json.RawMessage(`{}`),
+		ValidationReport: json.RawMessage(passValidationReport),
+		LegalReview:      json.RawMessage(passLegalReview),
+	})
+	if err == nil || !strings.Contains(err.Error(), cited) {
+		t.Fatalf("want a refusal naming %s, got %v", cited, err)
+	}
+}
+
 func TestReleaseSubmit_MissingObjectKey(t *testing.T) {
 	st := newTestStore(t)
 	media := newTestMedia(t)

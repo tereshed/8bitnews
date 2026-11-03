@@ -242,7 +242,7 @@ func (s *Service) resolveSource(ctx context.Context, c sources.Candidate, now ti
 
 	case sources.StatusBotProtected, sources.StatusUnreachable:
 		archiveURL, err := s.wayback.Save(ctx, c.URL)
-		if err == nil && s.availability.ShowsThePage(ctx, archiveURL) {
+		if err == nil && s.availability.ShowsThePage(ctx, c.URL, archiveURL) {
 			rec.ArchiveURL = archiveURL
 			return sourceOutcome{record: rec}
 		}
