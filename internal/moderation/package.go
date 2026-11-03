@@ -37,7 +37,7 @@ func (m *Moderator) sendPackage(ctx context.Context, r store.Release, cardID int
 	}
 	_ = json.Unmarshal(r.Media, &card)
 
-	m.sendHTML(ctx, r.ID, packageHeader(opening, pkg, r.Status == "published"), cardID)
+	m.sendHTML(ctx, r.ID, packageHeader(opening, pkg), cardID)
 	for _, p := range pkg.Platforms {
 		last := cardID
 		texts, descriptionAsFile := platformMessages(p, p.Video == card.Video)
@@ -141,7 +141,7 @@ func (m *Moderator) reportFailure(ctx context.Context, releaseID, text string, r
 // cut safely.
 const headerWarningsMax = 10
 
-func packageHeader(opening string, pkg publish.Package, published bool) string {
+func packageHeader(opening string, pkg publish.Package) string {
 	var b strings.Builder
 	b.WriteString(opening + "\n")
 	if len(pkg.Platforms) > 0 {
@@ -153,12 +153,7 @@ func packageHeader(opening string, pkg publish.Package, published bool) string {
 			". Выложите ролик вручную и на каждой площадке включите метку AI-контента.\n")
 	}
 	if pkg.SourcesPage != "" {
-		b.WriteString("🔗 Страница источников: " + html.EscapeString(pkg.SourcesPage))
-		if published {
-			b.WriteString(" — открыта.\n")
-		} else {
-			b.WriteString(" — откроется, когда нажмёте «🟢 Выложено на площадки» под карточкой.\n")
-		}
+		b.WriteString("🔗 Страница источников: " + html.EscapeString(pkg.SourcesPage) + " — открыта.\n")
 	}
 	for _, n := range pkg.Notes {
 		b.WriteString("ℹ️ " + html.EscapeString(truncate(n, 300)) + "\n")

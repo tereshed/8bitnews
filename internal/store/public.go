@@ -7,14 +7,18 @@ import (
 	"regexp"
 )
 
-// publicStatuses are the releases whose sources page is public: published,
-// on the moderator's word that the video is up. An approved release isn't
-// public yet: the moderator may still hold it back.
-const publicStatuses = `('published')`
+// sourcesPageStatuses are the releases whose sources page is public: from the
+// moderator's approval on. The video's description links to the page, so it
+// has to open as soon as the video can go up, not when someone records that it did.
+const sourcesPageStatuses = `('approved', 'published')`
+
+// listedStatuses are the releases on the channel's list of videos: published,
+// on the moderator's word that the video is up. An approved one may not be up yet.
+const listedStatuses = `('published')`
 
 var releaseCode = regexp.MustCompile(`^[0-9a-f]{10}$`)
 
-// PublicRelease returns the public release whose id starts with code, the
+// PublicRelease returns the release with a public sources page whose id starts with code, the
 // first ten hex digits of the id (publish.Code). Should two ever share
 // them, the older one keeps the address.
 func (s *Store) PublicRelease(ctx context.Context, code string) (Release, error) {
@@ -26,7 +30,7 @@ func (s *Store) PublicRelease(ctx context.Context, code string) (Release, error)
 	var r Release
 	err := scanRelease(s.pool.QueryRow(ctx, `
 		SELECT `+releaseColumns+` FROM releases
-		WHERE id BETWEEN $1::uuid AND $2::uuid AND status IN `+publicStatuses+`
+		WHERE id BETWEEN $1::uuid AND $2::uuid AND status IN `+sourcesPageStatuses+`
 		ORDER BY created_at ASC
 		LIMIT 1
 	`, prefix+"00-0000-0000-000000000000", prefix+"ff-ffff-ffff-ffffffffffff"), &r)
@@ -36,14 +40,14 @@ func (s *Store) PublicRelease(ctx context.Context, code string) (Release, error)
 	return r, nil
 }
 
-// PublicReleases returns a channel's n most recent public releases, newest
+// PublicReleases returns a channel's n most recent listed releases, newest
 // first, for the channel's list of videos: only their id, the script's
 // metadata (the title) and the dates, not the whole release.
 func (s *Store) PublicReleases(ctx context.Context, channelID string, n int) ([]Release, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, channel_id, status, jsonb_build_object('metadata', script->'metadata'), created_at, moderated_at
 		FROM releases
-		WHERE channel_id = $1 AND status IN `+publicStatuses+`
+		WHERE channel_id = $1 AND status IN `+listedStatuses+`
 		ORDER BY COALESCE(moderated_at, created_at) DESC
 		LIMIT $2
 	`, channelID, n)
@@ -67,7 +71,7 @@ func (s *Store) PublicReleases(ctx context.Context, channelID string, n int) ([]
 
 // SetPublished moves an approved release to "published" (the moderator
 // says the video is up), or, with published false, a published one back to
-// "approved" (a mistaken press; its sources page is hidden again). It
+// "approved" (a mistaken press; it leaves the channel's list, its sources page stays). It
 // reports false, with the release as it is, if the release wasn't in the
 // status to move from.
 func (s *Store) SetPublished(ctx context.Context, releaseID string, published bool) (Release, bool, error) {
@@ -85,6 +89,25 @@ func (s *Store) SetPublished(ctx context.Context, releaseID string, published bo
 	}
 	if !errors.Is(mapNotFound(err), ErrNotFound) {
 		return Release{}, false, fmt.Errorf("moving release %s from %s to %s: %w", releaseID, from, to, err)
+	}
+	r, err = s.GetRelease(ctx, releaseID)
+	return r, false, err
+}
+
+// WithdrawRelease closes the sources page of an approved or published release
+// (a mistaken approval, a claim) by moving it to "rejected". It reports false,
+// with the release as it is, if the release was in neither status.
+func (s *Store) WithdrawRelease(ctx context.Context, releaseID string) (Release, bool, error) {
+	var r Release
+	err := scanRelease(s.pool.QueryRow(ctx, `
+		UPDATE releases SET status = 'rejected', updated_at = now()
+		WHERE id = $1 AND status IN ('approved', 'published')
+		RETURNING `+releaseColumns, releaseID), &r)
+	if err == nil {
+		return r, true, nil
+	}
+	if !errors.Is(mapNotFound(err), ErrNotFound) {
+		return Release{}, false, fmt.Errorf("withdrawing release %s: %w", releaseID, err)
 	}
 	r, err = s.GetRelease(ctx, releaseID)
 	return r, false, err

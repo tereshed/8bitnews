@@ -38,8 +38,8 @@ type cachedPage struct {
 }
 
 // Pages serves hub's public pages, with no API key: a video's sources page
-// at /s/{code} and a channel's list of videos at /c/{channel_id}. Only
-// published releases (the moderator pressed «Выложено») have one.
+// at /s/{code}, from the moderator's approval on, and a channel's list of
+// videos at /c/{channel_id}, of published releases (the moderator pressed «Выложено»).
 type Pages struct {
 	store PageStore
 	cfg   Config

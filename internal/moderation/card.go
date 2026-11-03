@@ -25,12 +25,13 @@ var actions = map[string]string{
 }
 
 // The card's buttons once a release is approved: its publication package
-// again, the moderator's word that the video is up on the platforms, and
-// taking that word back.
+// again, the moderator's word that the video is up on the platforms, taking
+// that word back, and closing the sources page.
 const (
 	actionPackage     = "package"
 	actionPublished   = "published"
 	actionUnpublished = "unpublished"
+	actionWithdraw    = "withdraw"
 )
 
 const callbackPrefix = "mod:"
@@ -47,7 +48,7 @@ func parseCallback(data string) (action, releaseID string, ok bool) {
 	}
 	action, releaseID, found = strings.Cut(rest, ":")
 	_, decision := actions[action]
-	known := decision || action == actionPackage || action == actionPublished || action == actionUnpublished
+	known := decision || action == actionPackage || action == actionPublished || action == actionUnpublished || action == actionWithdraw
 	if !found || !known || releaseID == "" {
 		return "", "", false
 	}
@@ -65,14 +66,15 @@ func cardKeyboard(releaseID string) *Keyboard {
 }
 
 // approvedKeyboard is the card's buttons after an approval: the package
-// again, and «Выложено» — or, once pressed, the way back.
+// again, «Выложено» — or, once pressed, the way back — and closing the page.
 func approvedKeyboard(releaseID string, published bool) *Keyboard {
 	rows := [][]Button{{{Text: "📦 Пакет ещё раз", CallbackData: callbackData(actionPackage, releaseID)}}}
 	if published {
-		rows = append(rows, []Button{{Text: "↩️ Скрыть страницу источников", CallbackData: callbackData(actionUnpublished, releaseID)}})
+		rows = append(rows, []Button{{Text: "↩️ Не выложено", CallbackData: callbackData(actionUnpublished, releaseID)}})
 	} else {
 		rows = append(rows, []Button{{Text: "🟢 Выложено на площадки", CallbackData: callbackData(actionPublished, releaseID)}})
 	}
+	rows = append(rows, []Button{{Text: "🚫 Закрыть страницу источников", CallbackData: callbackData(actionWithdraw, releaseID)}})
 	return &Keyboard{InlineKeyboard: rows}
 }
 
