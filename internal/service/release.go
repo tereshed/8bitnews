@@ -205,9 +205,10 @@ type sourceOutcome struct {
 //     only a *pre-existing* snapshot (recorded with HTTP 200 before the
 //     page went bad) counts.
 //
-// An existing snapshot is always looked up by the URL the source cites, not
+// A snapshot is always made and looked up by the URL the source cites, not
 // where the check ended up: a page that now redirects to the site's home page
-// isn't vouched for by a capture of the home page.
+// or a login page isn't vouched for by a capture of that page. A snapshot that
+// turns out to show a challenge page isn't a copy either.
 //   - blocked: the URL's scheme or destination address is one this
 //     process refuses to connect to at all (SSRF protection). It never
 //     passes, and no archive lookup is attempted either — the hub must
@@ -235,18 +236,13 @@ func (s *Service) resolveSource(ctx context.Context, c sources.Candidate, now ti
 		CheckedAt:   now,
 	}
 
-	archiveTarget := check.FinalURL
-	if archiveTarget == "" {
-		archiveTarget = c.URL
-	}
-
 	switch check.Status {
 	case sources.StatusOK:
 		return sourceOutcome{record: rec}
 
 	case sources.StatusBotProtected, sources.StatusUnreachable:
-		archiveURL, err := s.wayback.Save(ctx, archiveTarget)
-		if err == nil {
+		archiveURL, err := s.wayback.Save(ctx, c.URL)
+		if err == nil && s.availability.ShowsThePage(ctx, archiveURL) {
 			rec.ArchiveURL = archiveURL
 			return sourceOutcome{record: rec}
 		}

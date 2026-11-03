@@ -174,6 +174,30 @@ func TestAvailabilityClient_CaptureOfAnotherPageIsNotACopy(t *testing.T) {
 	}
 }
 
+func TestAvailabilityClient_ShowsThePage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case !strings.Contains(r.URL.Path, "id_/"):
+			http.Error(w, "the snapshot must be read as captured: "+r.URL.Path, http.StatusBadRequest)
+		case strings.HasSuffix(r.URL.Path, "/wall"):
+			_, _ = w.Write([]byte(`<html><title>Just a moment...</title></html>`))
+		case strings.HasSuffix(r.URL.Path, "/slow"):
+			http.Error(w, "not ready", http.StatusServiceUnavailable)
+		default:
+			_, _ = w.Write([]byte(`<html><h1>An article</h1></html>`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	client := NewAvailabilityClient(srv.URL, 5*time.Second, true)
+	client.retryPause = time.Millisecond
+
+	for page, want := range map[string]bool{"article": true, "wall": false, "slow": true} {
+		if got := client.ShowsThePage(context.Background(), srv.URL+"/web/20261102155217/https://example.com/"+page); got != want {
+			t.Errorf("%s: %v, want %v", page, got, want)
+		}
+	}
+}
+
 func TestSamePage(t *testing.T) {
 	for _, c := range []struct {
 		target, captured string

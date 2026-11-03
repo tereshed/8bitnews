@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -94,6 +95,19 @@ func (a *AvailabilityClient) Closest(ctx context.Context, targetURL string) (arc
 	}
 	return "", false, unread
 }
+
+// ShowsThePage reports whether a snapshot Save Page Now just made shows the
+// page, not a challenge page or a soft 404. A snapshot it can't read yet counts:
+// a fresh capture may take a while to replay, and Save Page Now did capture it.
+func (a *AvailabilityClient) ShowsThePage(ctx context.Context, snapshotURL string) bool {
+	page, err := a.get(ctx, snapshotPrefix.ReplaceAllString(snapshotURL, "${1}id_/"))
+	if err != nil {
+		return true
+	}
+	return !looksLikeChallenge(page) && !looksLikeSoft404(page)
+}
+
+var snapshotPrefix = regexp.MustCompile(`^(.*/web/\d{14})/`)
 
 // samePage reports whether a capture's URL is the page asked for. The CDX API
 // matches loosely: it ignores the scheme, www and the port, which is fine, and

@@ -246,6 +246,8 @@ var challengeMarkers = []string{
 	"cf-chl",
 	"challenge-platform",
 	`name="js_challenge"`,
+	"pardon our interruption",
+	"are you a robot",
 }
 
 func looksLikeChallenge(body []byte) bool {

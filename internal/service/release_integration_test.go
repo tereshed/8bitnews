@@ -397,6 +397,69 @@ func TestReleaseSubmit_GoneSourceAndItsArchiveCopy(t *testing.T) {
 	}
 }
 
+// A snapshot Save Page Now just made of a bot wall isn't a copy of the page, and
+// a redirect to a login page gets the cited URL saved, not the login page.
+func TestReleaseSubmit_SnapshotOfAWallIsNotACopy(t *testing.T) {
+	var saved []string
+	sourceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/moved" {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	t.Cleanup(sourceSrv.Close)
+	waybackSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/save/"):
+			target := strings.TrimPrefix(r.URL.Path, "/save/")
+			saved = append(saved, target)
+			w.Header().Set("Location", "/web/20261024000000/"+target)
+			w.WriteHeader(http.StatusFound)
+		case strings.Contains(r.URL.Path, "id_/"):
+			_, _ = w.Write([]byte(`<html><title>Just a moment...</title></html>`))
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	t.Cleanup(waybackSrv.Close)
+
+	st := newTestStore(t)
+	media := newTestMedia(t)
+	seedChannel(t, st, "test-channel")
+	svc := service.New(service.Deps{
+		Store:        st,
+		Media:        media,
+		Checker:      sources.NewChecker(5*time.Second, true),
+		Wayback:      sources.NewWaybackClient(waybackSrv.URL, 5*time.Second, "", "", true),
+		Availability: sources.NewAvailabilityClient(newFakeArchive(t).URL, 5*time.Second, true),
+		Log:          slog.Default(),
+	})
+	devID := registerDevelopment(t, svc, "test-channel", "Walled source story")
+	video := uploadFixture(t, svc, devID, "video.mp4")
+	subtitles := uploadFixture(t, svc, devID, "subtitles.srt")
+	cover := uploadFixture(t, svc, devID, "cover.png")
+	moved := sourceSrv.URL + "/moved"
+	dossier, script := dossierAndScript(moved)
+
+	_, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+		DevelopmentID:    devID,
+		ChannelID:        "test-channel",
+		Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
+		ResearchDossier:  dossier,
+		Script:           script,
+		VideoPackage:     json.RawMessage(`{}`),
+		ValidationReport: json.RawMessage(passValidationReport),
+		LegalReview:      json.RawMessage(passLegalReview),
+	})
+	if err == nil || !strings.Contains(err.Error(), moved) {
+		t.Fatalf("want a refusal naming %s, got %v", moved, err)
+	}
+	if len(saved) != 1 || !strings.HasSuffix(saved[0], "/moved") {
+		t.Fatalf("saved %v, want the cited URL", saved)
+	}
+}
+
 func TestReleaseSubmit_MissingObjectKey(t *testing.T) {
 	st := newTestStore(t)
 	media := newTestMedia(t)
