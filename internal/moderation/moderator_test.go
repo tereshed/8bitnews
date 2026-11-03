@@ -171,6 +171,19 @@ func (s *fakeStore) SetPublished(_ context.Context, id string, published bool) (
 	return s.release, true, nil
 }
 
+func (s *fakeStore) WithdrawRelease(_ context.Context, id string) (store.Release, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if id != s.release.ID {
+		return store.Release{}, false, store.ErrNotFound
+	}
+	if s.release.Status != "approved" && s.release.Status != "published" {
+		return s.release, false, nil
+	}
+	s.release.Status = "rejected"
+	return s.release, true, nil
+}
+
 func (s *fakeStore) SetModerationNote(_ context.Context, _, note string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -350,8 +363,8 @@ func TestThePackageAgainAndPublished(t *testing.T) {
 	if len(msgs) <= before || !strings.Contains(msgs[before].params["text"].(string), "📦 Пакет ещё раз — для Kostya") {
 		t.Fatalf("the package again: %v", msgs[before:])
 	}
-	if !strings.Contains(msgs[before].params["text"].(string), "откроется, когда нажмёте") {
-		t.Errorf("before «Выложено» the page isn't open yet: %s", msgs[before].params["text"])
+	if !strings.Contains(msgs[before].params["text"].(string), "https://hub.example.org/s/7f01440f43 — открыта") {
+		t.Errorf("the page is open from the approval on: %s", msgs[before].params["text"])
 	}
 
 	m.Handle(ctx, button("published", adminID))
@@ -359,7 +372,7 @@ func TestThePackageAgainAndPublished(t *testing.T) {
 		t.Fatalf("status = %s", st.release.Status)
 	}
 	msgs = tg.byMethod("sendMessage")
-	if last := msgs[len(msgs)-1].params["text"].(string); !strings.Contains(last, "🟢 Выложено — Kostya (@kteresh). Страница источников открыта: https://hub.example.org/s/7f01440f43") {
+	if last := msgs[len(msgs)-1].params["text"].(string); !strings.Contains(last, "🟢 Выложено — Kostya (@kteresh). Ролик появится в списке канала") {
 		t.Errorf("confirmation: %s", last)
 	}
 	edits := tg.byMethod("editMessageReplyMarkup")
@@ -378,15 +391,36 @@ func TestThePackageAgainAndPublished(t *testing.T) {
 	// A mistaken «Выложено» is taken back.
 	m.Handle(ctx, button("unpublished", adminID))
 	if st.release.Status != "approved" {
-		t.Fatalf("after «Скрыть» the release is %s", st.release.Status)
+		t.Fatalf("after «Не выложено» the release is %s", st.release.Status)
 	}
 	msgs = tg.byMethod("sendMessage")
-	if last := msgs[len(msgs)-1].params["text"].(string); !strings.Contains(last, "Страница источников скрыта") {
+	if last := msgs[len(msgs)-1].params["text"].(string); !strings.Contains(last, "страница источников остаётся открытой") {
 		t.Errorf("confirmation: %s", last)
 	}
 	edits = tg.byMethod("editMessageReplyMarkup")
 	if kb, _ := json.Marshal(edits[len(edits)-1].params); !strings.Contains(string(kb), "mod:published:") {
-		t.Errorf("buttons after «Скрыть»: %s", kb)
+		t.Errorf("buttons after «Не выложено»: %s", kb)
+	}
+
+	// The sources page is closed for good, whichever way the release stood.
+	m.Handle(ctx, button("withdraw", adminID))
+	if st.release.Status != "rejected" {
+		t.Fatalf("after «Закрыть страницу» the release is %s", st.release.Status)
+	}
+	msgs = tg.byMethod("sendMessage")
+	if last := msgs[len(msgs)-1].params["text"].(string); !strings.Contains(last, "🚫 Страница источников закрыта — Kostya (@kteresh)") {
+		t.Errorf("confirmation: %s", last)
+	}
+	if last := st.events[len(st.events)-1]; last["action"] != "withdrawn" || last["by"] != "Kostya (@kteresh)" {
+		t.Errorf("events = %v", st.events)
+	}
+	edits = tg.byMethod("editMessageReplyMarkup")
+	if kb, _ := json.Marshal(edits[len(edits)-1].params); strings.Contains(string(kb), "mod:") {
+		t.Errorf("buttons after «Закрыть страницу»: %s", kb)
+	}
+	m.Handle(ctx, button("withdraw", adminID))
+	if a := tg.byMethod("answerCallbackQuery"); !strings.Contains(a[len(a)-1].params["text"].(string), "Уже решено: релиз отклонён") {
+		t.Errorf("a second «Закрыть страницу»: %v", a[len(a)-1].params)
 	}
 }
 
@@ -602,7 +636,7 @@ func TestOtherMessagesAreIgnored(t *testing.T) {
 }
 
 func TestCallbackDataRoundTrips(t *testing.T) {
-	for _, action := range []string{"approve", "changes", "reject", actionPackage, actionPublished, actionUnpublished} {
+	for _, action := range []string{"approve", "changes", "reject", actionPackage, actionPublished, actionUnpublished, actionWithdraw} {
 		a, id, ok := parseCallback(callbackData(action, release))
 		if !ok || a != action || id != release {
 			t.Errorf("%s: got %q %q %v", action, a, id, ok)

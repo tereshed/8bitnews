@@ -33,6 +33,7 @@ type Store interface {
 	DecideRelease(ctx context.Context, releaseID, status, by string) (store.Release, bool, error)
 	GetRelease(ctx context.Context, id string) (store.Release, error)
 	SetPublished(ctx context.Context, releaseID string, published bool) (store.Release, bool, error)
+	WithdrawRelease(ctx context.Context, releaseID string) (store.Release, bool, error)
 	SetModerationNote(ctx context.Context, releaseID, note string) error
 	LogEvent(ctx context.Context, kind string, data any) error
 	GetChannel(ctx context.Context, id string) (store.Channel, error)
@@ -241,6 +242,9 @@ func (m *Moderator) onButton(ctx context.Context, q CallbackQuery) {
 	case actionPublished, actionUnpublished:
 		m.setPublished(ctx, q, releaseID, who, action == actionPublished)
 		return
+	case actionWithdraw:
+		m.withdraw(ctx, q, releaseID, who)
+		return
 	}
 	r, changed, err := m.store.DecideRelease(ctx, releaseID, actions[action], who)
 	if errors.Is(err, store.ErrNotFound) {
@@ -311,7 +315,7 @@ func (m *Moderator) packageAgain(ctx context.Context, q CallbackQuery, releaseID
 }
 
 // setPublished records the moderator's word that the video is up on the
-// platforms, which makes its sources page public, or takes it back.
+// platforms, which puts it on the channel's list of videos, or takes it back.
 func (m *Moderator) setPublished(ctx context.Context, q CallbackQuery, releaseID, who string, published bool) {
 	r, changed, err := m.store.SetPublished(ctx, releaseID, published)
 	if errors.Is(err, store.ErrNotFound) {
@@ -334,16 +338,38 @@ func (m *Moderator) setPublished(ctx context.Context, q CallbackQuery, releaseID
 	}
 	m.event(ctx, map[string]any{"release_id": r.ID, "action": action, "by": who, "telegram_user_id": q.From.ID})
 	m.setKeyboard(ctx, r.ID, q.Message.MessageID, approvedKeyboard(r.ID, published))
-	page := m.pub.SourcesPageURL(r.ID)
-	reply := "🟢 Выложено — " + who + "."
-	if published && page != "" {
-		reply += " Страница источников открыта: " + page
-	}
+	reply := "🟢 Выложено — " + who + ". Ролик появится в списке канала за несколько минут."
 	if !published {
-		reply = "↩️ Не выложено — " + who + ". Страница источников скрыта (до минуты держится в кэше)."
+		reply = "↩️ Не выложено — " + who + ". Ролик уйдёт из списка канала за несколько минут, страница источников остаётся открытой."
 	}
 	if _, err := m.tg.SendMessage(ctx, m.chatID, reply, q.Message.MessageID, nil); err != nil {
 		m.log.Error("moderation: confirming the publication failed", "release_id", releaseID, "error", err)
+	}
+}
+
+// withdraw closes an approved release's sources page: a mistaken approval, a
+// claim. There's no button back: reopening takes a change in the database.
+func (m *Moderator) withdraw(ctx context.Context, q CallbackQuery, releaseID, who string) {
+	r, changed, err := m.store.WithdrawRelease(ctx, releaseID)
+	if errors.Is(err, store.ErrNotFound) {
+		m.answer(ctx, q.ID, "Такого релиза нет.", true)
+		return
+	}
+	if err != nil {
+		m.log.Error("moderation: withdrawing the release failed", "release_id", releaseID, "error", err)
+		m.answer(ctx, q.ID, "Не получилось записать, попробуйте ещё раз.", true)
+		return
+	}
+	if !changed {
+		m.answer(ctx, q.ID, "Уже решено: релиз "+statusText(r.Status)+".", true)
+		return
+	}
+	m.answer(ctx, q.ID, "Записано: релиз "+statusText(r.Status)+".", false)
+	m.event(ctx, map[string]any{"release_id": r.ID, "action": "withdrawn", "by": who, "telegram_user_id": q.From.ID})
+	m.setKeyboard(ctx, r.ID, q.Message.MessageID, &Keyboard{InlineKeyboard: [][]Button{}})
+	reply := "🚫 Страница источников закрыта — " + who + ". Несколько минут она ещё может открываться из кэша. Сам ролик на площадках снимите вручную."
+	if _, err := m.tg.SendMessage(ctx, m.chatID, reply, q.Message.MessageID, nil); err != nil {
+		m.log.Error("moderation: confirming the withdrawal failed", "release_id", releaseID, "error", err)
 	}
 }
 

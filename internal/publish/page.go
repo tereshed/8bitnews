@@ -158,7 +158,7 @@ type Index struct {
 	Corrections string
 }
 
-// BuildIndex writes a channel's list from its public releases, newest first.
+// BuildIndex writes a channel's list from its listed releases, newest first.
 func BuildIndex(ch store.Channel, releases []store.Release, cfg Config) Index {
 	idx := Index{Channel: ch.Name, Corrections: cfg.CorrectionsContact}
 	for _, r := range releases {

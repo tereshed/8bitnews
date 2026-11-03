@@ -78,7 +78,7 @@ func TestSourcesNoSceneCitesAreListedToo(t *testing.T) {
 	}
 }
 
-// pageStore serves one release, public once published, like the store.
+// pageStore serves one release, its page public once approved and listed once published, like the store.
 type pageStore struct {
 	in    Input
 	reads *int
@@ -88,7 +88,7 @@ func (s pageStore) PublicRelease(_ context.Context, code string) (store.Release,
 	if s.reads != nil {
 		*s.reads++
 	}
-	if code != Code(s.in.Release.ID) || s.in.Release.Status != "published" {
+	if code != Code(s.in.Release.ID) || (s.in.Release.Status != "approved" && s.in.Release.Status != "published") {
 		return store.Release{}, store.ErrNotFound
 	}
 	return s.in.Release, nil
@@ -174,8 +174,12 @@ func TestThePublicPages(t *testing.T) {
 	for _, status := range []string{"pending_approval", "approved", "rejected"} {
 		in.Release.Status = status
 		pages = NewPages(pageStore{in, nil}, cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
-		if code, _, _ := get(t, pages, "/s/f874ebb1a0"); code != http.StatusNotFound {
-			t.Errorf("a release %s has a public page: %d", status, code)
+		want := http.StatusNotFound
+		if status == "approved" {
+			want = http.StatusOK
+		}
+		if code, _, _ := get(t, pages, "/s/f874ebb1a0"); code != want {
+			t.Errorf("the page of a release %s: %d, want %d", status, code, want)
 		}
 		if _, _, body := get(t, pages, "/c/8bitnews-us"); !strings.Contains(body, "No videos yet.") {
 			t.Errorf("a release %s is listed:\n%s", status, body)
