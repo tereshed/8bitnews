@@ -106,12 +106,49 @@ _ABBREVIATIONS_ES = {
     "art.": "artículo", "núm.": "número", "vs.": "contra", "aprox.": "aproximadamente", "etc.": "etcétera",
     "EE.UU.": "Estados Unidos", "EE.": "Estados", "UU.": "Unidos",
 }
-_NOT_SENTENCE_END_ES = set(_ABBREVIATIONS_ES) - {"etc.", "UU."}
+# A full stop after these can't be told from the abbreviation's own dot: it ends
+# a sentence only when a capital (or nothing) follows.
+_DOT_ENDS_IF_CAPITAL_ES = {"EE.UU.", "UU."}
+_NOT_SENTENCE_END_ES = set(_ABBREVIATIONS_ES) - {"etc."} - _DOT_ENDS_IF_CAPITAL_ES
 _INITIALISMS_ES = {
-    "EEUU": "Estados Unidos", "UE": "u e", "PP": "pe pe", "PNV": "pe ene uve", "ERC": "e erre ce", "BNG": "be ene ge",
-    "BCE": "be ce e", "FMI": "efe eme i", "IPC": "i pe ce", "TC": "te ce", "CGPJ": "ce ge pe jota", "AN": "a ene",
+    "EEUU": "Estados Unidos", "EE": "Estados", "UU": "Unidos", "UE": "u e", "PP": "pe pe", "PNV": "pe ene uve",
+    "ERC": "e erre ce", "BNG": "be ene ge", "BCE": "be ce e", "FMI": "efe eme i", "IPC": "i pe ce", "TC": "te ce",
+    "CGPJ": "ce ge pe jota", "AN": "a ene", "UGT": "u ge te", "CCOO": "comisiones obreras", "n.º": "número",
 }
+# After a capitalized name: "Felipe VI" -> "Felipe sexto"; above X, cardinals.
+_ROMAN_ES = {
+    "I": "primero", "II": "segundo", "III": "tercero", "IV": "cuarto", "V": "quinto", "VI": "sexto", "VII": "séptimo",
+    "VIII": "octavo", "IX": "noveno", "X": "décimo", "XI": "once", "XII": "doce", "XIII": "trece", "XIV": "catorce",
+    "XV": "quince", "XVI": "dieciséis",
+}
+_ORDINAL_STEMS_ES = {"1": "primer", "2": "segund", "3": "tercer", "4": "cuart", "5": "quint", "6": "sext",
+                     "7": "séptim", "8": "octav", "9": "noven", "10": "décim"}
+_ORDINAL_ES = re.compile(r"^(\d{1,2})\.[ªº]$")
 _EURO_ES = re.compile(r"^(\d[\d.,]*)€$")
+_DOLLAR_ES = re.compile(r"^\$(\d[\d.,]*)$")
+_RANGE_ES = re.compile(r"^(\d[\d.,]*)[-–](\d[\d.,]*)$")
+_DOT_CLOCK_ES = re.compile(r"^(\d{1,2})\.(\d{2})$")
+# espeak says every number in the masculine full form: "21 años" -> "veintiuno
+# años", "300 viviendas" -> "trescientos viviendas". Before these nouns we know
+# the gender and write the number out; Script spells out the rest (format.md).
+_MASCULINE_ES = {
+    "euro", "euros", "€", "dólar", "dólares", "millón", "millones", "año", "años", "día", "días", "mes", "meses",
+    "punto", "puntos", "diputado", "diputados", "escaño", "escaños", "minuto", "minutos", "kilómetro", "kilómetros",
+    "grado", "grados", "metro", "metros", "trabajador", "trabajadores", "muerto", "muertos", "herido", "heridos",
+}
+_FEMININE_ES = {
+    "persona", "personas", "vivienda", "viviendas", "familia", "familias", "mujer", "mujeres", "víctima", "víctimas",
+    "hora", "horas", "semana", "semanas", "empresa", "empresas", "comunidad", "comunidades", "provincia", "provincias",
+    "plaza", "plazas", "plantilla", "plantillas", "sentencia", "sentencias", "denuncia", "denuncias", "tonelada",
+    "toneladas", "hectárea", "hectáreas",
+}
+_UNITS_ES = ("", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez", "once", "doce",
+             "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve", "veinte", "veintiuno",
+             "veintidós", "veintitrés", "veinticuatro", "veinticinco", "veintiséis", "veintisiete", "veintiocho",
+             "veintinueve")
+_TENS_ES = {3: "treinta", 4: "cuarenta", 5: "cincuenta", 6: "sesenta", 7: "setenta", 8: "ochenta", 9: "noventa"}
+_HUNDREDS_ES = {2: "doscientos", 3: "trescientos", 4: "cuatrocientos", 5: "quinientos", 6: "seiscientos",
+                7: "setecientos", 8: "ochocientos", 9: "novecientos"}
 # phonemizer cuts a line at a "." between digits, as in English: inside a longer
 # text "1.200 euros al mes" came out as "uno." and the rest of the line was gone.
 _THOUSANDS_ES = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{3})+(?![\d.])")
@@ -170,6 +207,8 @@ def _ends_sentence(token: str, next_token: str | None, not_sentence_end: frozens
         return True
     if dotted == "No." and "No." not in not_sentence_end and not_sentence_end is _NOT_SENTENCE_END:
         return not _starts_with_digit(next_token)
+    if dotted in _DOT_ENDS_IF_CAPITAL_ES:
+        return next_token is None or _affixes(next_token)[1][:1].isupper()
     if dotted in not_sentence_end:
         return False
     if dotted and _INITIALISM.match(dotted):
@@ -234,27 +273,91 @@ def _digits_es(text: str) -> str:
     return _DOT_DECIMAL_ES.sub(r"\1 coma \2", text)
 
 
+def _below_1000_es(n: int, feminine: bool) -> str:
+    """Number words before a noun: "veintiún", "treinta y una", "trescientas"."""
+    hundreds, rest = divmod(n, 100)
+    parts = []
+    if hundreds:
+        word = "cien" if n == 100 else "ciento" if hundreds == 1 else _HUNDREDS_ES[hundreds]
+        parts.append(word[:-2] + "as" if feminine and hundreds > 1 else word)
+    if rest >= 30:
+        tens, unit = divmod(rest, 10)
+        parts.append(_TENS_ES[tens] + (f" y {_UNITS_ES[unit]}" if unit else ""))
+    elif rest:
+        parts.append(_UNITS_ES[rest])
+    text = " ".join(parts)
+    if text.endswith("veintiuno"):
+        return text[:-1] + "a" if feminine else text[:-9] + "veintiún"
+    if text.endswith("uno"):
+        return text[:-1] + "a" if feminine else text[:-1]
+    return text
+
+
+def _number_before_noun_es(digits: str, noun: str) -> str | None:
+    """The number written out to agree with `noun`, or None when espeak's own
+    reading will do (unknown gender, a number too large to matter)."""
+    noun = noun.lower()
+    feminine = noun in _FEMININE_ES
+    if not digits.isdigit() or not (feminine or noun in _MASCULINE_ES):
+        return None
+    n = int(digits)
+    if not 0 < n < 1_000_000:
+        return None
+    thousands, rest = divmod(n, 1000)
+    parts = []
+    if thousands:
+        # "veintiún mil personas": a unit before "mil" stays short in both genders.
+        head = _below_1000_es(thousands, feminine)
+        head = head[:-9] + "veintiún" if head.endswith("veintiuna") else head[:-1] if head.endswith("una") else head
+        parts.append("mil" if thousands == 1 else f"{head} mil")
+    if rest:
+        parts.append(_below_1000_es(rest, feminine))
+    return " ".join(parts)
+
+
+def _ordinal_es(digits: str, feminine: bool, next_core: str) -> str:
+    """"1.º de mayo" -> "primero", "1.º puesto" -> "primer", "3.ª vez" -> "tercera"."""
+    stem = _ORDINAL_STEMS_ES[digits]
+    if feminine:
+        return stem + "a"
+    if digits in ("1", "3") and next_core[:1].islower() and next_core != "de":
+        return stem
+    return stem + "o"
+
+
 def spoken_forms_es(tokens: list[str]) -> list[str]:
     """`spoken_forms` for Spanish: only what espeak's own Spanish gets wrong."""
     out = []
     for k, token in enumerate(tokens):
         lead, core, poss, trail = _affixes(token)
         dotted, rest = _dotted(core, trail)
+        prev_core = _affixes(tokens[k - 1])[1] if k else ""
+        next_core = _affixes(tokens[k + 1])[1] if k + 1 < len(tokens) else ""
         if dotted in _ABBREVIATIONS_ES:
             core, trail = _ABBREVIATIONS_ES[dotted], rest
         elif core in _INITIALISMS_ES:
             core = _INITIALISMS_ES[core]
+        elif core in _ROMAN_ES and prev_core[:1].isupper():
+            core = _ROMAN_ES[core]
+        elif (m := _ORDINAL_ES.match(core)) and m[1] in _ORDINAL_STEMS_ES:
+            core = _ordinal_es(m[1], core.endswith("ª"), next_core)
         elif m := _EURO_ES.match(core):
-            core = f"{_digits_es(m[1])} {'euro' if m[1] == '1' else 'euros'}"
+            digits = _digits_es(m[1])
+            core = f"{_number_before_noun_es(digits, 'euros') or digits} {'euro' if digits == '1' else 'euros'}"
+        elif m := _DOLLAR_ES.match(core):
+            digits = _digits_es(m[1])
+            core = f"{_number_before_noun_es(digits, 'dólares') or digits} {'dólar' if digits == '1' else 'dólares'}"
         elif core == "€":
-            before = _affixes(tokens[k - 1])[1] if k else ""
-            core = "euro" if before == "1" else "euros"
-        elif m := _RANGE.match(core):
+            core = "euro" if prev_core == "1" else "euros"
+        elif m := _RANGE_ES.match(core):
             core = f"{_digits_es(m[1])} a {_digits_es(m[2])}"
         elif m := _CLOCK.match(core):
             core = f"{m[1]}" if m[2] == "00" else f"{m[1]} {m[2]}"
+        elif (m := _DOT_CLOCK_ES.match(core)) and (prev_core.lower() in ("la", "las") or next_core.lower() == "horas"):
+            core = f"{m[1]}" if m[2] == "00" else f"{m[1]} {m[2]}"
         else:
-            core = _digits_es(core)
+            digits = _digits_es(core)
+            core = _number_before_noun_es(digits, next_core) or digits
         out.append(lead + core + poss + trail)
     return out
 

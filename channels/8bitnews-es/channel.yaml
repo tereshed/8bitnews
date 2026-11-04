@@ -32,9 +32,9 @@ format:
   description: format.md
   aspect: "9:16"
   duration_s: { min: 45, max: 90 }
-  # Все голоса на скорости 1,0 (выбор владельца 04.11.2026): 173–181 слово в минуту, в серьёзном режиме 156–163.
-  # Бюджет считан по самому медленному голосу, минимум — по самому быстрому.
-  words: { rate: 2.7, min: 135, seconds_per_word: 0.34, serious_rate: 2.45, serious_min: 125, serious_seconds_per_word: 0.38 }
+  # Все голоса на скорости 1,0 (выбор владельца 04.11.2026). Темп сильно зависит от текста: 162–181 слово в минуту,
+  # в серьёзном режиме от 149. Бюджет считан по медленному концу, минимум — по быстрому.
+  words: { rate: 2.5, min: 135, seconds_per_word: 0.37, serious_rate: 2.25, serious_min: 125, serious_seconds_per_word: 0.41 }
   templates: [nes-desk]
   default_template: nes-desk
   # Голос у каждого ведущего свой: voice_id в studio/channels/8bitnews-es/anchors/<id>/manifest.json.

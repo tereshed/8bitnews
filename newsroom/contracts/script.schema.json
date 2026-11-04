@@ -78,7 +78,7 @@
           "say": {
             "type": "string",
             "minLength": 1,
-            "description": "Respelling, e.g. 'ess-EYE-lee'"
+            "description": "How to say it, per the channel's format.md: a respelling on the US channel ('ess-EYE-lee'), plain Spanish spelling on the ES channel ('Tramp')"
           }
         }
       }
@@ -213,7 +213,7 @@
         },
         "source_plate": {
           "type": "string",
-          "description": "Source label under a number or quote: 'Source: X · Oct 21'"
+          "description": "Source label under a number or quote, in the channel's language: 'Source: X · Oct 21', 'Fuente: X · 21 oct'"
         },
         "visual": {
           "type": "string",

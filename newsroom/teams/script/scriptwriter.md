@@ -43,7 +43,8 @@
      будет картинка следующей сцены. Реальный человек на этом экране — в `real_people` этой же сцены ведущего:
      по нему в AI-метке появляется строка про иллюстрацию. В финале на экране логотип канала, его описывать не нужно;
 5. **Текст в кадре** — `on_screen_text`: главное в сцене, а не повтор озвучки. Под цифрой или цитатой —
-   `source_plate` («Source: LA County Registrar · Oct 21»). При переносе по словам в строки по 23 символа
+   `source_plate` в формате плашки из `format.md` канала («Source: LA County Registrar · Oct 21»,
+   «Fuente: Banco de España · 21 oct»). При переносе по словам в строки по 23 символа
    `on_screen_text` занимает до 2 строк, `source_plate` — до 3; длиннее студия не соберёт. Проверка — в п.10.
 6. **Музыка** — `mood` из `music/catalog.yaml` (neutral, curious, tense, urgent, somber, hopeful), `energy` 1–5
    и `cue`: где трек вступает, стихает и уходит. Тревожная музыка под образом человека без приговора — то же
@@ -55,7 +56,8 @@
    обложке), до 3 строк по 14 символов при переносе по словам; слова длиннее 14 символов замени короткими.
    Не влезает — сократи текст, не проси уменьшить шрифт. Текст — утверждение из ролика, без вопросов и намёков
    сверх досье; читается в миниатюре шириной 160 px.
-9. **Произношение** — для трудных имён и названий добавь `pronunciations` (`text` → `say`, респеллинг по слогам).
+9. **Произношение** — для трудных имён и названий добавь `pronunciations` (`text` → `say`): как писать `say`, сказано в `format.md` канала
+   (у 8BitNewsUS — английский респеллинг по слогам, у 8BitNewsES — обычное испанское написание звучания).
 10. **Счёт слов.** Сохрани сценарий в `/tmp/script.json` и посчитай:
     ```
     python3 - /tmp/script.json <<'EOF'
@@ -64,8 +66,10 @@
     words = [len(x["narration"].split()) for x in s["scenes"]]
     for x, w in zip(s["scenes"], words):
         print(x["id"], x["duration_s"], "s,", w, "words, word_count =", x["word_count"])
-    # RATE, MINIMUM, SERIOUS_RATE, SERIOUS_MINIMUM: format.words in channels/<channel_id>/channel.yaml
-    rate, minimum = (SERIOUS_RATE, SERIOUS_MINIMUM) if s["serious_mode"] else (RATE, MINIMUM)
+    import re
+    profile = open(f"channels/{s['channel_id']}/channel.yaml").read()  # from the repo root
+    w = {k: float(v) for k, v in re.findall(r"(\w+): ([\d.]+)", re.search(r"words: \{(.*?)\}", profile)[1])}
+    rate, minimum = (w["serious_rate"], w["serious_min"]) if s["serious_mode"] else (w["rate"], w["min"])
     print("total", sum(words), "budget", int(s["duration_s"] * rate), "minimum", minimum,
           "scenes sum", sum(x["duration_s"] for x in s["scenes"]), "s, duration_s", s["duration_s"])
     import textwrap
