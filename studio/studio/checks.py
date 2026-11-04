@@ -349,8 +349,8 @@ _AI_ILLUSTRATION = "AI illustration"
 
 def _label_problem(frame: np.ndarray, ctx: "_Context", text: str) -> str | None:
     """The AI line must be exactly `text` drawn where the template puts it:
-    every glyph and outline pixel, nothing drawn over them (keyframes are
-    lossless). The line has no plate, so only its own pixels are compared."""
+    every pixel of its strip and glyphs, nothing drawn over them (keyframes
+    are lossless). Only the line's own pixels are compared."""
     canvas = Image.new("RGBA", (LOGICAL_W, LOGICAL_H), (0, 0, 0, 0))
     draw_ai_label(canvas, ctx.template, text, ctx.assets.font(FONT_PX))
     want = np.asarray(canvas)

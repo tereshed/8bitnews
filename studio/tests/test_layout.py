@@ -125,6 +125,38 @@ def test_the_ai_line_holds_still_through_a_transition(night_report_dir):
     assert (frame[drawn] == want[drawn][:, :3]).all()
 
 
+@pytest.mark.parametrize("picture", [(255, 255, 255), (0xbc, 0xbc, 0xbc), (0, 0, 0)])
+@pytest.mark.parametrize("text", ["AI voice", "AI voice · AI illustration"])
+def test_the_ai_line_sits_on_its_strip_over_any_picture(nes_desk_dir, picture, text):
+    from studio.engine import ai_label_box, draw_ai_label
+
+    template = load_template(nes_desk_dir)
+    canvas = Image.new("RGBA", (270, 480), (*picture, 255))
+    draw_ai_label(canvas, template, text, FONT)
+    pixels = np.asarray(canvas.convert("RGB"))
+    box = ai_label_box(template, text, FONT)
+    strip = pixels[box["y"]:box["y"] + box["h"], box["x"]:box["x"] + box["w"]].reshape(-1, 3)
+    black = (strip == (0, 0, 0)).all(axis=1)
+    grey = (strip == (0xbc, 0xbc, 0xbc)).all(axis=1)
+    assert (black | grey).all() and grey.any() and black.sum() > grey.sum()  # nothing of the picture shows through
+    # every edge of the strip is black, so no letter touches the picture
+    for edge in (pixels[box["y"], box["x"]:box["x"] + box["w"]], pixels[box["y"] + box["h"] - 1, box["x"]:box["x"] + box["w"]],
+                 pixels[box["y"]:box["y"] + box["h"], box["x"]], pixels[box["y"]:box["y"] + box["h"], box["x"] + box["w"] - 1]):
+        assert (edge == (0, 0, 0)).all()
+    outside = np.ones((480, 270), dtype=bool)
+    outside[box["y"]:box["y"] + box["h"], box["x"]:box["x"] + box["w"]] = False
+    assert (pixels[outside] == picture).all()
+
+
+def test_validate_rejects_a_strip_the_ai_line_cannot_be_read_on(nes_desk_dir, tmp_path):
+    assert "plates.ai_label: contrast ratio" in _problems(nes_desk_dir, tmp_path,
+                                                          lambda d: d["plates"]["ai_label"].update(bg_color="#a0a0a0"))
+
+
+def test_validate_requires_the_strip_color(nes_desk_dir, tmp_path):
+    assert "bg_color" in _problems(nes_desk_dir, tmp_path, lambda d: d["plates"]["ai_label"].pop("bg_color"))
+
+
 # --- the desk in front of the anchor ---
 
 

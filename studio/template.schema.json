@@ -115,12 +115,12 @@
       "properties": {
         "ai_label": {
           "type": "object",
-          "description": "One line centered in the frame, no plate behind it: 'AI voice', joined by 'AI illustration' while a real person is in frame.",
-          "required": ["y", "text_color", "outline_color"],
+          "description": "One line centered in the frame, on a narrow strip of bg_color: 'AI voice', joined by 'AI illustration' while a real person is in frame.",
+          "required": ["y", "text_color", "bg_color"],
           "properties": {
             "y": { "type": "integer", "minimum": 0 },
             "text_color": { "$ref": "#/$defs/hex_color" },
-            "outline_color": { "$ref": "#/$defs/hex_color" }
+            "bg_color": { "$ref": "#/$defs/hex_color" }
           }
         },
         "scene_title": { "$ref": "#/$defs/plate_style" },

@@ -61,7 +61,7 @@
     "ai_label": {
       "y": 180,
       "text_color": "#bcbcbc",
-      "outline_color": "#000000"
+      "bg_color": "#000000"
     },
     "source_plate": {
       "rect": {

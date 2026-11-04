@@ -356,13 +356,22 @@ def ai_label_origin(template: TemplatePackage, text: str, font) -> tuple[int, in
     return (LOGICAL_W - text_size(text, font)[0]) // 2, template.plate("ai_label")["y"]
 
 
+def ai_label_box(template: TemplatePackage, text: str, font) -> dict:
+    """The strip behind the AI line: the line and a plate's padding."""
+    x, y = ai_label_origin(template, text, font)
+    return {"x": x - PLATE_PAD_X, "y": y - PLATE_PAD_Y, "w": text_size(text, font)[0] + 2 * PLATE_PAD_X,
+            "h": FONT_PX + 2 * PLATE_PAD_Y}
+
+
 def draw_ai_label(frame: Image.Image, template: TemplatePackage, text: str | None, font) -> None:
-    """The AI line: small text with an outline, no plate behind it."""
+    """The AI line: small grey text on a narrow strip, so it reads over any picture."""
     if not text:
         return
     cfg = template.plate("ai_label")
-    draw_text(frame, ai_label_origin(template, text, font), text, font, hex_to_rgb(cfg["text_color"]),
-              outline=hex_to_rgb(cfg["outline_color"]))
+    box = ai_label_box(template, text, font)
+    ImageDraw.Draw(frame).rectangle(
+        [box["x"], box["y"], box["x"] + box["w"] - 1, box["y"] + box["h"] - 1], fill=(*hex_to_rgb(cfg["bg_color"]), 255))
+    draw_text(frame, ai_label_origin(template, text, font), text, font, hex_to_rgb(cfg["text_color"]))
 
 
 def active_plates(script: dict, scene_timing: SceneTiming, template: TemplatePackage, t_abs: float) -> set[str]:
