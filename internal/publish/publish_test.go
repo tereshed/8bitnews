@@ -142,7 +142,7 @@ func TestTheTrialsPackage(t *testing.T) {
 
 	yt := pkg.Platforms[0]
 	if yt.Title != "Grand Jury Won't Indict Cassidy Hutchinson Over Jan. 6 Testimony" || yt.Video != "releases/d/n-video_no_music.mp4" ||
-		len(yt.Tags) != 9 || yt.Cover != "" {
+		len(yt.Tags) != 9 || yt.Cover != "releases/d/c-cover.png" {
 		t.Errorf("youtube: %+v", yt)
 	}
 	for _, want := range []string{

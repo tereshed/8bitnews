@@ -67,6 +67,8 @@ Corrections: {corrections_contact}
 **Настройки:**
 - категория News & Politics;
 - «made for kids» — нет;
+- обложка — `cover.png` из `video_package` (бот присылает её файлом): иначе YouTube сам выберет кадр, часто без темы
+  ролика;
 - метка синтетического или изменённого контента — да: в YouTube Studio это вопрос «Altered content», в API —
   `containsSyntheticMedia=true` (по `policy.md`);
 - видимость — публично; при загрузке через API её выбирает модератор при одобрении: так требуют
