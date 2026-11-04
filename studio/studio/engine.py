@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from .channel_assets import ChannelAssets
+from .channel_assets import AiLabels, ChannelAssets
 from .constants import (
     FONT_PX,
     FPS,
@@ -336,19 +336,15 @@ def _draw_plate(frame: Image.Image, plate_cfg: dict, lines: list[str], font, y: 
     return box
 
 
-AI_VOICE_LABEL = "AI voice"
-AI_ILLUSTRATION_LABEL = "AI illustration"
-
-
-def ai_label_text(plates: set[str], cover: bool = False) -> str | None:
-    """The one AI line (format.md 'Текст в кадре'): "AI voice" on every
-    frame, joined by "AI illustration" while a real person is in frame. A
-    still cover has no voice: only "AI illustration" (`cover_plates` gives
-    every S* cover one)."""
+def ai_label_text(plates: set[str], labels: AiLabels, cover: bool = False) -> str | None:
+    """The one AI line (format.md 'Текст в кадре'), in the channel's words: the
+    voice label on every frame, joined by the illustration label while a real
+    person is in frame. A still cover has no voice: only the illustration label
+    (`cover_plates` gives every S* cover one)."""
     illustration = "ai_illustration" in plates
     if cover:
-        return AI_ILLUSTRATION_LABEL if illustration else None
-    return f"{AI_VOICE_LABEL} · {AI_ILLUSTRATION_LABEL}" if illustration else AI_VOICE_LABEL
+        return labels.illustration if illustration else None
+    return labels.line(illustration)
 
 
 def ai_label_origin(template: TemplatePackage, text: str, font) -> tuple[int, int]:
@@ -478,7 +474,7 @@ def render_cover_frame(
     frame = _render_scene_pixels(script, scene, scene_timing, template, assets, t_abs, assets_dir, palette, font)
     plates = cover_plates(script, scene_timing, template, t_abs)
     _draw_content_plates(frame, scene, plates, template, font)
-    draw_ai_label(frame, template, ai_label_text(plates, cover=True), font)
+    draw_ai_label(frame, template, ai_label_text(plates, assets.labels, cover=True), font)
     return frame.convert("RGB")
 
 
@@ -653,5 +649,5 @@ def render_frame(
 
     # The AI line goes on last, outside the transition: it holds still on every frame.
     frame = frame.convert("RGBA")
-    draw_ai_label(frame, template, ai_label_text(plates), font)
+    draw_ai_label(frame, template, ai_label_text(plates, assets.labels), font)
     return frame.convert("RGB")

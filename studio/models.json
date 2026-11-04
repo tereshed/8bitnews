@@ -70,6 +70,21 @@
         "path": "voices/am_eric.bin",
         "url": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX-timestamped/resolve/dd4401a9add81ac692d20e240d22ec9dda82cc29/voices/am_eric.bin",
         "sha256": "e8b5be17edd1e3636901ce7598baafe2dc8dd8ff707a0c23bf9e461add7e2832"
+      },
+      {
+        "path": "voices/ef_dora.bin",
+        "url": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX-timestamped/resolve/dd4401a9add81ac692d20e240d22ec9dda82cc29/voices/ef_dora.bin",
+        "sha256": "f66ec66bd295acb18372e37008533a9a3228483ccd294e7538d5d9294ac9a532"
+      },
+      {
+        "path": "voices/em_alex.bin",
+        "url": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX-timestamped/resolve/dd4401a9add81ac692d20e240d22ec9dda82cc29/voices/em_alex.bin",
+        "sha256": "27809e9eafdcbcfff90a3016c697568676531de2a2c39cee29c96c7bd6b83e95"
+      },
+      {
+        "path": "voices/em_santa.bin",
+        "url": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX-timestamped/resolve/dd4401a9add81ac692d20e240d22ec9dda82cc29/voices/em_santa.bin",
+        "sha256": "ad43b774e1ca24d05c6161297d8aeb770ac3d29bb95daf516727af5f7d543683"
       }
     ]
   }

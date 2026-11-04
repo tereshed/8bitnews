@@ -343,10 +343,6 @@ class _Context:
         return False
 
 
-_AI_VOICE = "AI voice"  # format.md 'Текст в кадре': the AI line
-_AI_ILLUSTRATION = "AI illustration"
-
-
 def _label_problem(frame: np.ndarray, ctx: "_Context", text: str) -> str | None:
     """The AI line must be exactly `text` drawn where the template puts it:
     every pixel of its strip and glyphs, nothing drawn over them (keyframes
@@ -370,12 +366,13 @@ def _image(package_dir: Path, rel: str) -> np.ndarray:
 
 @register("ai_label")
 def _check_ai_label(package_dir: Path, package: dict, channel_profile: dict) -> dict:
-    """format.md, stated independently of the engine: every frame says "AI
-    voice", joined by "AI illustration" while a real person is in frame;
-    every S* cover says "AI illustration" (its picture and the anchor are
-    generated), and so does a cover the image model drew
-    (build._render_custom_cover)."""
+    """format.md, stated independently of the engine, in the channel's words
+    (`labels.json`): every frame has the voice label, joined by the illustration
+    label while a real person is in frame; every S* cover has the illustration
+    label (its picture and the anchor are generated), and so does a cover the
+    image model drew (build._render_custom_cover)."""
     ctx = _Context(package_dir, package)
+    labels = ctx.assets.labels
     problems = []
     frames = [(kf["path"], kf["scene_id"], kf["t_s"], False) for kf in _keyframes(package_dir, package)]
     cover_frame = ctx.script["cover"]["frame"]
@@ -386,23 +383,23 @@ def _check_ai_label(package_dir: Path, package: dict, channel_profile: dict) -> 
     if cover_frame == "custom" and any(s["id"] == "cover" for s in package.get("images", {}).get("scenes", [])):
         checked += 1
         rel = package["files"]["cover"]["path"]
-        why = _label_problem(_image(package_dir, rel), ctx, _AI_ILLUSTRATION)
+        why = _label_problem(_image(package_dir, rel), ctx, labels.illustration)
         if why:
-            problems.append(f"{rel} (a cover drawn by the image model): no {_AI_ILLUSTRATION!r} line: {why}")
+            problems.append(f"{rel} (a cover drawn by the image model): no {labels.illustration!r} line: {why}")
     for rel, scene_id, t, is_cover in frames:
         st = ctx.timing(scene_id)
         mid_transition = not is_cover and ctx.in_transition(scene_id, t)
         if is_cover:
-            want = _AI_ILLUSTRATION
-            shown = ai_label_text(cover_plates(ctx.script, st, ctx.template, t), cover=True)
+            want = labels.illustration
+            shown = ai_label_text(cover_plates(ctx.script, st, ctx.template, t), labels, cover=True)
         else:
             person = ctx.real_person_in_frame(scene_id)
             if mid_transition:
                 # the AI line holds still over a transition, and both scenes are in frame
                 prev = ctx.timeline.scenes[ctx.timeline.scenes.index(st) - 1]
                 person = person or ctx.real_person_in_frame(prev.scene_id)
-            want = f"{_AI_VOICE} · {_AI_ILLUSTRATION}" if person else _AI_VOICE
-            shown = ai_label_text(active_plates(ctx.script, st, ctx.template, t))
+            want = labels.line(person)
+            shown = ai_label_text(active_plates(ctx.script, st, ctx.template, t), labels)
         if shown != want and not mid_transition:  # active_plates is one scene's; render_frame adds the other's
             problems.append(f"{rel} ({scene_id}, {t:.2f}s): the engine draws the AI line {shown!r}, not {want!r}")
         checked += 1

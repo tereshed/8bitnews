@@ -1,0 +1,5 @@
+{
+  "$comment": "The words of the AI line in the channel's language (format.md, 'Текст в кадре'), drawn on every frame and checked by studio validate.",
+  "ai_voice": "Voz IA",
+  "ai_illustration": "Ilustración IA"
+}

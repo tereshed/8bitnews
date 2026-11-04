@@ -17,6 +17,11 @@ spends on every phoneme token, and the audio follows those frames exactly
   sentence or a clause is topped up to `sentence_pause_s`/`clause_pause_s`,
   splicing silence in the middle of the quiet gap the model left.
 Pronunciation hints are read by the respelling key, not by espeak.
+
+A voice speaks one language, named by the first letter of its id (Kokoro's
+VOICES.md: "a" American English, "e" Spanish), and the adapter reads in that
+language (`_LANGUAGES`). Spanish spelling says how a word sounds, so a Spanish
+hint is plain Spanish text read by espeak, without the respelling key.
 """
 from __future__ import annotations
 
@@ -24,7 +29,9 @@ import difflib
 import json
 import os
 import re
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 
@@ -40,7 +47,7 @@ DEFAULT_MODELS_DIR = "/opt/kokoro"
 
 SENTENCE_MARKS = ".!?…"
 CLAUSE_MARKS = ",;:—"
-_NON_SOUND = set(";:,.!?—…\"()“” ")
+_NON_SOUND = set(";:,.!?—…\"()“” ¿¡«»")
 _STRESS = set("ˈˌ")
 
 _QUIET_DB = -40.0
@@ -89,7 +96,26 @@ _RANGE = re.compile(r"^(\d[\d,]*)[-–](\d[\d,]*)$")
 _CLOCK = re.compile(r"^(\d{1,2}):(\d{2})$")
 _MONEY = re.compile(r"^\$(\d[\d,]*)(?:\.(\d+))?$")
 _INITIALISM = re.compile(r"^(?:[A-Za-z]\.){2,}$")
-_AFFIX = re.compile(r"^(?P<lead>[\"'“‘(\[]*)(?P<core>.*?)(?P<poss>['’]s)?(?P<trail>[\"'”’)\],;:!?….—–]*)$", re.S)
+_AFFIX = re.compile(r"^(?P<lead>[\"'“‘(\[¿¡«]*)(?P<core>.*?)(?P<poss>['’]s)?(?P<trail>[\"'”’»)\],;:!?….—–]*)$", re.S)
+
+# Spanish: espeak reads "2,3 %", "1.200" and dates as they are spoken; these
+# it gets wrong ("EE. UU." -> "ee uu", "UE" -> "we", "14:30" keeps the colon,
+# "15 €" -> "quince euro").
+_ABBREVIATIONS_ES = {
+    "Sr.": "señor", "Sra.": "señora", "Srta.": "señorita", "Dr.": "doctor", "Dra.": "doctora", "Dña.": "doña",
+    "art.": "artículo", "núm.": "número", "vs.": "contra", "aprox.": "aproximadamente", "etc.": "etcétera",
+    "EE.UU.": "Estados Unidos", "EE.": "Estados", "UU.": "Unidos",
+}
+_NOT_SENTENCE_END_ES = set(_ABBREVIATIONS_ES) - {"etc.", "UU."}
+_INITIALISMS_ES = {
+    "EEUU": "Estados Unidos", "UE": "u e", "PP": "pe pe", "PNV": "pe ene uve", "ERC": "e erre ce", "BNG": "be ene ge",
+    "BCE": "be ce e", "FMI": "efe eme i", "IPC": "i pe ce", "TC": "te ce", "CGPJ": "ce ge pe jota", "AN": "a ene",
+}
+_EURO_ES = re.compile(r"^(\d[\d.,]*)€$")
+# phonemizer cuts a line at a "." between digits, as in English: inside a longer
+# text "1.200 euros al mes" came out as "uno." and the rest of the line was gone.
+_THOUSANDS_ES = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{3})+(?![\d.])")
+_DOT_DECIMAL_ES = re.compile(r"(\d)\.(\d)")
 
 
 def models_dir() -> Path:
@@ -117,30 +143,34 @@ def _dotted(core: str, trail: str) -> tuple[str | None, str]:
     return None, trail
 
 
+_CLOSERS = "\"'”’»)]"
+
+
 def _final_mark(trail: str) -> str:
     """The last punctuation mark, looking through closing quotes and brackets
     ('why?"' -> "?"); "" when there is none."""
-    return trail.rstrip("\"'”’)]")[-1:]
+    return trail.rstrip(_CLOSERS)[-1:]
 
 
 def _starts_with_digit(token: str | None) -> bool:
     return bool(token) and _affixes(token)[1][:1].isdigit()
 
 
-def _ends_sentence(token: str, next_token: str | None) -> bool:
+def _ends_sentence(token: str, next_token: str | None, not_sentence_end: frozenset[str] | set[str] | None = None) -> bool:
     """A sentence ends after this token (the model then gets a full pause).
     Titles never end one, "No." does unless a number follows, "U.S." only
     at the end of the narration -- a full stop after it can't be told apart."""
+    not_sentence_end = _NOT_SENTENCE_END if not_sentence_end is None else not_sentence_end
     _, core, _, trail = _affixes(token)
     dotted, rest = _dotted(core, trail)
     mark = _final_mark(rest) or ("." if dotted else "")
     if mark != ".":
         return bool(mark) and mark in SENTENCE_MARKS
-    if rest.strip("\"'”’)]"):  # "U.S.." / "Inc.)." -- more punctuation after the dot
+    if rest.strip(_CLOSERS):  # "U.S.." / "Inc.)." -- more punctuation after the dot
         return True
-    if dotted == "No.":
+    if dotted == "No." and "No." not in not_sentence_end and not_sentence_end is _NOT_SENTENCE_END:
         return not _starts_with_digit(next_token)
-    if dotted in _NOT_SENTENCE_END:
+    if dotted in not_sentence_end:
         return False
     if dotted and _INITIALISM.match(dotted):
         return next_token is None
@@ -198,8 +228,64 @@ def spoken_forms(tokens: list[str]) -> list[str]:
     return out
 
 
+def _digits_es(text: str) -> str:
+    """"1.200" -> "1200", and a stray "3.5" -> "3 coma 5": no dot between digits."""
+    text = _THOUSANDS_ES.sub(lambda m: m[0].replace(".", ""), text)
+    return _DOT_DECIMAL_ES.sub(r"\1 coma \2", text)
+
+
+def spoken_forms_es(tokens: list[str]) -> list[str]:
+    """`spoken_forms` for Spanish: only what espeak's own Spanish gets wrong."""
+    out = []
+    for k, token in enumerate(tokens):
+        lead, core, poss, trail = _affixes(token)
+        dotted, rest = _dotted(core, trail)
+        if dotted in _ABBREVIATIONS_ES:
+            core, trail = _ABBREVIATIONS_ES[dotted], rest
+        elif core in _INITIALISMS_ES:
+            core = _INITIALISMS_ES[core]
+        elif m := _EURO_ES.match(core):
+            core = f"{_digits_es(m[1])} {'euro' if m[1] == '1' else 'euros'}"
+        elif core == "€":
+            before = _affixes(tokens[k - 1])[1] if k else ""
+            core = "euro" if before == "1" else "euros"
+        elif m := _RANGE.match(core):
+            core = f"{_digits_es(m[1])} a {_digits_es(m[2])}"
+        elif m := _CLOCK.match(core):
+            core = f"{m[1]}" if m[2] == "00" else f"{m[1]} {m[2]}"
+        else:
+            core = _digits_es(core)
+        out.append(lead + core + poss + trail)
+    return out
+
+
+@dataclass(frozen=True)
+class _Language:
+    espeak: str
+    voice_prefix: str
+    spoken_forms: Callable[[list[str]], list[str]]
+    not_sentence_end: frozenset[str]
+    respell_hints: bool
+    """A hint's `say` goes through the English respelling key; otherwise
+    espeak reads it as ordinary text in this language."""
+
+
+_LANGUAGES = {
+    "en": _Language("en-us", "a", spoken_forms, _NOT_SENTENCE_END, True),
+    "es": _Language("es", "e", spoken_forms_es, frozenset(_NOT_SENTENCE_END_ES), False),
+}
+
+
+def _language_of_voice(voice_id: str) -> str:
+    code = next((code for code, lang in _LANGUAGES.items() if voice_id.startswith(lang.voice_prefix)), None)
+    if code is None:
+        raise BuildError(f"Kokoro voice {voice_id!r}: no language for its first letter (have: "
+                         f"{', '.join(f'{lang.voice_prefix}_ = {code}' for code, lang in _LANGUAGES.items())})")
+    return code
+
+
 class _Phonemizer:
-    def __init__(self):
+    def __init__(self, espeak_language: str = "en-us"):
         import espeakng_loader
         from phonemizer.backend import EspeakBackend
         from phonemizer.backend.espeak.wrapper import EspeakWrapper
@@ -208,7 +294,7 @@ class _Phonemizer:
         # espeak-ng ignores a data path longer than 160 characters (a deep
         # venv on a dev machine): STUDIO_ESPEAK_DATA points at a short copy.
         EspeakWrapper.set_data_path(os.environ.get("STUDIO_ESPEAK_DATA") or espeakng_loader.get_data_path())
-        self._backend = EspeakBackend("en-us", preserve_punctuation=True, with_stress=True)
+        self._backend = EspeakBackend(espeak_language, preserve_punctuation=True, with_stress=True)
 
     def __call__(self, text: str) -> str:
         # One text per call: given a list, phonemizer's punctuation handling
@@ -240,12 +326,12 @@ class _Phonemizer:
         return "".join(c for c in lead + out + ("z" if poss else "") + trail if c not in "\"'“”‘’()[]")
 
 
-def _sentence_chunks(tokens: list[str]) -> list[list[int]]:
+def _sentence_chunks(tokens: list[str], not_sentence_end: frozenset[str] | set[str] | None = None) -> list[list[int]]:
     """Token indexes grouped into sentences."""
     chunks, current = [], []
     for i, tok in enumerate(tokens):
         current.append(i)
-        if _ends_sentence(tok, tokens[i + 1] if i + 1 < len(tokens) else None):
+        if _ends_sentence(tok, tokens[i + 1] if i + 1 < len(tokens) else None, not_sentence_end):
             chunks.append(current)
             current = []
     if current:
@@ -344,7 +430,7 @@ def _snap(spans: list[tuple[int, int] | None], quiet: np.ndarray) -> list[tuple[
 
 class KokoroTtsAdapter:
     def __init__(self, speed: float = 1.1, sentence_pause_s: float = 0.25, clause_pause_s: float = 0.1,
-                 models: Path | None = None):
+                 models: Path | None = None, language: str = "en"):
         import onnxruntime as ort
 
         self.speed = float(speed)
@@ -359,14 +445,20 @@ class KokoroTtsAdapter:
         opts.log_severity_level = 3
         self._session = ort.InferenceSession(str(model_path), opts, providers=["CPUExecutionProvider"])
         self._vocab = json.loads((self.models / "tokenizer.json").read_text())["model"]["vocab"]
-        self._phonemize = _Phonemizer()
+        self._language = _LANGUAGES[language]
+        self._phonemize = _Phonemizer(self._language.espeak)
         self._voices: dict[str, np.ndarray] = {}
 
     @classmethod
-    def from_settings(cls, settings: dict, serious: bool = False, voice_id: str | None = None) -> "KokoroTtsAdapter":
+    def from_settings(cls, settings: dict, serious: bool = False, voice_id: str | None = None,
+                      language: str | None = None) -> "KokoroTtsAdapter":
         """Each voice reads at its own speed, set so that every voice keeps
         the channel's pace (config.json `tts.kokoro.voices`): format.md's
-        word budget assumes that pace whichever anchor reads."""
+        word budget assumes that pace whichever anchor reads. `language` is
+        the script's: a voice of another language can't read it."""
+        voice_language = _language_of_voice(voice_id or "")
+        if language and language.split("-")[0].lower() != voice_language:
+            raise BuildError(f"Kokoro voice {voice_id!r} speaks {voice_language!r}, the script is in {language!r}")
         voices = settings.get("voices", {})
         key = "serious_speed" if serious else "speed"
         if not isinstance(voices.get(voice_id), dict) or not isinstance(voices[voice_id].get(key), (int, float)):
@@ -376,6 +468,7 @@ class KokoroTtsAdapter:
             speed=voices[voice_id][key],
             sentence_pause_s=settings.get("sentence_pause_s", 0.25),
             clause_pause_s=settings.get("clause_pause_s", 0.1),
+            language=voice_language,
         )
 
     def describe(self) -> dict:
@@ -400,8 +493,8 @@ class KokoroTtsAdapter:
         """(sentence phonemes, each token's phonemes on its own). Runs of
         plain words are phonemized together, in their spoken forms; a token
         a pronunciation hint put there is built syllable by syllable."""
-        forms = spoken_forms(tokens)
-        hinted = [k in hinted_idx for k in range(len(tokens))]
+        forms = self._language.spoken_forms(tokens)
+        hinted = [k in hinted_idx and self._language.respell_hints for k in range(len(tokens))]
         ref = [self._phonemize.respell(t) if h else self._phonemize(f) for t, f, h in zip(tokens, forms, hinted)]
         parts, run = [], []
         for f, h, r in zip(forms, hinted, ref):
@@ -466,7 +559,7 @@ class KokoroTtsAdapter:
 
         # Sentences go to the model together while they fit in one pass.
         chunks: list[list[int]] = []
-        for sentence in _sentence_chunks(tokens):
+        for sentence in _sentence_chunks(tokens, self._language.not_sentence_end):
             candidate = (chunks[-1] + sentence) if chunks else sentence
             if chunks and self._fits(candidate, tokens, hinted):
                 chunks[-1] = candidate
@@ -521,7 +614,7 @@ class KokoroTtsAdapter:
         # punctuation-only token after it ("said — then").
         wants: dict[int, tuple[float, bool]] = {}
         for k in range(len(tokens) - 1):
-            sentence = _ends_sentence(tokens[k], tokens[k + 1])
+            sentence = _ends_sentence(tokens[k], tokens[k + 1], self._language.not_sentence_end)
             want = self.sentence_pause_s if sentence else self.clause_pause_s if _clause_mark(tokens[k]) else 0
             spoken = next((j for j in range(k, -1, -1) if spans[j]), None)
             if want and spoken is not None:
