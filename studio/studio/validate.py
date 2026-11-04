@@ -14,7 +14,7 @@ from PIL import Image
 
 from .channel_assets import anchor_ids, load_anchor, load_channel_assets
 from .constants import FONT_PX, LOGICAL_H, LOGICAL_W, MAX_SUBTITLE_CHARS_PER_LINE, MAX_SUBTITLE_LINES
-from .cover_title import COVER_TEXT_MAX_CHARS, cover_text_capacity, worst_case_title_lines
+from .cover_title import COVER_TEXT_MAX_CHARS, cover_font_px, cover_text_capacity, worst_case_title_lines
 from .errors import TemplateValidationError
 from .palette import channel_palette_set, image_colors_in_palette
 from .paths import TEMPLATE_SCHEMA_PATH
@@ -341,12 +341,14 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
             problems.append(f"cover.layout.text_rect {cover_rect} overlaps the face of anchor {covered}")
         if rects_intersect(cover_rect, ai_rect):
             problems.append(f"cover.layout.text_rect {cover_rect} overlaps the AI line {ai_rect} (plates.ai_label)")
-        max_chars, max_rows = cover_text_capacity(cover_rect)
+        font_px = cover_font_px(data["cover"]["layout"])
+        max_chars, max_rows = cover_text_capacity(cover_rect, font_px)
         needed = worst_case_title_lines(max_chars)
         if needed > max_rows:
             problems.append(
                 f"cover.layout.text_rect {cover_rect} fits {max_rows} line(s) of {max_chars} characters; a "
-                f"{COVER_TEXT_MAX_CHARS}-character title can need {needed} (h >= {FONT_PX + (needed - 1) * (FONT_PX + 2) + 4})"
+                f"{COVER_TEXT_MAX_CHARS}-character title can need {needed} at {font_px}px "
+                f"(h >= {font_px + (needed - 1) * (font_px + 2) + 4})"
             )
 
     for color in data.get("palette", {}).get("colors", []):

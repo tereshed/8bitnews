@@ -113,9 +113,20 @@ def test_validate_rejects_plate_too_low_for_its_max_lines(nes_desk_dir, tmp_path
 
 
 def test_validate_rejects_cover_rect_too_small_for_a_30_char_title(night_report_dir, tmp_path):
-    # 23 characters a line, h=22 holds 2 lines; "Voter disenfranchisement fears" needs 3
+    # At the shipped 16px: 11 characters a line, h=22 holds 1 line.
     d = _edited_template(night_report_dir, tmp_path, lambda d: d["cover"]["layout"]["text_rect"].update(w=188, h=22))
-    assert "fits 2 line(s) of 23 characters; a 30-character title can need 3" in _problems(d)
+    assert "fits 1 line(s) of 11 characters; a 30-character title can need 5 at 16px" in _problems(d)
+
+
+def test_validate_checks_a_template_without_font_scale_at_the_channel_font(night_report_dir, tmp_path):
+    # Older templates keep the 8px title: 23 characters a line, h=22 holds 2 lines.
+    def edit(d):
+        layout = d["cover"]["layout"]
+        del layout["font_scale"]
+        layout["text_rect"].update(w=188, h=22)
+
+    d = _edited_template(night_report_dir, tmp_path, edit)
+    assert "fits 2 line(s) of 23 characters; a 30-character title can need 3 at 8px" in _problems(d)
 
 
 def test_worst_case_title_lines_matches_a_real_three_line_title():
@@ -123,7 +134,8 @@ def test_worst_case_title_lines_matches_a_real_three_line_title():
     from studio.subtitles import wrap_words
 
     assert len(wrap_words("Voter disenfranchisement fears".split(), 23)) == 3
-    assert worst_case_title_lines(23) == 3  # nes-desk / night-report width
+    assert worst_case_title_lines(23) == 3
+    assert worst_case_title_lines(14) == 3  # nes-desk / night-report width at 16px
     assert worst_case_title_lines(10) == 5
 
 
