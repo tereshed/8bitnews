@@ -69,6 +69,7 @@ Correcciones: {corrections_contact}
 - «made for kids» — нет;
 - метка синтетического или изменённого контента — да: в YouTube Studio это вопрос «Altered content», в API —
   `containsSyntheticMedia=true` (по `policy.md`);
+- обложка — `cover.png` из `video_package`: иначе YouTube сам выберет кадр, часто без темы ролика;
 - видимость — публично; при загрузке через API её выбирает модератор при одобрении: так требуют
   Developer Policies YouTube;
 - язык метаданных и звука — Spanish (Spain);
