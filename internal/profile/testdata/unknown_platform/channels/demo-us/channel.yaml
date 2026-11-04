@@ -23,6 +23,7 @@ format:
   description: format.md
   aspect: "9:16"
   duration_s: { min: 45, max: 90 }
+  words: { rate: 2.2, min: 110, seconds_per_word: 0.42, serious_rate: 2.0, serious_min: 100, serious_seconds_per_word: 0.46 }
   templates: []
   default_template: demo
   voice: { provider: demo }

@@ -1,0 +1,48 @@
+# Профиль канала 8BitNewsES. Формат — как у 8BitNewsUS (решение владельца 04.11.2026).
+# YouTube: канал UCN5kz5l8wqiwlzDeMnRldDg.
+
+id: 8bitnews-es
+name: 8BitNewsES
+country: ES
+language: es-ES
+timezone: Europe/Madrid
+
+platforms:
+  youtube:   { enabled: true, account: "@8BitNewsES" }
+  tiktok:    { enabled: true, account: tbd }
+  instagram: { enabled: true, account: tbd }
+
+schedule:
+  # Запуски конвейера в PolyMaths (cron в timezone канала). Один запуск = один ролик.
+  runs: ["0 7 * * *"]
+  # Слоты публикации после одобрения (локальное время канала).
+  publish_slots: ["09:00"]
+
+moderation:
+  approval_required: true
+
+editorial:
+  tone: calm, neutral, analytical; serious mode for deaths, violence and disasters (format.md)
+  topics_include: []
+  # Снять после 29.11.2026: до выборов первые ролики идут без предвыборных тем (operator/legal.md#es-elections).
+  topics_exclude:
+    - "General election of 29 November 2026: candidates, party campaigns and programmes, electoral polls, voting procedure"
+
+format:
+  description: format.md
+  aspect: "9:16"
+  duration_s: { min: 45, max: 90 }
+  # Все голоса на скорости 1,0 (выбор владельца 04.11.2026): 173–181 слово в минуту, в серьёзном режиме 156–163.
+  # Бюджет считан по самому медленному голосу, минимум — по самому быстрому.
+  words: { rate: 2.7, min: 135, seconds_per_word: 0.34, serious_rate: 2.45, serious_min: 125, serious_seconds_per_word: 0.38 }
+  templates: [nes-desk]
+  default_template: nes-desk
+  # Голос у каждого ведущего свой: voice_id в studio/channels/8bitnews-es/anchors/<id>/manifest.json.
+  voice: { provider: kokoro }
+  subtitles: burned_in
+
+sources: countries/es/sources.yaml
+policy: countries/es/policy.md
+
+experiments:
+  enabled: false

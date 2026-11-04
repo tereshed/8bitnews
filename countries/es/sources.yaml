@@ -1,0 +1,141 @@
+# Источники для каналов страны ES. Стартовый список — расширяется по ходу работы.
+# leaning — ориентировочная позиция редакции в испанском спектре, а не истина: агенты используют её, чтобы покрыть
+# весь спектр, а не чтобы оценивать материалы. Общепринятого рейтинга, как в США, у испанской прессы нет: разметка —
+# по самоописанию изданий и исследованиям аудитории; её можно уточнять.
+# Издания с выраженной позицией (left, right) представляют позицию своей стороны; факт подтверждай ещё и источником
+# без такой позиции или первоисточником. Правило одно для обеих сторон.
+# ownership: private | public_broadcaster | state_funded | state_controlled
+# paywall: true — большинство материалов за платным или лимитированным доступом. В списках источников hub помечает
+# такие ссылки «(de pago)», а state_funded и state_controlled — «(medio estatal)» (policy.md, «Источники в ролике»).
+
+country: ES
+language: es-ES
+
+local:
+  # агентства и общественное вещание
+  - { outlet: Agencia EFE, domain: efe.com, kind: wire, leaning: center, ownership: state_funded, note: "государственная компания" }
+  - { outlet: Europa Press, domain: europapress.es, kind: wire, leaning: center }
+  - { outlet: RTVE, domain: rtve.es, kind: press, leaning: center, ownership: public_broadcaster, note: "руководство избирают Cortes; баланс меняется с большинством" }
+  # центр и деловые
+  - { outlet: La Vanguardia, domain: lavanguardia.com, kind: press, leaning: center, note: "Барселона, взгляд из Каталонии" }
+  - { outlet: El Confidencial, domain: elconfidencial.com, kind: press, leaning: center }
+  - { outlet: 20minutos, domain: 20minutos.es, kind: press, leaning: center }
+  - { outlet: Expansión, domain: expansion.com, kind: press, leaning: center, paywall: true, note: "деловая" }
+  - { outlet: Cinco Días, domain: cincodias.elpais.com, kind: press, leaning: center, paywall: true, note: "деловая, группа Prisa" }
+  - { outlet: La Voz de Galicia, domain: lavozdegalicia.es, kind: press, leaning: center, note: "региональная" }
+  # левее центра
+  - { outlet: El País, domain: elpais.com, kind: press, leaning: lean_left, paywall: true }
+  - { outlet: Cadena SER, domain: cadenaser.com, kind: press, leaning: lean_left }
+  - { outlet: laSexta, domain: lasexta.com, kind: press, leaning: lean_left }
+  - { outlet: El Periódico, domain: elperiodico.com, kind: press, leaning: lean_left }
+  - { outlet: elDiario.es, domain: eldiario.es, kind: press, leaning: left }
+  - { outlet: infoLibre, domain: infolibre.es, kind: press, leaning: left }
+  - { outlet: Público, domain: publico.es, kind: press, leaning: left }
+  # правее центра
+  - { outlet: El Mundo, domain: elmundo.es, kind: press, leaning: lean_right, paywall: true }
+  - { outlet: ABC, domain: abc.es, kind: press, leaning: lean_right, paywall: true }
+  - { outlet: El Español, domain: elespanol.com, kind: press, leaning: lean_right }
+  - { outlet: Antena 3 Noticias, domain: antena3.com, kind: press, leaning: lean_right }
+  - { outlet: Onda Cero, domain: ondacero.es, kind: press, leaning: lean_right }
+  - { outlet: COPE, domain: cope.es, kind: press, leaning: lean_right }
+  - { outlet: La Razón, domain: larazon.es, kind: press, leaning: right }
+  - { outlet: Libertad Digital, domain: libertaddigital.com, kind: press, leaning: right }
+  - { outlet: The Objective, domain: theobjective.com, kind: press, leaning: right }
+  - { outlet: OKdiario, domain: okdiario.com, kind: press, leaning: right }
+  # взгляд из автономий: сюжеты о Каталонии и Стране Басков сверяем с местной прессой
+  - { outlet: Ara, domain: ara.cat, kind: press, language: ca, note: "Каталония, каталонский язык", paywall: true }
+  - { outlet: El Correo, domain: elcorreo.com, kind: press, leaning: center, note: "Страна Басков", paywall: true }
+  - { outlet: Deia, domain: deia.eus, kind: press, note: "Страна Басков, близка к баскским националистам" }
+  - { outlet: Naiz, domain: naiz.eus, kind: press, leaning: left, note: "Страна Басков, левые абертцале" }
+
+world:
+  - region: United States
+    outlets:
+      - { outlet: Associated Press, domain: apnews.com, language: en, ownership: private, note: "агентство" }
+      - { outlet: Reuters, domain: reuters.com, language: en, ownership: private, note: "агентство" }
+      - { outlet: The New York Times, domain: nytimes.com, language: en, ownership: private, paywall: true }
+      - { outlet: The Wall Street Journal, domain: wsj.com, language: en, ownership: private, paywall: true }
+      - { outlet: Bloomberg, domain: bloomberg.com, language: en, ownership: private, paywall: true }
+  - region: UK
+    outlets:
+      - { outlet: BBC News, domain: bbc.com, language: en, ownership: public_broadcaster }
+      - { outlet: The Guardian, domain: theguardian.com, language: en, ownership: private }
+      - { outlet: Financial Times, domain: ft.com, language: en, ownership: private, paywall: true }
+      - { outlet: The Telegraph, domain: telegraph.co.uk, language: en, ownership: private, paywall: true }
+      - { outlet: The Economist, domain: economist.com, language: en, ownership: private, paywall: true }
+  - region: Western Europe
+    outlets:
+      - { outlet: Le Monde, domain: lemonde.fr, language: fr, ownership: private }
+      - { outlet: Le Figaro, domain: lefigaro.fr, language: fr, ownership: private }
+      - { outlet: Der Spiegel, domain: spiegel.de, language: de, ownership: private }
+      - { outlet: Frankfurter Allgemeine Zeitung, domain: faz.net, language: de, ownership: private }
+      - { outlet: Corriere della Sera, domain: corriere.it, language: it, ownership: private }
+      - { outlet: Público, domain: publico.pt, language: pt, ownership: private, note: "Португалия" }
+      - { outlet: AFP, domain: afp.com, language: fr, ownership: private, note: "агентство" }
+      - { outlet: Politico Europe, domain: politico.eu, language: en, ownership: private, note: "институты ЕС" }
+  - region: Eastern Europe
+    outlets:
+      - { outlet: The Kyiv Independent, domain: kyivindependent.com, language: en, ownership: private }
+      - { outlet: Gazeta Wyborcza, domain: wyborcza.pl, language: pl, ownership: private }
+      - { outlet: TASS, domain: tass.com, language: en, ownership: state_controlled }
+      # RT нет в списке намеренно: вещание RT запрещено в ЕС (Council Regulation (EU) 2022/350), оператор — в Испании.
+  - region: Latin America
+    outlets:
+      - { outlet: Clarín, domain: clarin.com, language: es, ownership: private }
+      - { outlet: La Nación, domain: lanacion.com.ar, language: es, ownership: private }
+      - { outlet: El Universal, domain: eluniversal.com.mx, language: es, ownership: private }
+      - { outlet: El Tiempo, domain: eltiempo.com, language: es, ownership: private }
+      - { outlet: La Tercera, domain: latercera.com, language: es, ownership: private }
+      - { outlet: Folha de S.Paulo, domain: folha.uol.com.br, language: pt, ownership: private }
+  - region: Maghreb
+    outlets:
+      - { outlet: Le Matin, domain: lematin.ma, language: fr, ownership: private, note: "Марокко" }
+      - { outlet: Hespress, domain: en.hespress.com, language: en, ownership: private, note: "Марокко" }
+      - { outlet: Jeune Afrique, domain: jeuneafrique.com, language: fr, ownership: private, paywall: true }
+  - region: China and East Asia
+    outlets:
+      - { outlet: Xinhua, domain: news.cn, language: en, ownership: state_controlled }
+      - { outlet: Global Times, domain: globaltimes.cn, language: en, ownership: state_controlled }
+      - { outlet: South China Morning Post, domain: scmp.com, language: en, ownership: private }
+      - { outlet: NHK World, domain: nhk.or.jp, language: en, ownership: public_broadcaster }
+  - region: Middle East
+    outlets:
+      - { outlet: Al Jazeera, domain: aljazeera.com, language: en, ownership: state_funded }
+      - { outlet: Haaretz, domain: haaretz.com, language: en, ownership: private, paywall: true }
+      - { outlet: Arab News, domain: arabnews.com, language: en, ownership: private, note: "близок к официальной позиции Саудовской Аравии" }
+      - { outlet: Tehran Times, domain: tehrantimes.com, language: en, ownership: state_controlled }
+  - region: Africa
+    outlets:
+      - { outlet: Daily Maverick, domain: dailymaverick.co.za, language: en, ownership: private }
+      - { outlet: Premium Times, domain: premiumtimesng.com, language: en, ownership: private }
+
+primary:
+  - boe.es
+  - lamoncloa.gob.es
+  - congreso.es
+  - senado.es
+  - poderjudicial.es
+  - tribunalconstitucional.es
+  - fiscal.es
+  - juntaelectoralcentral.es
+  - interior.gob.es
+  - exteriores.gob.es
+  - defensa.gob.es
+  - hacienda.gob.es
+  - sanidad.gob.es
+  - mites.gob.es
+  - mivau.gob.es
+  - ine.es
+  - bde.es
+  - cnmc.es
+  - aemet.es
+  - europa.eu
+
+pollsters:
+  - { name: CIS, domain: cis.es }
+  - { name: 40dB, domain: 40db.es }
+  - { name: GAD3, domain: gad3.com }
+  - { name: Sigma Dos, domain: sigmados.com }
+  - { name: Metroscopia, domain: metroscopia.org }
+  - { name: SocioMétrica, domain: sociometrica.es }
+  - { name: Ipsos, domain: ipsos.com }

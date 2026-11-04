@@ -104,6 +104,7 @@
         "description",
         "aspect",
         "duration_s",
+        "words",
         "templates",
         "default_template",
         "voice",
@@ -123,6 +124,20 @@
           "properties": {
             "min": { "type": "integer", "minimum": 0 },
             "max": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "words": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Word budget at the channel's voice pace, read by Script (format.md, 'Длительность и темп').",
+          "required": ["rate", "min", "seconds_per_word", "serious_rate", "serious_min", "serious_seconds_per_word"],
+          "properties": {
+            "rate": { "type": "number", "exclusiveMinimum": 0, "description": "Words per second the script may use." },
+            "min": { "type": "integer", "minimum": 1, "description": "Fewer words read shorter than duration_s.min." },
+            "seconds_per_word": { "type": "number", "exclusiveMinimum": 0, "description": "Least time a scene gives one word." },
+            "serious_rate": { "type": "number", "exclusiveMinimum": 0 },
+            "serious_min": { "type": "integer", "minimum": 1 },
+            "serious_seconds_per_word": { "type": "number", "exclusiveMinimum": 0 }
           }
         },
         "templates": {
