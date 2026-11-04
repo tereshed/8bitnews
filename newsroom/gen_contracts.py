@@ -359,7 +359,7 @@ platform_meta = {
         "title": {"type": "string", "minLength": 10, "maxLength": 100},
         "summary": {"type": "string", "minLength": 20, "description": "1-2 sentences from review.whats_new and review.known"},
         "hashtags": {"type": "array", "minItems": 1, "uniqueItems": True,
-                     "items": {"type": "string", "pattern": "^#[A-Za-z0-9_]+$"}},
+                     "items": {"type": "string", "pattern": "^#[A-Za-z0-9_áéíóúüñÁÉÍÓÚÜÑ]+$"}},
         "tags": {"type": "array", "uniqueItems": True, "items": str1, "description": "YouTube only"},
     },
 }
