@@ -131,8 +131,9 @@ def _plate_extents(plates: dict) -> dict[str, dict]:
 
 def _ai_label_rect(plate: dict, font) -> dict:
     w, _h = text_size(_WIDEST_AI_LABEL, font)
-    # draw_text's 1-px outline reaches one pixel past the glyphs on every side.
-    return {"x": (LOGICAL_W - w) // 2 - 1, "y": plate["y"] - 1, "w": w + 2, "h": FONT_PX + 2}
+    # engine.ai_label_box: the strip reaches a plate's padding past the glyphs.
+    return {"x": (LOGICAL_W - w) // 2 - _PLATE_PAD_X, "y": plate["y"] - _PLATE_PAD_Y, "w": w + 2 * _PLATE_PAD_X,
+            "h": FONT_PX + 2 * _PLATE_PAD_Y}
 
 
 def _subtitle_box_problems(rect: dict, style: dict) -> list[str]:
@@ -256,10 +257,10 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
                         f"the common safe zone {safe_rect} (channels/{channel_id}/safe_zones.json)")
     if covered := covered_faces(ai_rect):
         problems.append(f"plates.ai_label {ai_rect} overlaps the face of anchor {covered}")
-    ratio = _contrast_ratio(_hex_to_rgb(ai_plate["text_color"]), _hex_to_rgb(ai_plate["outline_color"]))
+    ratio = _contrast_ratio(_hex_to_rgb(ai_plate["text_color"]), _hex_to_rgb(ai_plate["bg_color"]))
     if ratio < _MIN_CONTRAST_RATIO:
         problems.append(f"plates.ai_label: contrast ratio {ratio:.2f} between text_color {ai_plate['text_color']} "
-                        f"and outline_color {ai_plate['outline_color']} is below {_MIN_CONTRAST_RATIO}")
+                        f"and bg_color {ai_plate['bg_color']} is below {_MIN_CONTRAST_RATIO}")
     for plate_name in _TEXT_PLATES:
         below, seen = plates[plate_name].get("below"), {plate_name}
         while below and below not in seen:

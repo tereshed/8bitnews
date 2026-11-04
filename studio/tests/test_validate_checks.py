@@ -339,7 +339,7 @@ def test_keyframes_grid_fails_on_wrong_size(built_package, test_channels_dir, co
 
 
 def _ai_line_band(copy_dir) -> dict:
-    """The AI line's row across the whole frame (its glyphs and outline)."""
+    """The AI line's row across the whole frame (its glyphs, inside the strip)."""
     return {"x": 0, "y": _template(copy_dir)["plates"]["ai_label"]["y"] - 1, "w": 270, "h": 10}
 
 
@@ -360,6 +360,16 @@ def test_ai_label_fails_when_the_line_is_painted_over_at_the_start(built_package
     check = _check(built_package, test_channels_dir, corrupt_copy, "ai_label", corrupt)
     assert check["ok"] is False
     assert "S1_first.png" in check["note"] and "AI line missing" in check["note"]
+
+
+def test_ai_label_fails_when_the_strip_is_gone_but_the_letters_stay(built_package, test_channels_dir, corrupt_copy):
+    def corrupt(copy_dir, package):
+        y = _template(copy_dir)["plates"]["ai_label"]["y"]
+        _paint(copy_dir, "keyframes/S2_mid.png", {"x": 0, "y": y - 2, "w": 270, "h": 1}, "#0058f8")
+
+    check = _check(built_package, test_channels_dir, corrupt_copy, "ai_label", corrupt)
+    assert check["ok"] is False
+    assert "S2_mid.png (S2" in check["note"] and "AI line missing" in check["note"]
 
 
 def test_ai_label_fails_when_the_cover_loses_ai_illustration(built_package, test_channels_dir, corrupt_copy):

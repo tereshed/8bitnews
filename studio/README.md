@@ -73,7 +73,8 @@ shown, kept separate from pixel drawing so it is unit-testable
 (`tests/test_ai_label.py`):
 
 - **The AI line** (`plates.ai_label`, owner 29.10: "не в лоб", at the
-  bottom) — one small grey line with an outline and no plate, centered at
+  bottom; 04.11: on a strip, because the outlined line got lost over busy
+  pictures) — one small grey line on a narrow black strip, centered at
   the template's `y` under the subtitles, on every frame: "AI voice", or
   "AI voice · AI illustration" while `ai_illustration` is active
   (`engine.ai_label_text`). It is there from the first frame to the last,
@@ -487,7 +488,7 @@ check fails. Each check is a function registered under a fixed `id` with
 | `package_schema` | `package.json` against `video_package.schema.json`; `sha256`/`bytes` of every file record (`files.*` including `files.template` = `template/template.json`, scenes' keyframes) against the file, no path outside the package; every keyframe the package lists has its `timeline.json` record (scene, `t_s = frame/30`) |
 | `template_valid` | the package's `template/` copy passes `studio template validate` and is the template `package.template` names |
 | `keyframes_grid` | keyframes and cover: 1080×1920, every 4×4 cell one color (no palette: scene pictures keep their colors) |
-| `ai_label` | on every keyframe, by pixels: the AI line's glyph and outline pixels equal the line drawn with its format.md text — «AI voice», «AI voice · AI illustration» whenever a real person is in frame (scene or the screen behind the anchor); «AI illustration» on every `S*` cover and on a cover the image model drew — stated independently of `engine.active_plates`, which must agree |
+| `ai_label` | on every keyframe, by pixels: the AI line's strip and glyph pixels equal the line drawn with its format.md text — «AI voice», «AI voice · AI illustration» whenever a real person is in frame (scene or the screen behind the anchor); «AI illustration» on every `S*` cover and on a cover the image model drew — stated independently of `engine.active_plates`, which must agree |
 | `face_clear` | on anchor keyframes and an anchor cover, the face rect equals the anchor sprite for that moment (pose, blink, mouth) |
 | `video_matches_keyframes` | each keyframe PNG against the video frame with the same number, per 4×4 cell: no cell's mean difference above `max_keyframe_cell_diff` (`studio/config.json`) |
 | `no_black_frames` | ffmpeg `blackdetect` (whole picture black, `pic_th=1.0`): no black frame anywhere; an unreadable video fails |
