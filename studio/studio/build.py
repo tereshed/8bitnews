@@ -55,7 +55,7 @@ from .engine import (
     scene_transition_duration,
     transition_sound,
 )
-from .cover_title import cover_title_layout, fit_cover_title
+from .cover_title import cover_font_px, cover_title_layout, fit_cover_title
 from .errors import BuildError
 from .music import choose_music
 from .palette import hex_to_rgb, quantize_image
@@ -173,8 +173,9 @@ def _draw_cover_title(frame: Image.Image, text: str, template: TemplatePackage, 
     sub_style = template.data["subtitles"]["style"]
     fg = hex_to_rgb(sub_style["color"])
     outline = hex_to_rgb(sub_style["outline_color"])
-    font = assets.font(FONT_PX)
-    for line, xy in cover_title_layout(text, template.data["cover"]["layout"]["text_rect"], font):
+    layout = template.data["cover"]["layout"]
+    font = assets.font(cover_font_px(layout))
+    for line, xy in cover_title_layout(text, layout["text_rect"], font):
         draw_text(frame, xy, line, font, fg, outline=outline)
 
 
@@ -412,7 +413,8 @@ def build_package(
     # Fail before TTS and rendering, not after them, if plate text, the cover
     # title or the music can't work out.
     check_plate_text(script, template)
-    fit_cover_title(script["cover"]["text"], template.data["cover"]["layout"]["text_rect"], assets.font(FONT_PX))
+    cover_layout = template.data["cover"]["layout"]
+    fit_cover_title(script["cover"]["text"], cover_layout["text_rect"], assets.font(cover_font_px(cover_layout)))
     music_choice = choose_music(script, channel_profile, music_file, music_track, music_catalog, music_dir)
     audio_cfg = audio_settings(audio_overrides)
 

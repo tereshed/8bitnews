@@ -13,12 +13,16 @@ COVER_PAD = 2
 COVER_TEXT_MAX_CHARS = 30  # script.schema.json cover.text maxLength
 
 
-def cover_text_capacity(text_rect: dict) -> tuple[int, int]:
-    """(characters per line, lines) that fit in `text_rect` at FONT_PX.
-    Line i sits at y = pad + i*(FONT_PX+2), each FONT_PX tall: the first line
-    costs FONT_PX, every additional one FONT_PX+2."""
-    max_chars = max(1, (text_rect["w"] - 2 * COVER_PAD) // FONT_PX)
-    max_rows = 1 + max(0, text_rect["h"] - 2 * COVER_PAD - FONT_PX) // (FONT_PX + 2)
+def cover_font_px(layout: dict) -> int:
+    """Cover-only font size; older templates keep their original size."""
+    return FONT_PX * layout.get("font_scale", 1)
+
+
+def cover_text_capacity(text_rect: dict, font_px: int = FONT_PX) -> tuple[int, int]:
+    """(characters per line, lines) at the cover's configured font size.
+    The first line costs font_px, every additional one font_px+2."""
+    max_chars = max(1, (text_rect["w"] - 2 * COVER_PAD) // font_px)
+    max_rows = max(0, 1 + (text_rect["h"] - 2 * COVER_PAD - font_px) // (font_px + 2))
     return max_chars, max_rows
 
 
@@ -50,15 +54,18 @@ def worst_case_title_lines(max_chars: int, max_len: int = COVER_TEXT_MAX_CHARS) 
 
 
 def fit_cover_title(text: str, text_rect: dict, font) -> list[str]:
-    """Word-wraps `text` inside `text_rect` at the channel's fixed pixel
+    """Word-wraps `text` inside `text_rect` at the cover's configured pixel
     font, raising BuildError if it needs more lines than the rect has room
     for. Used by both cover kinds (`S*` and `custom`)."""
-    max_chars, max_rows = cover_text_capacity(text_rect)
+    max_chars, max_rows = cover_text_capacity(text_rect, font.size)
+    if font.size > FONT_PX and any(len(word) > max_chars for word in text.split()):
+        raise BuildError(f"cover text {text!r} has a word longer than {max_chars} characters at {font.size}px; "
+                         "shorten the wording instead of shrinking the font or splitting a word")
     lines = wrap_words(text.split(), max_chars)
     if len(lines) > max_rows:
         raise BuildError(
             f"cover text {text!r} needs {len(lines)} line(s) but cover.layout.text_rect {text_rect} only "
-            f"fits {max_rows} at {FONT_PX}px"
+            f"fits {max_rows} at {font.size}px"
         )
     return lines
 
@@ -69,5 +76,5 @@ def cover_title_layout(text: str, text_rect: dict, font) -> list[tuple[str, tupl
     checks against."""
     lines = fit_cover_title(text, text_rect, font)
     y0 = text_rect["y"] + COVER_PAD
-    return [(line, (text_rect["x"] + (text_rect["w"] - text_size(line, font)[0]) // 2, y0 + i * (FONT_PX + 2)))
+    return [(line, (text_rect["x"] + (text_rect["w"] - text_size(line, font)[0]) // 2, y0 + i * (font.size + 2)))
             for i, line in enumerate(lines)]

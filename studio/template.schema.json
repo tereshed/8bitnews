@@ -187,7 +187,11 @@
           "required": ["background", "text_rect"],
           "properties": {
             "background": { "type": "string", "minLength": 1 },
-            "text_rect": { "$ref": "#/$defs/rect" }
+            "text_rect": { "$ref": "#/$defs/rect" },
+            "font_scale": {
+              "type": "integer", "minimum": 1, "maximum": 3, "default": 1,
+              "description": "Cover title font size as a multiple of the 8px channel font, independent of scene text and subtitles."
+            }
           }
         }
       }

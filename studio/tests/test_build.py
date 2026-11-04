@@ -15,7 +15,7 @@ from studio.build import (
 from studio.builtin_script import BUILTIN_SCRIPT, builtin_timeline
 from studio.channel_assets import load_channel_assets
 from studio.constants import FONT_PX, OUTPUT_H, OUTPUT_W
-from studio.cover_title import cover_text_capacity, worst_case_title_lines
+from studio.cover_title import cover_font_px, cover_text_capacity, worst_case_title_lines
 from studio.template_pkg import load_template
 from studio.timeline import load_timeline
 
@@ -83,12 +83,42 @@ def test_fit_cover_title_fits_the_worst_title_on_night_reports_real_rect(night_r
     title can wrap to (studio template validate enforces it): guard the real
     rect geometry."""
     template = load_template(night_report_dir)
-    font = load_channel_assets("8bitnews-us").font(FONT_PX)
-    text_rect = template.data["cover"]["layout"]["text_rect"]
-    max_chars, max_rows = cover_text_capacity(text_rect)
+    layout = template.data["cover"]["layout"]
+    font = load_channel_assets("8bitnews-us").font(cover_font_px(layout))
+    text_rect = layout["text_rect"]
+    max_chars, max_rows = cover_text_capacity(text_rect, font.size)
     assert worst_case_title_lines(max_chars) <= max_rows
-    lines = fit_cover_title("Voter disenfranchisement fears", text_rect, font)
-    assert len(lines) == worst_case_title_lines(max_chars) == 2
+    lines = fit_cover_title("Trade restrictions hit prices", text_rect, font)
+    assert len(lines) == worst_case_title_lines(max_chars) == 3
+
+
+@pytest.mark.parametrize("template_name", ["nes-desk", "night-report"])
+def test_cover_title_is_twice_scene_text_size(template_name):
+    """The actual title footprint must be large, not just a larger rect."""
+    from studio.build import _draw_cover_title
+
+    template = load_template(_resolve_template_dir(template_name, {}, {}))
+    frame = Image.new("RGBA", (270, 480), (0, 0, 0, 0))
+    _draw_cover_title(frame, "Trade", template, load_channel_assets("8bitnews-us"))
+    left, top, right, bottom = frame.getbbox()
+    from studio.text_render import text_size
+
+    old_width, _ = text_size("Trade", load_channel_assets("8bitnews-us").font(FONT_PX))
+    # Visible glyph ink can be narrower than the font's advance width.
+    assert right - left == pytest.approx(2 * old_width, abs=2)
+    assert bottom - top >= 16
+
+
+def test_large_cover_title_rejects_word_splitting_and_font_fallback(nes_desk_dir):
+    template = load_template(nes_desk_dir)
+    layout = template.data["cover"]["layout"]
+    font = load_channel_assets("8bitnews-us").font(cover_font_px(layout))
+    with pytest.raises(BuildError, match="shorten the wording"):
+        fit_cover_title("Disenfranchisement fears", layout["text_rect"], font)
+
+
+def test_cover_rect_too_short_for_large_font_has_no_lines():
+    assert cover_text_capacity({"w": 230, "h": 12}, 16) == (14, 0)
 
 
 def test_fit_cover_title_still_rejects_text_needing_more_lines_on_night_report(night_report_dir):
@@ -294,7 +324,7 @@ def _title_mask(text, template, assets):
     from studio.constants import LOGICAL_H, LOGICAL_W
     from studio.text_render import draw_text
 
-    font = assets.font(FONT_PX)
+    font = assets.font(cover_font_px(template.data["cover"]["layout"]))
     canvas = Image.new("RGBA", (LOGICAL_W, LOGICAL_H), (0, 0, 0, 0))
     for line, xy in cover_title_layout(text, template.data["cover"]["layout"]["text_rect"], font):
         draw_text(canvas, xy, line, font, (255, 255, 255))

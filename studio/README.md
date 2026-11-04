@@ -426,11 +426,18 @@ gap is under 0.3s. The same cues go on screen and into `subtitles.srt`.
 **Cover.** Both kinds carry `cover.text` (format.md: a cover is a frame
 with a title of up to 30 characters), word-wrapped inside
 `cover.layout.text_rect` in the subtitle colors
-(`cover_title.cover_title_layout`); `cover_title.fit_cover_title` raises a
+(`cover_title.cover_title_layout`). `cover.layout.font_scale` controls the
+title size independently of scene text (default 1 for older templates).
+Both shipped templates use 2: 16 logical pixels, 64 pixels at 1080×1920,
+with room for three 14-character lines. Prefer 2–4 short words, up to 24
+characters, and check readability at 160px wide; shorten text rather than
+shrinking the font. `cover_title.fit_cover_title` raises a
 readable `BuildError` if the title needs more lines than the rect has room
 for, checked before TTS; each line is centered in the rect. `studio
-template validate` requires the rect to hold any 30-character title and to
-clear the anchor's face and the AI line.
+template validate` requires the rect to hold a 30-character title whose
+words fit on a line, and to clear the anchor's face and the AI line.
+At the larger size, a word longer than a line fails before TTS instead of
+being split or causing the font to shrink.
 - `cover.frame: S*` — that scene's middle frame (`engine.render_cover_frame`)
   with `engine.cover_plates` only: the AI line says "AI illustration" on
   every cover (QA, 29.10: a cover is seen in the feed out of context, and its
