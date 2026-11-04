@@ -17,7 +17,6 @@
     },
     "clusters": {
       "type": "array",
-      "minItems": 2,
       "maxItems": 5,
       "items": {
         "$ref": "#/$defs/cluster"
