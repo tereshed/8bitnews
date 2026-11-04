@@ -147,7 +147,7 @@ func write(w http.ResponseWriter, body []byte) {
 }
 
 const pageHead = `<!doctype html>
-<html lang="en">
+<html lang="{{.T.Lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -175,58 +175,58 @@ p.small { color: var(--muted); font-size: 15px; }
 </style>
 `
 
-var sourcesTemplate = template.Must(template.New("sources").Parse(pageHead + `<title>Sources: {{.Title}} | {{.Channel}}</title>
+var sourcesTemplate = template.Must(template.New("sources").Parse(pageHead + `<title>{{.T.Sources}}: {{.Title}} | {{.Channel}}</title>
 </head>
 <body>
 <main>
-<div class="brand">{{if .ChannelURL}}<a href="{{.ChannelURL}}">{{.Channel}}</a>{{else}}{{.Channel}}{{end}} · Sources</div>
+<div class="brand">{{if .ChannelURL}}<a href="{{.ChannelURL}}">{{.Channel}}</a>{{else}}{{.Channel}}{{end}} · {{.T.Sources}}</div>
 <h1>{{.Title}}</h1>
 <p class="date">{{.Date}}</p>
 {{if .Summary}}<p class="summary">{{.Summary}}</p>{{end}}
 
-<h2>What the video says, and where it comes from</h2>
+<h2>{{.T.Says}}</h2>
 {{range .Statements}}
 <blockquote>{{.Text}}</blockquote>
 <ul>
-{{range .Sources}}<li><a href="{{.Link}}">{{.Outlet}}{{if .Title}}: {{.Title}}{{end}}</a>{{with .Marks}}<span class="mark">{{.}}</span>{{end}}{{if .Date}} <span class="meta">· {{.Date}}</span>{{end}}{{if .ArchiveURL}}{{if .Gone}} <span class="meta">· archived copy; the original page is gone</span>{{else}} <span class="meta">· <a href="{{.ArchiveURL}}">archived copy</a></span>{{end}}{{end}}</li>
+{{range .Sources}}<li><a href="{{.Link}}">{{.Outlet}}{{if .Title}}: {{.Title}}{{end}}</a>{{with .Marks}}<span class="mark">{{.}}</span>{{end}}{{if .Date}} <span class="meta">· {{.Date}}</span>{{end}}{{if .ArchiveURL}}{{if .Gone}} <span class="meta">· {{$.T.ArchivedGone}}</span>{{else}} <span class="meta">· <a href="{{.ArchiveURL}}">{{$.T.Archived}}</a></span>{{end}}{{end}}</li>
 {{end}}
 </ul>
 {{else}}{{if not .Others}}
-<p>No sources are listed for this video.</p>
+<p>{{.T.NoSources}}</p>
 {{end}}{{end}}
 {{with .Others}}
-<h2>Other sources</h2>
+<h2>{{$.T.Others}}</h2>
 <ul>
-{{range .}}<li><a href="{{.Link}}">{{.Outlet}}{{if .Title}}: {{.Title}}{{end}}</a>{{with .Marks}}<span class="mark">{{.}}</span>{{end}}{{if .Date}} <span class="meta">· {{.Date}}</span>{{end}}{{if .ArchiveURL}}{{if .Gone}} <span class="meta">· archived copy; the original page is gone</span>{{else}} <span class="meta">· <a href="{{.ArchiveURL}}">archived copy</a></span>{{end}}{{end}}</li>
+{{range .}}<li><a href="{{.Link}}">{{.Outlet}}{{if .Title}}: {{.Title}}{{end}}</a>{{with .Marks}}<span class="mark">{{.}}</span>{{end}}{{if .Date}} <span class="meta">· {{.Date}}</span>{{end}}{{if .ArchiveURL}}{{if .Gone}} <span class="meta">· {{$.T.ArchivedGone}}</span>{{else}} <span class="meta">· <a href="{{.ArchiveURL}}">{{$.T.Archived}}</a></span>{{end}}{{end}}</li>
 {{end}}
 </ul>
 {{end}}
 
-<h2>How we make these videos</h2>
-<p>Every video starts from a research dossier: what is new, what is already known, how positions split at home and how the press abroad covers the story. Each line of the video is traced to the sources above, primary sources first. When a video is released, we check every source and save a copy to the Internet Archive's Wayback Machine where it lets us; the archived copy is linked next to the source, and a source whose page was gone when we checked it links to its archived copy.</p>
-<p>The narration is a synthetic voice and the pictures are AI-generated pixel art; real people are shown as stylized illustrations, not photographs. A human editor approves every video before it is published.</p>
+<h2>{{.T.How}}</h2>
+<p>{{.T.HowDossier}}</p>
+<p>{{.T.HowAI}}</p>
 
-<h2>Corrections</h2>
-<p>No corrections to this video so far.{{if .Corrections}} Spotted an error? Write to {{.Corrections}}.{{end}}</p>
+<h2>{{.T.Corrections}}</h2>
+<p>{{.T.NoCorrections}}{{if .Corrections}} {{.T.WriteTo}} {{.Corrections}}.{{end}}</p>
 </main>
 </body>
 </html>
 `))
 
-var indexTemplate = template.Must(template.New("index").Parse(pageHead + `<title>{{.Channel}}: videos and their sources</title>
+var indexTemplate = template.Must(template.New("index").Parse(pageHead + `<title>{{.Channel}}: {{.T.IndexTitleLower}}</title>
 </head>
 <body>
 <main>
 <div class="brand">{{.Channel}}</div>
-<h1>Videos and their sources</h1>
-<p class="small">Each video has a page with every source behind it, with archived copies where the Wayback Machine has them.</p>
+<h1>{{.T.IndexTitle}}</h1>
+<p class="small">{{.T.IndexLead}}</p>
 <ul>
 {{range .Entries}}<li><a href="{{.URL}}">{{.Title}}</a> <span class="meta">· {{.Date}}</span></li>
-{{else}}<li>No videos yet.</li>
+{{else}}<li>{{.T.NoVideos}}</li>
 {{end}}
 </ul>
-{{if .Corrections}}<h2>Corrections</h2>
-<p>Spotted an error? Write to {{.Corrections}}.</p>{{end}}
+{{if .Corrections}}<h2>{{.T.Corrections}}</h2>
+<p>{{.T.WriteTo}} {{.Corrections}}.</p>{{end}}
 </main>
 </body>
 </html>

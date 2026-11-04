@@ -27,6 +27,7 @@ type Source struct {
 	Primary    bool
 	Facts      int // how many of the video's facts it backs
 	published  time.Time
+	words      pageWords
 }
 
 // Link is where a reader should go: the live page, or its archive copy
@@ -38,16 +39,20 @@ func (s Source) Link() string {
 	return s.URL
 }
 
-// Marks is " (paywall)", " (state media)", both or "": the ones the
-// outlet's name doesn't carry already.
+// Marks is " (paywall)", " (state media)", both or "", in the channel's
+// language: the ones the outlet's name doesn't carry already.
 func (s Source) Marks() string {
+	words := s.words
+	if words.Lang == "" {
+		words = english
+	}
 	var m string
 	name := strings.ToLower(s.Outlet)
-	if s.Paywall && !strings.Contains(name, "paywall") {
-		m += " (paywall)"
+	if s.Paywall && !strings.Contains(name, words.Paywall) {
+		m += " (" + words.Paywall + ")"
 	}
-	if s.StateMedia && !strings.Contains(name, "state media") {
-		m += " (state media)"
+	if s.StateMedia && !strings.Contains(name, words.StateMedia) {
+		m += " (" + words.StateMedia + ")"
 	}
 	return m
 }
@@ -149,8 +154,9 @@ func parseDate(s string) (time.Time, bool) {
 }
 
 // sourcesOf turns a release's checked sources into what readers see.
-func sourcesOf(rows []store.ReleaseSource, countryData json.RawMessage) map[string]Source {
+func sourcesOf(rows []store.ReleaseSource, countryData json.RawMessage, language string) map[string]Source {
 	outlets := outletsOf(countryData)
+	words := wordsFor(language)
 	out := make(map[string]Source, len(rows))
 	for _, r := range rows {
 		flags := flagsFor(r.URL, outlets)
@@ -164,10 +170,11 @@ func sourcesOf(rows []store.ReleaseSource, countryData json.RawMessage) map[stri
 			StateMedia: flags.stateMedia || r.StateMedia,
 			Primary:    flags.primary || r.IsPrimary,
 			Facts:      len(r.FactIDs),
+			words:      words,
 		}
 		if t, ok := parseDate(r.PublishedAt); ok {
 			s.published = t
-			s.Date = t.Format("Jan 2, 2006")
+			s.Date = words.date(t)
 		}
 		if s.Outlet == "" {
 			s.Outlet = hostOf(r.URL)

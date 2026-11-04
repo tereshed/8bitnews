@@ -48,6 +48,7 @@ type Page struct {
 	Others      []Source
 	Corrections string // the contact; empty when none is set
 	ChannelURL  string
+	T           pageWords
 }
 
 // Statement is one scene's narration and the checked sources behind it.
@@ -80,14 +81,15 @@ func BuildPage(in Input) Page {
 		}
 	}
 
-	checked := sourcesOf(in.Sources, in.Country.Data)
+	checked := sourcesOf(in.Sources, in.Country.Data, in.Channel.Language)
 	page := Page{
+		T:           wordsFor(in.Channel.Language),
 		Channel:     in.Channel.Name,
 		Corrections: in.Config.CorrectionsContact,
 		ChannelURL:  in.Config.ChannelPageURL(r.ChannelID),
 	}
 	page.Title, page.Summary = titleOf(script)
-	page.Date = dateOf(r, in.Channel.Timezone)
+	page.Date = dateOf(r, in.Channel.Timezone, page.T)
 	shown := map[string]bool{}
 	for _, sc := range script.Scenes {
 		seen := map[string]bool{}
@@ -133,7 +135,7 @@ func titleOf(script scriptDoc) (string, string) {
 }
 
 // dateOf is the day the release was approved, in the channel's time zone.
-func dateOf(r store.Release, tz string) string {
+func dateOf(r store.Release, tz string, words pageWords) string {
 	t := r.CreatedAt
 	if r.Moderation.At != nil {
 		t = *r.Moderation.At
@@ -141,7 +143,7 @@ func dateOf(r store.Release, tz string) string {
 	if loc, err := time.LoadLocation(tz); err == nil && tz != "" {
 		t = t.In(loc)
 	}
-	return t.Format("Jan 2, 2006")
+	return words.date(t)
 }
 
 // IndexEntry is one video on the channel's list.
@@ -156,19 +158,21 @@ type Index struct {
 	Channel     string
 	Entries     []IndexEntry
 	Corrections string
+	T           pageWords
 }
 
 // BuildIndex writes a channel's list from its listed releases, newest first.
 func BuildIndex(ch store.Channel, releases []store.Release, cfg Config) Index {
-	idx := Index{Channel: ch.Name, Corrections: cfg.CorrectionsContact}
+	words := wordsFor(ch.Language)
+	idx := Index{Channel: ch.Name, Corrections: cfg.CorrectionsContact, T: words}
 	for _, r := range releases {
 		var script scriptDoc
 		_ = json.Unmarshal(r.Script, &script)
 		title, _ := titleOf(script)
 		if title == "" {
-			title = "Video of " + dateOf(r, ch.Timezone)
+			title = words.VideoOf + " " + dateOf(r, ch.Timezone, words)
 		}
-		idx.Entries = append(idx.Entries, IndexEntry{Title: title, Date: dateOf(r, ch.Timezone), URL: "/s/" + Code(r.ID)})
+		idx.Entries = append(idx.Entries, IndexEntry{Title: title, Date: dateOf(r, ch.Timezone, words), URL: "/s/" + Code(r.ID)})
 	}
 	return idx
 }

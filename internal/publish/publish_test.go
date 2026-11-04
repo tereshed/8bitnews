@@ -1,6 +1,7 @@
 package publish
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"strings"
@@ -224,7 +225,7 @@ func TestSourcesAreCanonicalAndMarked(t *testing.T) {
 		{URL: "https://www.justice.gov/e", Outlet: "DOJ", CheckStatus: "ok"},
 		{URL: "https://gone.example/f", Outlet: "Gone\nDaily", Title: " two\n lines ", CheckStatus: "unreachable", ArchiveURL: "https://web.archive.org/f"},
 	}
-	got := ranked(sourcesOf(rows, country))
+	got := ranked(sourcesOf(rows, country, "en-US"))
 	if !got[0].Primary || !got[1].Primary || got[2].Primary {
 		t.Errorf("primary sources lead: %+v", got[:3])
 	}
@@ -268,5 +269,56 @@ func TestYouTubeGetsNoAngleBrackets(t *testing.T) {
 func TestCode(t *testing.T) {
 	if c := Code(releaseID); c != "f874ebb1a0" {
 		t.Errorf("code %q", c)
+	}
+}
+
+// A channel's viewers read its pages and marks in the channel's language.
+func TestSpanishChannelGetsSpanishWords(t *testing.T) {
+	rows := []store.ReleaseSource{
+		{URL: "https://elpais.com/a", Outlet: "El País", PublishedAt: "2026-11-03T08:00:00Z", Paywall: true, CheckStatus: "ok"},
+		{URL: "https://efe.com/b", Outlet: "EFE", StateMedia: true, CheckStatus: "ok"},
+	}
+	got := sourcesOf(rows, nil, "es-ES")
+	if s := got["https://elpais.com/a"]; s.Marks() != " (de pago)" || s.Date != "3 nov 2026" {
+		t.Errorf("El País: marks %q, date %q", s.Marks(), s.Date)
+	}
+	if s := got["https://efe.com/b"]; s.Marks() != " (medio estatal)" {
+		t.Errorf("EFE: marks %q", s.Marks())
+	}
+	if s := (Source{Outlet: "EFE (medio estatal)", StateMedia: true, words: spanish}); s.Marks() != "" {
+		t.Errorf("the mark is doubled: %q", s.Outlet+s.Marks())
+	}
+	if w := wordsFor("en-US"); w.Lang != "en" || w.date(time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)) != "Nov 3, 2026" {
+		t.Errorf("English words changed: %q, %q", w.Lang, w.date(time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)))
+	}
+}
+
+func TestSourcesPageSpeaksTheChannelLanguage(t *testing.T) {
+	var es, en bytes.Buffer
+	if err := sourcesTemplate.Execute(&es, Page{T: wordsFor("es-ES"), Channel: "8BitNewsES", Title: "T", Others: []Source{{Outlet: "EFE", URL: "https://efe.com/b", ArchiveURL: "https://web.archive.org/x"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sourcesTemplate.Execute(&en, Page{T: wordsFor("en-US"), Channel: "8BitNewsUS", Title: "T"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`<html lang="es">`, "Qué dice el vídeo", "Otras fuentes", "copia archivada", "Cómo hacemos estos vídeos", "Correcciones"} {
+		if !strings.Contains(es.String(), want) {
+			t.Errorf("the Spanish page has no %q", want)
+		}
+	}
+	for _, foreign := range []string{"What the video says", "archived copy", "How we make"} {
+		if strings.Contains(es.String(), foreign) {
+			t.Errorf("the Spanish page still says %q", foreign)
+		}
+	}
+	if !strings.Contains(en.String(), `<html lang="en">`) || !strings.Contains(en.String(), "What the video says") {
+		t.Error("the English page changed")
+	}
+	var idx bytes.Buffer
+	if err := indexTemplate.Execute(&idx, Index{T: wordsFor("es-ES"), Channel: "8BitNewsES"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(idx.String(), "Vídeos y sus fuentes") || !strings.Contains(idx.String(), "Todavía no hay vídeos.") {
+		t.Errorf("the Spanish index: %s", idx.String())
 	}
 }
