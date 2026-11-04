@@ -44,7 +44,6 @@ from .constants import (
     MAX_SUBTITLE_LINES,
 )
 from .engine import (
-    AI_ILLUSTRATION_LABEL,
     active_plates,
     draw_ai_label,
     plate_lines,
@@ -201,7 +200,7 @@ def _render_custom_cover(
     frame = Image.new("RGBA", (LOGICAL_W, LOGICAL_H), (0, 0, 0, 255))
     frame.alpha_composite(bg)
     if generated:
-        draw_ai_label(frame, template, AI_ILLUSTRATION_LABEL, assets.font(FONT_PX))
+        draw_ai_label(frame, template, assets.labels.illustration, assets.font(FONT_PX))
     _draw_cover_title(frame, cover_cfg["text"], template, assets)
 
     quantized = quantize_image(frame, palette) if palette is not None else frame
@@ -437,7 +436,7 @@ def build_package(
     # Each anchor speaks with its own voice (format.md, 'Ведущие').
     voice_id = assets.anchor.voice_id
     adapter = ADAPTERS[tts_name_resolved].from_settings(tts_settings(tts_name_resolved), serious=serious,
-                                                        voice_id=voice_id)
+                                                        voice_id=voice_id, language=script.get("language"))
 
     sub_style = template.data["subtitles"]["style"]
     max_lines = sub_style.get("max_lines", MAX_SUBTITLE_LINES)

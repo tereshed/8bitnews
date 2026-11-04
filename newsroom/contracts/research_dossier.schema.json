@@ -90,7 +90,6 @@
     },
     "world_clusters": {
       "type": "array",
-      "minItems": 2,
       "items": {
         "$ref": "#/$defs/cluster"
       }

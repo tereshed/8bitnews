@@ -9,7 +9,15 @@ import numpy as np
 import pytest
 
 from studio.errors import BuildError
-from studio.kokoro import KokoroTtsAdapter, _ends_sentence, _label_chars, kokoro_available, spoken_forms
+from studio.kokoro import (
+    _LANGUAGES,
+    KokoroTtsAdapter,
+    _ends_sentence,
+    _label_chars,
+    kokoro_available,
+    spoken_forms,
+    spoken_forms_es,
+)
 from studio.tts import ADAPTERS
 
 STUDIO_DIR = Path(__file__).resolve().parent.parent
@@ -181,7 +189,7 @@ def _pauses(tokens, spans, length):
 
     from studio.kokoro import KokoroTtsAdapter
 
-    settings = SimpleNamespace(sentence_pause_s=0.25, clause_pause_s=0.1)
+    settings = SimpleNamespace(sentence_pause_s=0.25, clause_pause_s=0.1, _language=_LANGUAGES["en"])
     audio = np.full(length, 0.5, dtype=np.float32)
     return KokoroTtsAdapter._insert_pauses(settings, audio, tokens, spans)
 
@@ -368,3 +376,130 @@ def test_every_anchor_voice_keeps_the_channel_pace(voice_id):
         with wave.open(str(out)) as w:
             pace = words * 60 / (w.getnframes() / w.getframerate())
         assert abs(pace - target) <= 4, (voice_id, serious, round(pace, 1))
+
+
+def test_a_spanish_voice_reads_with_spanish_rules():
+    settings = {"voices": {"ef_dora": {"speed": 0.9, "serious_speed": 0.8}}}
+    if not kokoro_available():
+        pytest.skip("Kokoro model files not installed")
+    adapter = KokoroTtsAdapter.from_settings(settings, voice_id="ef_dora", language="es-ES")
+    assert adapter._language is _LANGUAGES["es"]
+    assert "ˈ" in adapter._phonemize("cinco") and "θ" in adapter._phonemize("cinco")  # Castilian, not English
+
+
+@pytest.mark.parametrize("voice,language", [("ef_dora", "en-US"), ("af_sarah", "es-ES")])
+def test_a_voice_of_another_language_fails_the_build(voice, language):
+    settings = {"voices": {voice: {"speed": 1.0, "serious_speed": 1.0}}}
+    with pytest.raises(BuildError, match="speaks"):
+        KokoroTtsAdapter.from_settings(settings, voice_id=voice, language=language)
+
+
+def test_a_voice_without_a_known_language_fails():
+    with pytest.raises(BuildError, match="no language"):
+        KokoroTtsAdapter.from_settings({"voices": {"zf_x": {"speed": 1.0}}}, voice_id="zf_x")
+
+
+@pytest.mark.parametrize("tokens,want", [
+    (["Sr.", "García"], ["señor", "García"]),
+    (["EE.", "UU.,"], ["Estados", "Unidos,"]),
+    (["EE.UU."], ["Estados Unidos"]),
+    (["la", "UE."], ["la", "u e."]),
+    (["el", "PP,"], ["el", "pe pe,"]),
+    (["15", "€"], ["quince", "euros"]),
+    (["1", "€"], ["un", "euro"]),
+    (["21", "€"], ["veintiún", "euros"]),
+    (["15€."], ["quince euros."]),
+    (["1€"], ["un euro"]),
+    (["$5"], ["cinco dólares"]),
+    (["$1"], ["un dólar"]),
+    # espeak says every number masculine and in full: nouns we know get agreement
+    (["300", "viviendas"], ["trescientas", "viviendas"]),
+    (["21", "personas"], ["veintiuna", "personas"]),
+    (["21", "años"], ["veintiún", "años"]),
+    (["1", "año"], ["un", "año"]),
+    (["31", "días,"], ["treinta y un", "días,"]),
+    (["101", "personas"], ["ciento una", "personas"]),
+    (["1.200", "personas"], ["mil doscientas", "personas"]),
+    (["21.000", "personas"], ["veintiún mil", "personas"]),
+    (["31.000", "euros"], ["treinta y un mil", "euros"]),
+    (["300.000", "personas"], ["trescientas mil", "personas"]),
+    (["11", "años"], ["once", "años"]),
+    (["100", "personas"], ["cien", "personas"]),
+    # unknown noun, a date, a year: espeak's own reading is right or no worse
+    (["5", "gatos"], ["5", "gatos"]),
+    (["el", "21", "de", "mayo"], ["el", "21", "de", "mayo"]),
+    (["en", "2021", "la"], ["en", "2021", "la"]),
+    # ordinals and kings
+    (["1.º", "puesto"], ["primer", "puesto"]),
+    (["1.º", "de", "mayo"], ["primero", "de", "mayo"]),
+    (["3.ª", "vez"], ["tercera", "vez"]),
+    (["2.ª", "vuelta"], ["segunda", "vuelta"]),
+    (["Felipe", "VI", "dijo"], ["Felipe", "sexto", "dijo"]),
+    (["la", "II", "Guerra"], ["la", "II", "Guerra"]),
+    (["n.º", "5"], ["número", "5"]),
+    (["UGT", "y", "CCOO"], ["u ge te", "y", "comisiones obreras"]),
+    (["EE", "UU"], ["Estados", "Unidos"]),
+    (["1.200-1.500"], ["1200 a 1500"]),
+    (["a", "las", "14.30"], ["a", "las", "14 30"]),
+    (["14.30", "horas"], ["14 30", "horas"]),
+    (["las", "14:30"], ["las", "14 30"]),
+    (["las", "9:00"], ["las", "9"]),
+    (["10-12"], ["10 a 12"]),
+    (["¿Qué", "falta?"], ["¿Qué", "falta?"]),
+    (["«no", "cedemos»,"], ["«no", "cedemos»,"]),
+    (["8,2", "%"], ["8,2", "%"]),  # espeak reads these right on its own
+    (["1.200"], ["1200"]),  # phonemizer cuts the line at a dot between digits
+    (["1.200.000"], ["1200000"]),
+    (["1.200€"], ["mil doscientos euros"]),
+    (["3.5"], ["3 coma 5"]),
+])
+def test_spanish_spoken_forms(tokens, want):
+    assert spoken_forms_es(tokens) == want
+
+
+def test_spanish_sentences_end_by_spanish_rules():
+    es = _LANGUAGES["es"].not_sentence_end
+    assert not _ends_sentence("Sr.", "García", es)
+    assert not _ends_sentence("EE.", "UU.", es)
+    assert _ends_sentence("UU.", "El", es)
+    assert not _ends_sentence("UU.", "y", es)  # "Los EE. UU. y China"
+    assert _ends_sentence("EE.UU.", "El", es)  # "con EE.UU. El acuerdo"
+    assert not _ends_sentence("EE.UU.", "y", es)
+    assert _ends_sentence("EE.UU.", None, es)
+    assert _ends_sentence("«cedemos».", "El", es)
+    assert _ends_sentence("saber?", "Cuándo", es)
+    assert _ends_sentence("No.", "12", es)  # an English title's dot means nothing here
+    assert _ends_sentence("Sen.", "El", es)
+
+
+@needs_model
+def test_spanish_words_each_get_their_time_and_marks_make_no_sound():
+    if not (Path(__import__("studio.kokoro", fromlist=["models_dir"]).models_dir()) / "voices" / "ef_dora.bin").is_file():
+        pytest.skip("Spanish voice not installed")
+    adapter = KokoroTtsAdapter(speed=0.9, language="es")
+    text = "¿Qué falta por saber? El Gobierno dice: «no cedemos», y el Sr. García, de la UE, pide 15 €."
+    result = adapter.synthesize(text, "ef_dora")
+    assert [w.text for w in result.words] == text.split()
+    assert all(w.end_s > w.start_s for w in result.words)
+    assert all(a.end_s <= b.start_s + 1e-6 for a, b in zip(result.words, result.words[1:]))
+
+
+@needs_model
+def test_a_spanish_number_keeps_the_words_after_it():
+    if not (Path(__import__("studio.kokoro", fromlist=["models_dir"]).models_dir()) / "voices" / "ef_dora.bin").is_file():
+        pytest.skip("Spanish voice not installed")
+    adapter = KokoroTtsAdapter(speed=0.9, language="es")
+    text = "En Madrid, los alquileres ya superan los 1.200 euros al mes, según el Banco de España."
+    result = adapter.synthesize(text, "ef_dora")
+    last = result.words[-1]
+    assert last.text == "España." and last.end_s > 3.0 and last.end_s > last.start_s
+
+
+@needs_model
+def test_a_spanish_hint_is_read_as_plain_spanish():
+    if not (Path(__import__("studio.kokoro", fromlist=["models_dir"]).models_dir()) / "voices" / "ef_dora.bin").is_file():
+        pytest.skip("Spanish voice not installed")
+    adapter = KokoroTtsAdapter(speed=0.9, language="es")
+    phonemes, ref = adapter._phonemes(["Tramp", "dijo"], frozenset({0}))
+    assert ref[0] == adapter._phonemize("Tramp")  # no English respelling key
+    assert phonemes.startswith(adapter._phonemize("Tramp").rstrip("."))

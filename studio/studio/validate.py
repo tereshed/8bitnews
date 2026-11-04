@@ -12,7 +12,7 @@ import jsonschema
 
 from PIL import Image
 
-from .channel_assets import anchor_ids, load_anchor, load_channel_assets
+from .channel_assets import anchor_ids, load_ai_labels, load_anchor, load_channel_assets
 from .constants import FONT_PX, LOGICAL_H, LOGICAL_W, MAX_SUBTITLE_CHARS_PER_LINE, MAX_SUBTITLE_LINES
 from .cover_title import COVER_TEXT_MAX_CHARS, cover_font_px, cover_text_capacity, worst_case_title_lines
 from .errors import TemplateValidationError
@@ -23,8 +23,6 @@ from .text_render import text_size
 
 _MIN_CONTRAST_RATIO = 4.5  # WCAG AA for normal text, used as a simple readability floor
 _PLATE_PAD_X, _PLATE_PAD_Y, _PLATE_GAP = 3, 2, 2  # engine.plate_box / content_plate_boxes
-# The longest AI line the engine draws (engine.ai_label_text).
-_WIDEST_AI_LABEL = "AI voice · AI illustration"
 # scene_title/source_plate hold scene-dependent text; validate only that the
 # rect can fit at least one line of *some* text, per the review ("хотя бы одну строку").
 _MIN_LINE_PROBE_TEXT = "W"
@@ -129,8 +127,9 @@ def _plate_extents(plates: dict) -> dict[str, dict]:
     return out
 
 
-def _ai_label_rect(plate: dict, font) -> dict:
-    w, _h = text_size(_WIDEST_AI_LABEL, font)
+def _ai_label_rect(plate: dict, font, widest: str) -> dict:
+    """`widest`: the longest AI line the channel draws (AiLabels.widest)."""
+    w, _h = text_size(widest, font)
     # engine.ai_label_box: the strip reaches a plate's padding past the glyphs.
     return {"x": (LOGICAL_W - w) // 2 - _PLATE_PAD_X, "y": plate["y"] - _PLATE_PAD_Y, "w": w + 2 * _PLATE_PAD_X,
             "h": FONT_PX + 2 * _PLATE_PAD_Y}
@@ -251,9 +250,10 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
     safe_rect = common_safe_rect(channel_id)
     plates = data.get("plates", {})
     ai_plate = plates["ai_label"]
-    ai_rect = _ai_label_rect(ai_plate, font)
+    widest_ai_label = load_ai_labels(channel_id).widest
+    ai_rect = _ai_label_rect(ai_plate, font, widest_ai_label)
     if not rect_within(ai_rect, safe_rect):
-        problems.append(f"plates.ai_label: the line {_WIDEST_AI_LABEL!r} at y={ai_plate['y']} ({ai_rect}) is outside "
+        problems.append(f"plates.ai_label: the line {widest_ai_label!r} at y={ai_plate['y']} ({ai_rect}) is outside "
                         f"the common safe zone {safe_rect} (channels/{channel_id}/safe_zones.json)")
     if covered := covered_faces(ai_rect):
         problems.append(f"plates.ai_label {ai_rect} overlaps the face of anchor {covered}")

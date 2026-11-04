@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from .timeline import Word
 
-_PUNCT = ".,!?;:\"'()[]{}‘’“”…"
+_PUNCT = ".,!?;:\"'()[]{}‘’“”…¿¡«»"
 
 
 def _split_word(word: str) -> tuple[str, str, str, str]:

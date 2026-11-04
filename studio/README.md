@@ -596,6 +596,15 @@ read this way: `build` passes the adapter the positions of the tokens a
 hint put there (`pronunciation.hinted_tokens`), so "US-led" — or the same
 word elsewhere in the narration — stays espeak's.
 
+**Spanish.** A voice speaks one language, named by the first letter of its id
+(`ef_`, `em_` Spanish; `af_`, `am_` American English), and the adapter reads
+in that language; a script in another language fails the build. espeak's `es`
+is Castilian. It reads "8,2 %" and dates by itself; `kokoro.spoken_forms_es`
+writes out what it misreads: "1.200" (phonemizer cuts the line at a dot between
+digits, the rest of the sentence is lost), "EE. UU.", "UE", "PP", "14:30",
+"15 €". A Spanish pronunciation hint is plain Spanish text ("Trump" -> "Tramp"),
+read by espeak: Spanish spelling already says how a word sounds.
+
 espeak-ng and phonemizer are GPL-3.0: fine for running our own pipeline,
 but the image must not be handed to anyone else as is.
 

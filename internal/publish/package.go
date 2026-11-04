@@ -146,7 +146,7 @@ func Build(in Input) Package {
 	for _, p := range r.AllowedPlatforms {
 		allowed[p] = true
 	}
-	sources := sourcesOf(in.Sources, in.Country.Data)
+	sources := sourcesOf(in.Sources, in.Country.Data, in.Channel.Language)
 	unarchived := 0
 	for _, s := range sources {
 		switch {

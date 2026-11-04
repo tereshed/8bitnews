@@ -12,8 +12,8 @@ the last word (a breath of tail); the timeline uses it so the concatenated
 voice track and the scene timings always agree.
 
 Each adapter builds itself from its own settings (`config.tts_settings`):
-`ADAPTERS[name].from_settings(settings, serious=..., voice_id=...)` -- the
-stub takes a words-per-minute pace, Kokoro each voice's own speed -- so
+`ADAPTERS[name].from_settings(settings, serious=..., voice_id=..., language=...)`
+-- the stub takes a words-per-minute pace, Kokoro each voice's own speed -- so
 `build` never branches on the adapter's name. `describe()` is what the package records under `voice`.
 
 `stub` is a deterministic, quiet-but-measurable sine tone standing in for a
@@ -70,7 +70,8 @@ class StubTtsAdapter:
         self.wpm = wpm
 
     @classmethod
-    def from_settings(cls, settings: dict, serious: bool = False, voice_id: str | None = None) -> "StubTtsAdapter":
+    def from_settings(cls, settings: dict, serious: bool = False, voice_id: str | None = None,
+                      language: str | None = None) -> "StubTtsAdapter":
         return cls(wpm=float(settings["serious_wpm" if serious else "wpm"]))
 
     def describe(self) -> dict:

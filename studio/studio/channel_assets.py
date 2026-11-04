@@ -71,14 +71,39 @@ class AnchorSprites:
 
 
 @dataclass(frozen=True)
+class AiLabels:
+    """The words of the AI line in the channel's language (format.md, 'Текст в
+    кадре'; `channels/<id>/labels.json`)."""
+    voice: str
+    illustration: str
+
+    def line(self, illustration: bool) -> str:
+        return f"{self.voice} · {self.illustration}" if illustration else self.voice
+
+    @property
+    def widest(self) -> str:
+        return self.line(True)
+
+
+@dataclass(frozen=True)
 class ChannelAssets:
     channel_id: str
     font_path: Path
     logo: Image.Image
     anchor: AnchorSprites
+    labels: AiLabels
 
     def font(self, size_px: int) -> ImageFont.FreeTypeFont:
         return ImageFont.truetype(str(self.font_path), size_px)
+
+
+@lru_cache(maxsize=8)
+def load_ai_labels(channel_id: str) -> AiLabels:
+    """No file is an error, not English by default: a wrong-language disclosure
+    must not reach a video unnoticed."""
+    with open(channel_dir(channel_id) / "labels.json", encoding="utf-8") as f:
+        data = json.load(f)
+    return AiLabels(voice=data["ai_voice"], illustration=data["ai_illustration"])
 
 
 def load_channel_logo(channel_id: str) -> Image.Image:
@@ -157,4 +182,5 @@ def load_channel_assets(channel_id: str = "8bitnews-us", anchor_id: str | None =
         if not ids:
             raise FileNotFoundError(f"channel {channel_id!r} has no active anchor under {anchors_dir(channel_id)}")
         anchor_id = ids[0]
-    return ChannelAssets(channel_id=channel_id, font_path=font_path, logo=logo, anchor=load_anchor(channel_id, anchor_id))
+    return ChannelAssets(channel_id=channel_id, font_path=font_path, logo=logo, anchor=load_anchor(channel_id, anchor_id),
+                         labels=load_ai_labels(channel_id))
