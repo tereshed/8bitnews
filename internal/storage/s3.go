@@ -1,8 +1,8 @@
 // Package storage talks to the S3-compatible object store (MinIO locally,
 // any S3-compatible provider in production) that holds release media:
 // presigned uploads for media_upload_url, presigned downloads for
-// media_download_url, existence checks for release_submit, and reads for
-// the moderation bot.
+// media_download_url, existence checks for release_submit, reads for the
+// moderation bot, and listing and reads for the costs sync.
 package storage
 
 import (
@@ -94,6 +94,23 @@ func (c *Client) Open(ctx context.Context, key string) (body io.ReadCloser, size
 		size = *out.ContentLength
 	}
 	return out.Body, size, nil
+}
+
+// List returns the keys of the objects under prefix, used by the costs sync
+// to find video builds it hasn't read.
+func (c *Client) List(ctx context.Context, prefix string) ([]string, error) {
+	var keys []string
+	pages := s3.NewListObjectsV2Paginator(c.api, &s3.ListObjectsV2Input{Bucket: aws.String(c.bucket), Prefix: aws.String(prefix)})
+	for pages.HasMorePages() {
+		page, err := pages.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("listing objects under %s: %w", prefix, err)
+		}
+		for _, o := range page.Contents {
+			keys = append(keys, aws.ToString(o.Key))
+		}
+	}
+	return keys, nil
 }
 
 // Exists reports whether key is present in the bucket, used by

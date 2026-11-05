@@ -157,6 +157,7 @@ type IndexEntry struct {
 type Index struct {
 	Channel     string
 	Entries     []IndexEntry
+	CostsURL    string
 	Corrections string
 	T           pageWords
 }
@@ -164,7 +165,7 @@ type Index struct {
 // BuildIndex writes a channel's list from its listed releases, newest first.
 func BuildIndex(ch store.Channel, releases []store.Release, cfg Config) Index {
 	words := wordsFor(ch.Language)
-	idx := Index{Channel: ch.Name, Corrections: cfg.CorrectionsContact, T: words}
+	idx := Index{Channel: ch.Name, CostsURL: "/c/" + ch.ID + "/costs", Corrections: cfg.CorrectionsContact, T: words}
 	for _, r := range releases {
 		var script scriptDoc
 		_ = json.Unmarshal(r.Script, &script)

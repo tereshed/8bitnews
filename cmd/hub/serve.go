@@ -11,6 +11,7 @@ import (
 	"github.com/tereshed/8bitnews/internal/admin"
 	"github.com/tereshed/8bitnews/internal/api"
 	"github.com/tereshed/8bitnews/internal/config"
+	"github.com/tereshed/8bitnews/internal/costs"
 	"github.com/tereshed/8bitnews/internal/mcpapi"
 	"github.com/tereshed/8bitnews/internal/moderation"
 	"github.com/tereshed/8bitnews/internal/observability"
@@ -94,6 +95,13 @@ func runServe(_ []string) {
 	} else {
 		logger.Info("moderation bot off: TELEGRAM_BOT_TOKEN is not set, releases stay 'submitted'")
 	}
+
+	// What the public costs page shows: a nil client leaves it with the pictures only.
+	var runsSource costs.PolyMaths
+	if cfg.Costs.APIKey != "" {
+		runsSource = costs.NewClient(cfg.Costs.PolymathsURL, cfg.Costs.APIKey, cfg.Costs.ProjectID, cfg.Costs.NewsroomTeamID)
+	}
+	go costs.NewSyncer(runsSource, st, media, cfg.Costs.Interval, logger).Run(ctx)
 
 	mcpHandler := mcpapi.NewHTTPHandler(svc)
 	metrics := observability.NewMetrics()

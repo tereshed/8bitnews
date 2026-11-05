@@ -99,6 +99,21 @@ type Config struct {
 	// CorrectionsContact is the address viewers write to about an error,
 	// in every description and on every sources page (metadata.md).
 	CorrectionsContact string
+
+	Costs CostsConfig
+}
+
+// CostsConfig is where the channel's public costs page gets its tokens: the
+// Newsroom runs in PolyMaths. With no APIKey hub still reads what pictures cost
+// from the video builds, and the page has no token figures.
+type CostsConfig struct {
+	PolymathsURL string
+	// APIKey must be read-only: a viewer's key, never the owner's.
+	APIKey    string
+	ProjectID string
+	// NewsroomTeamID tells a video's run from the project's other tasks.
+	NewsroomTeamID string
+	Interval       time.Duration
 }
 
 // ModerationConfig is the Telegram moderation bot (E4). With no BotToken
@@ -163,6 +178,13 @@ func Load() (Config, error) {
 			UsePathStyle:    getBool("HUB_S3_USE_PATH_STYLE", true),
 			PresignExpiry:   getDuration("HUB_S3_PRESIGN_EXPIRY", 15*time.Minute),
 		},
+		Costs: CostsConfig{
+			PolymathsURL:   strings.TrimRight(getEnv("HUB_POLYMATHS_URL", "https://polymaths.work/api/v1"), "/"),
+			APIKey:         strings.TrimSpace(getEnv("HUB_POLYMATHS_API_KEY", "")),
+			ProjectID:      strings.TrimSpace(getEnv("HUB_POLYMATHS_PROJECT_ID", "")),
+			NewsroomTeamID: strings.TrimSpace(getEnv("HUB_POLYMATHS_NEWSROOM_TEAM_ID", "")),
+			Interval:       getDuration("HUB_COSTS_SYNC_INTERVAL", 30*time.Minute),
+		},
 	}
 
 	cfg.APIKeys = parseAPIKeys(os.Getenv("HUB_API_KEYS"))
@@ -188,6 +210,13 @@ func Load() (Config, error) {
 
 	if cfg.S3.Bucket == "" {
 		return Config{}, fmt.Errorf("HUB_S3_BUCKET must not be empty")
+	}
+
+	if cfg.Costs.APIKey != "" && (cfg.Costs.ProjectID == "" || cfg.Costs.NewsroomTeamID == "") {
+		return Config{}, fmt.Errorf("HUB_POLYMATHS_API_KEY is set but HUB_POLYMATHS_PROJECT_ID or HUB_POLYMATHS_NEWSROOM_TEAM_ID is not")
+	}
+	if cfg.Costs.Interval <= 0 {
+		cfg.Costs.Interval = 30 * time.Minute
 	}
 
 	return cfg, nil

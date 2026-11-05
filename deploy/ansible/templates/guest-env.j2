@@ -34,5 +34,10 @@ TELEGRAM_MODERATION_CHAT_ID={{ telegram_moderation_chat_id }}
 HUB_PUBLIC_URL={{ hub_public_url }}
 HUB_CORRECTIONS_CONTACT={{ hub_corrections_contact }}
 
-HUB_POLYMATHS_URL={{ hub_polymaths_url | default("https://polymaths.work/api/v1") }}
-HUB_POLYMATHS_API_KEY={{ hub_polymaths_api_key | default("") }}
+# The public costs page: a read-only PolyMaths key, from the controller's
+# environment. Empty: the page shows the pictures' cost and no tokens.
+HUB_POLYMATHS_API_KEY={{ hub_polymaths_api_key }}
+HUB_POLYMATHS_PROJECT_ID={{ hub_polymaths_project_id }}
+HUB_POLYMATHS_NEWSROOM_TEAM_ID={{ hub_polymaths_newsroom_team_id }}
+
+HUB_POLYMATHS_WRITE_API_KEY={{ hub_polymaths_write_api_key | default("") }}
