@@ -365,7 +365,7 @@
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "pattern": "^#[A-Za-z0-9_]+$"
+            "pattern": "^#[A-Za-z0-9_áéíóúüñÁÉÍÓÚÜÑ]+$"
           }
         },
         "tags": {
