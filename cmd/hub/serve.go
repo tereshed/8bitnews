@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tereshed/8bitnews/internal/admin"
 	"github.com/tereshed/8bitnews/internal/api"
 	"github.com/tereshed/8bitnews/internal/config"
 	"github.com/tereshed/8bitnews/internal/mcpapi"
@@ -69,9 +70,21 @@ func runServe(_ []string) {
 		SourcesBackgroundArchiveTimeout: cfg.SourcesBackgroundArchiveTimeout,
 	})
 	pub := publish.Config{PublicURL: cfg.PublicURL, CorrectionsContact: cfg.CorrectionsContact}
+	// The admin page needs the bot, which hands out its login links and is
+	// how decisions reach the moderation group, and a public address for them.
+	var adminPage http.Handler
 	if cfg.Moderation.BotToken != "" {
 		tg := moderation.NewTelegram(cfg.Moderation.APIBase, cfg.Moderation.BotToken)
-		go moderation.New(tg, st, media, cfg.Moderation.ChatID, cfg.Moderation.PollInterval, pub, logger).Run(ctx)
+		bot := moderation.New(tg, st, media, cfg.Moderation.ChatID, cfg.Moderation.PollInterval, pub, logger)
+		if cfg.PublicURL != "" {
+			auth := admin.NewAuth(cfg.Moderation.BotToken)
+			bot.SetAdminLogin(func(userID int64, who string) string {
+				return cfg.PublicURL + "/admin/login?t=" + auth.LoginToken(admin.Identity{UserID: userID, Name: who})
+			})
+			adminPage = admin.New(admin.Deps{Store: st, Moderator: bot, Media: media, Auth: auth, Videos: admin.NewVideoChecker(), Publish: pub,
+				MediaOrigin: cfg.S3.Endpoint, Log: logger})
+		}
+		go bot.Run(ctx)
 	} else {
 		logger.Info("moderation bot off: TELEGRAM_BOT_TOKEN is not set, releases stay 'submitted'")
 	}
@@ -84,7 +97,7 @@ func runServe(_ []string) {
 	// for deployments that scrape it from a private network interface.
 	requireMetricsAuth := cfg.MetricsAddr == ""
 	pages := publish.NewPages(st, pub, logger)
-	router := api.NewRouter(svc, mcpHandler, pages, metrics, logger, cfg.APIKeys, requireMetricsAuth)
+	router := api.NewRouter(svc, mcpHandler, pages, adminPage, metrics, logger, cfg.APIKeys, requireMetricsAuth)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
