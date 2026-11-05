@@ -38,6 +38,45 @@ def _client(tmp_path, transport, key="sk-test-key"):
     return OpenRouterClient(api_key=key, cache_dir=tmp_path, transport=transport, backoff_s=0)
 
 
+def test_budget_stops_new_requests_but_allows_cached_results(tmp_path):
+    transport = Transport(_image_reply(cost=0.07))
+    client = OpenRouterClient(api_key="test", cache_dir=tmp_path, transport=transport, max_cost_usd=0.05)
+    client.generate_image("model", "one", "3:4")
+    assert client.generate_image("model", "one", "3:4").cached
+    with pytest.raises(BuildError, match="budget exhausted"):
+        client.generate_image("model", "two", "3:4")
+    assert len(transport.calls) == 1
+
+
+@pytest.mark.parametrize("limit", [0, -1, float("nan"), float("inf")])
+def test_invalid_budget_is_rejected(limit):
+    with pytest.raises(BuildError, match="positive finite"):
+        OpenRouterClient(max_cost_usd=limit)
+
+
+def test_cache_writer_cleans_its_temporary_file(tmp_path):
+    _client(tmp_path, Transport(_image_reply())).generate_image("model", "desk", "3:4")
+    assert not list(tmp_path.rglob("*.part"))
+
+
+def test_two_clients_can_fill_the_same_cache_key_concurrently(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    ready = Barrier(2)
+
+    def transport(*args):
+        ready.wait(timeout=5)
+        return _image_reply()
+
+    clients = [OpenRouterClient(api_key="test", cache_dir=tmp_path, transport=transport) for _ in range(2)]
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda client: client.generate_image("m", "desk", "3:4"), clients))
+    assert results[0].png == results[1].png == _png()
+    assert json.loads(next(tmp_path.rglob("*.json")).read_text())["usage"]["cost"] == 0.067
+    assert not list(tmp_path.rglob("*.part"))
+
+
 def test_image_is_cached_and_costs_once(tmp_path):
     t = Transport(_image_reply())
     c = _client(tmp_path, t)

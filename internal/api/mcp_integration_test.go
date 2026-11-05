@@ -25,6 +25,7 @@ import (
 	"github.com/tereshed/8bitnews/internal/sources"
 	"github.com/tereshed/8bitnews/internal/storage"
 	"github.com/tereshed/8bitnews/internal/store"
+	"github.com/tereshed/8bitnews/internal/testfixture"
 )
 
 // These integration tests drive the hub's actual MCP transport end to end
@@ -62,11 +63,17 @@ func newMCPTestStore(t *testing.T) *store.Store {
 	dsn := mcpTestDSN()
 
 	if err := store.MigrateUp(dsn); err != nil {
+		if os.Getenv("HUB_TEST_REQUIRE_SERVICES") == "true" {
+			t.Fatalf("required integration service failed: %v", err)
+		}
 		t.Skipf("skipping integration test: migrating test database %s: %v", dsn, err)
 	}
 
 	st, err := store.Open(context.Background(), dsn)
 	if err != nil {
+		if os.Getenv("HUB_TEST_REQUIRE_SERVICES") == "true" {
+			t.Fatalf("required integration service failed: %v", err)
+		}
 		t.Skipf("skipping integration test: connecting to test database: %v", err)
 	}
 	t.Cleanup(st.Close)
@@ -94,6 +101,9 @@ func newMCPTestMedia(t *testing.T) *storage.Client {
 		t.Fatalf("building S3 client: %v", err)
 	}
 	if _, err := media.Exists(context.Background(), "healthcheck-probe-object"); err != nil {
+		if os.Getenv("HUB_TEST_REQUIRE_SERVICES") == "true" {
+			t.Fatalf("required integration service failed: %v", err)
+		}
 		t.Skipf("skipping integration test: S3 not reachable: %v", err)
 	}
 	return media
@@ -365,16 +375,13 @@ func TestMCP_ReleaseSubmitAndGet_HappyPath(t *testing.T) {
 			ArchiveURL  string `json:"archive_url"`
 		} `json:"sources"`
 	}
-	mcpCallTool(t, session, "release_submit", map[string]any{
-		"development_id":    devID,
-		"channel_id":        "test-channel",
-		"media":             map[string]any{"video": video, "subtitles": subtitles, "cover": cover},
-		"research_dossier":  researchDossier,
-		"script":            script,
-		"video_package":     map[string]any{},
-		"validation_report": map[string]any{"verdict": "pass"},
-		"legal_review":      legalReview,
-	}, &submitOut)
+	fixture := testfixture.Complete(service.ReleaseManifest{
+		DevelopmentID: devID, ChannelID: "test-channel", Media: service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
+		ResearchDossier: mustMCPJSON(researchDossier), Script: mustMCPJSON(script), LegalReview: mustMCPJSON(legalReview),
+	})
+	var fixtureMap map[string]any
+	_ = json.Unmarshal(mustMCPJSON(fixture), &fixtureMap)
+	mcpCallTool(t, session, "release_submit", fixtureMap, &submitOut)
 
 	if submitOut.Status != "submitted" {
 		t.Errorf("Status = %q, want submitted", submitOut.Status)
@@ -551,4 +558,12 @@ func findMCPStory(t *testing.T, result mcpFindSimilarResult, storyID string) mcp
 	}
 	t.Fatalf("story_find_similar did not return story_id %q among %d matches", storyID, len(result.Stories))
 	panic("unreachable")
+}
+
+func mustMCPJSON(v any) json.RawMessage {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
 }

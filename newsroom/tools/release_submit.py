@@ -20,7 +20,7 @@ import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from hublib import Hub, artifact, artifact_with_id  # noqa: E402
+from hublib import Hub, artifact, artifact_with_id, artifact_with_origin  # noqa: E402
 
 
 def main() -> int:
@@ -30,7 +30,7 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
-    story_brief = artifact(args.story_brief, "story_brief")
+    story_brief, _, task_id = artifact_with_origin(args.story_brief, "story_brief")
     script, script_id = artifact_with_id(args.script, "script")
     video_package, video_id = artifact_with_id(args.video_package, "video_package")
     validation_report = artifact(args.validation_report, "validation_report")
@@ -56,7 +56,10 @@ def main() -> int:
     if missing:
         sys.exit(f"в video_package.media нет {', '.join(missing)}: ролик не загружен в хранилище")
     manifest = {
+        "script_artifact_id": script_id,
+        "video_package_artifact_id": video_id,
         "development_id": development_id,
+        "polymaths_task_id": task_id or "",
         "channel_id": video_package["channel_id"],
         "media": {"video": media["video"], "subtitles": media["subtitles"], "cover": media["cover"]},
         "research_dossier": artifact(args.research_dossier, "research_dossier"),

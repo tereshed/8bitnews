@@ -133,14 +133,17 @@ type MediaManifest struct {
 
 // ReleaseManifest is the input to release_submit (task E1 §3).
 type ReleaseManifest struct {
-	DevelopmentID    string          `json:"development_id" jsonschema:"the story development this release is for"`
-	ChannelID        string          `json:"channel_id" jsonschema:"the channel this release is for"`
-	Media            MediaManifest   `json:"media" jsonschema:"S3 object keys of the release media"`
-	ResearchDossier  json.RawMessage `json:"research_dossier" jsonschema:"research_dossier contract output"`
-	Script           json.RawMessage `json:"script" jsonschema:"script contract output"`
-	VideoPackage     json.RawMessage `json:"video_package" jsonschema:"video_package contract output"`
-	ValidationReport json.RawMessage `json:"validation_report" jsonschema:"validation_report contract output"`
-	LegalReview      json.RawMessage `json:"legal_review" jsonschema:"final-mode legal_review contract output"`
+	PolymathsTaskID        string          `json:"polymaths_task_id,omitempty" jsonschema:"Originating Newsroom task UUID, used for moderator rework"`
+	ScriptArtifactID       string          `json:"script_artifact_id" jsonschema:"UUID of the script artifact rendered by Video"`
+	VideoPackageArtifactID string          `json:"video_package_artifact_id" jsonschema:"UUID of the video_package artifact reviewed by QA and Legal"`
+	DevelopmentID          string          `json:"development_id" jsonschema:"the story development this release is for"`
+	ChannelID              string          `json:"channel_id" jsonschema:"the channel this release is for"`
+	Media                  MediaManifest   `json:"media" jsonschema:"S3 object keys of the release media"`
+	ResearchDossier        json.RawMessage `json:"research_dossier" jsonschema:"research_dossier contract output"`
+	Script                 json.RawMessage `json:"script" jsonschema:"script contract output"`
+	VideoPackage           json.RawMessage `json:"video_package" jsonschema:"video_package contract output"`
+	ValidationReport       json.RawMessage `json:"validation_report" jsonschema:"validation_report contract output"`
+	LegalReview            json.RawMessage `json:"legal_review" jsonschema:"final-mode legal_review contract output"`
 }
 
 // ReleaseSourceView is one checked, archived source attached to a release.

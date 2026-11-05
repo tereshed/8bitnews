@@ -30,8 +30,9 @@ Script пишет сценарий, Video делает ролик. Плохой 
      `development.hub_development_id` — из ответа (`story_id`, `development_id`). Без `hub_development_id` ролик
      не загрузить в хранилище и не сдать в hub;
    - `experiment_assign` — `variant` из ответа.
-   Инструментов hub нет → `prior_coverage: []`, `hub_story_id: null`, `hub_development_id: null`, `variant: {"experiment_id": null,
-   "arm_id": "default", "params": {}}`, и в summary сдачи напиши, что история канала не проверялась.
+   Инструментов hub нет или hub недоступен → заверши прогон ошибкой до Research. Без проверки истории и
+   регистрации поворота не создавай story_brief: такой ролик нельзя сдать, а следующие стадии потратят бюджет.
+   При регистрации передавай `polymaths_task_id` текущей задачи Newsroom, если он доступен в контексте.
 5. **`story_brief`** — по-английски, кроме полей, где схема просит другое:
    - `story.title` и `story.summary` — сюжет целиком, нейтрально, с атрибуцией спорного («X says»);
    - `development.summary` — **один** поворот: что именно нового, кто и когда это сделал или заявил. Ролик начинается

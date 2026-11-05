@@ -87,7 +87,9 @@ type Config struct {
 	// a private network interface.
 	MetricsAddr string
 
-	Moderation ModerationConfig
+	Moderation      ModerationConfig
+	PolymathsURL    string
+	PolymathsAPIKey string
 
 	// PublicURL is where hub's public pages (a video's sources page, a
 	// channel's list of videos) are reachable from the internet, as the
@@ -145,6 +147,8 @@ func Load() (Config, error) {
 		MetricsAddr:                     getEnv("HUB_METRICS_ADDR", ""),
 		PublicURL:                       strings.TrimRight(strings.TrimSpace(getEnv("HUB_PUBLIC_URL", "")), "/"),
 		CorrectionsContact:              strings.TrimSpace(getEnv("HUB_CORRECTIONS_CONTACT", "")),
+		PolymathsURL:                    getEnv("HUB_POLYMATHS_URL", "https://polymaths.work/api/v1"),
+		PolymathsAPIKey:                 getEnv("HUB_POLYMATHS_API_KEY", ""),
 		Moderation: ModerationConfig{
 			BotToken:     strings.TrimSpace(getEnv("TELEGRAM_BOT_TOKEN", "")),
 			PollInterval: getDuration("HUB_MODERATION_POLL_INTERVAL", 20*time.Second),

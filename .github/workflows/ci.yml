@@ -15,7 +15,30 @@ jobs:
           go-version-file: go.mod
       - name: Lint
         run: make lint
-      - name: Test
-        run: make test
+      - name: Test with isolated Postgres and S3 (integration skips are errors)
+        run: scripts/test-integration.sh
       - name: Validate profiles
         run: make validate-profiles
+
+  studio:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: studio/requirements-test.txt
+      - run: pip install -r studio/requirements-test.txt
+      - name: Studio contracts, layout, selection, provider and build isolation
+        env:
+          STUDIO_REPO_ROOT: ${{ github.workspace }}
+        working-directory: studio
+        run: >-
+          python -m pytest -q tests/test_validate.py tests/test_layout.py tests/test_pick.py
+          tests/test_openrouter.py tests/test_scene_prompt.py tests/test_build_isolation.py
+          tests/test_build.py::test_cover_title_is_twice_scene_text_size
+          tests/test_build.py::test_large_cover_title_rejects_word_splitting_and_font_fallback
+          tests/test_build.py::test_cover_rect_too_short_for_large_font_has_no_lines
+      - name: Newsroom schedules, progress and deterministic reports
+        run: python -m pytest -q newsroom/tests

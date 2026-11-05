@@ -21,6 +21,8 @@ import json
 import os
 import ssl
 import time
+import tempfile
+import math
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -132,6 +134,7 @@ class OpenRouterClient:
         retries: int = 2,
         transport: Transport | None = None,
         backoff_s: float = 2.0,
+        max_cost_usd: float | None = None,
     ):
         self.api_key = api_key if api_key is not None else os.environ.get(KEY_ENV, "")
         self.cache_dir = Path(cache_dir) if cache_dir else default_cache_dir()
@@ -139,6 +142,10 @@ class OpenRouterClient:
         self.retries = retries
         self.transport = transport or _urllib_transport
         self.backoff_s = backoff_s
+        self.max_cost_usd = float(os.environ.get("STUDIO_IMAGE_BUDGET_USD", "2")) if max_cost_usd is None else max_cost_usd
+        if not math.isfinite(self.max_cost_usd) or self.max_cost_usd <= 0:
+            raise BuildError("STUDIO_IMAGE_BUDGET_USD must be a positive finite number")
+        self.spent_usd = 0.0
 
     def _post(self, body: dict, variant: int, parse: Callable[[dict], Any]) -> tuple[Any, float, bool]:
         """(parse(reply), cost, cached). `parse` raises for a reply that can't
@@ -150,6 +157,8 @@ class OpenRouterClient:
             return parse(json.loads(path.read_text())), 0.0, True
         if not self.api_key:
             raise BuildError(f"no OpenRouter key: set env {KEY_ENV} (or build without generated pictures)")
+        if self.spent_usd >= self.max_cost_usd:
+            raise BuildError(f"image budget exhausted (${self.spent_usd:.4f} of ${self.max_cost_usd:.2f})")
         headers = {"Authorization": f"Bearer {self.api_key}"}
         for attempt in range(self.retries + 1):
             try:
@@ -162,15 +171,23 @@ class OpenRouterClient:
         if "error" in reply:
             raise BuildError(f"OpenRouter error: {json.dumps(reply['error'])[:300]}")
         cost = float((reply.get("usage") or {}).get("cost") or 0.0)
+        if not math.isfinite(cost) or cost < 0:
+            raise BuildError("OpenRouter returned an invalid usage cost")
+        self.spent_usd += cost
         try:
             value = parse(reply)
         except NoImageError as e:
             e.cost_usd = cost
             raise
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".part")
-        tmp.write_text(json.dumps(reply))
-        tmp.rename(path)
+        # Concurrent builds may fill the same cache key; each owns its temp file.
+        with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, suffix=".part", delete=False) as tmp:
+            try:
+                json.dump(reply, tmp)
+                tmp.close()
+                os.replace(tmp.name, path)
+            finally:
+                Path(tmp.name).unlink(missing_ok=True)
         return value, cost, False
 
     @staticmethod

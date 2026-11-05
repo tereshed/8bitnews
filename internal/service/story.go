@@ -2,8 +2,12 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/tereshed/8bitnews/internal/store"
@@ -95,42 +99,64 @@ func (s *Service) StoryRegister(ctx context.Context, req StoryRegisterRequest) (
 		}
 	}
 
-	var storyID string
-	if req.StoryID == nil {
-		if req.Title == "" || req.Summary == "" {
-			return StoryRegisterResponse{}, invalidf("title and summary are required when story_id is null")
-		}
-		created, err := s.store.CreateStory(ctx, req.ChannelID, req.Title, req.Summary)
-		if err != nil {
-			return StoryRegisterResponse{}, err
-		}
-		storyID = created.ID
-	} else {
-		existing, err := s.store.GetStory(ctx, *req.StoryID)
-		if err != nil {
-			if errors.Is(err, store.ErrNotFound) {
-				return StoryRegisterResponse{}, notFoundf("story %q not found", *req.StoryID)
-			}
-			return StoryRegisterResponse{}, err
-		}
-		if existing.ChannelID != req.ChannelID {
-			return StoryRegisterResponse{}, invalidf("story %q belongs to channel %q, not %q", existing.ID, existing.ChannelID, req.ChannelID)
-		}
-		storyID = existing.ID
+	if req.StoryID == nil && (req.Title == "" || req.Summary == "") {
+		return StoryRegisterResponse{}, invalidf("title and summary are required when story_id is null")
 	}
-
 	seedURLs, err := json.Marshal(req.SeedURLs)
 	if err != nil {
 		return StoryRegisterResponse{}, invalidf("encoding seed_urls: %v", err)
 	}
-
-	dev, err := s.store.CreateDevelopment(ctx, storyID, req.DevelopmentSummary, req.ReportedAt, seedURLs, req.PolymathsTaskID)
+	if req.PolymathsTaskID != "" {
+		if _, err := parseID("polymaths_task_id", req.PolymathsTaskID); err != nil {
+			return StoryRegisterResponse{}, err
+		}
+	}
+	storyID, devID, err := s.store.RegisterDevelopment(ctx, store.Registration{
+		ChannelID: req.ChannelID, StoryID: req.StoryID, Title: req.Title, Summary: req.Summary,
+		DevelopmentSummary: req.DevelopmentSummary, ReportedAt: req.ReportedAt, SeedURLs: seedURLs,
+		TaskID: req.PolymathsTaskID, EventKey: registrationEventKey(req),
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return StoryRegisterResponse{}, notFoundf("story not found")
+	}
+	if errors.Is(err, store.ErrConflict) {
+		return StoryRegisterResponse{}, conflictf("story/task reservation belongs to another event or channel")
+	}
 	if err != nil {
 		return StoryRegisterResponse{}, err
 	}
-	if err := s.store.TouchStory(ctx, storyID); err != nil {
-		return StoryRegisterResponse{}, err
-	}
+	return StoryRegisterResponse{StoryID: storyID, DevelopmentID: devID}, nil
+}
 
-	return StoryRegisterResponse{StoryID: storyID, DevelopmentID: dev.ID}, nil
+// Canonical URLs and event time identify a retry even if an agent rephrases its
+// title. Semantic deduplication of differently sourced events remains Research's job.
+func registrationEventKey(req StoryRegisterRequest) string {
+	unique := map[string]bool{}
+	for _, raw := range req.SeedURLs {
+		u, err := url.Parse(strings.TrimSpace(raw))
+		if err != nil {
+			continue
+		}
+		u.Fragment = ""
+		u.Host = strings.ToLower(u.Host)
+		query := u.Query()
+		for key := range query {
+			if strings.HasPrefix(strings.ToLower(key), "utm_") || key == "fbclid" || key == "gclid" {
+				query.Del(key)
+			}
+		}
+		u.RawQuery = query.Encode()
+		unique[u.String()] = true
+	}
+	urls := make([]string, 0, len(unique))
+	for u := range unique {
+		urls = append(urls, u)
+	}
+	sort.Strings(urls)
+	identity := req.ReportedAt.UTC().Format("2006-01-02T15:04:05.999999999Z07:00") + "\n" + strings.Join(urls, "\n")
+	if len(urls) == 0 {
+		identity += "\n" + strings.ToLower(strings.Join(strings.Fields(req.DevelopmentSummary), " "))
+	}
+	digest := sha256.Sum256([]byte(identity))
+	return hex.EncodeToString(digest[:])
 }

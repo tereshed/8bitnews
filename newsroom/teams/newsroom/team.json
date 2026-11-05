@@ -23,7 +23,7 @@
       "name": "producer",
       "role": "producer",
       "prompt": "producer.md",
-      "role_description": "Выпускающий продюсер: читает delegation_result команды, которой Newsroom передал работу (Research, Script, Legal, Video, QA), скачивает итоговые артефакты по id и сдаёт stage_report — вердикт, id артефактов и замечания по адресатам в summary, которое видит роутер. Качество работы команды не оценивает."
+      "role_description": "Выпускающий продюсер: запускает stage_report.py по delegation_result команды Research, Script, Legal, Video или QA и сдаёт неизменённые JSON и summary. Код проверяет привязку ревью к последнему артефакту, извлекает вердикты, UUID и адресатов доработок. Сам вердикты не интерпретирует."
     }
   ],
   "deactivate": [],

@@ -57,6 +57,8 @@ services:
       # the corrections contact.
       HUB_PUBLIC_URL: ${HUB_PUBLIC_URL:-}
       HUB_CORRECTIONS_CONTACT: ${HUB_CORRECTIONS_CONTACT:-}
+      HUB_POLYMATHS_URL: ${HUB_POLYMATHS_URL:-https://polymaths.work/api/v1}
+      HUB_POLYMATHS_API_KEY: ${HUB_POLYMATHS_API_KEY:-}
     volumes:
       - ${HUB_REPO_DIR:-/opt/8bitnews/repo}/channels:/repo/channels:ro
       - ${HUB_REPO_DIR:-/opt/8bitnews/repo}/countries:/repo/countries:ro

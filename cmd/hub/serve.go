@@ -14,6 +14,7 @@ import (
 	"github.com/tereshed/8bitnews/internal/mcpapi"
 	"github.com/tereshed/8bitnews/internal/moderation"
 	"github.com/tereshed/8bitnews/internal/observability"
+	"github.com/tereshed/8bitnews/internal/polymaths"
 	"github.com/tereshed/8bitnews/internal/publish"
 	"github.com/tereshed/8bitnews/internal/service"
 	"github.com/tereshed/8bitnews/internal/sources"
@@ -70,6 +71,11 @@ func runServe(_ []string) {
 		SourcesBackgroundArchiveTimeout: cfg.SourcesBackgroundArchiveTimeout,
 	})
 	pub := publish.Config{PublicURL: cfg.PublicURL, CorrectionsContact: cfg.CorrectionsContact}
+	if cfg.PolymathsAPIKey != "" {
+		go polymaths.Run(ctx, st, &polymaths.Client{URL: cfg.PolymathsURL, APIKey: cfg.PolymathsAPIKey}, logger)
+	} else {
+		logger.Info("rework dispatcher off: HUB_POLYMATHS_API_KEY is not set; feedback stays queued")
+	}
 	// The admin page needs the bot, which hands out its login links and is
 	// how decisions reach the moderation group, and a public address for them.
 	var adminPage http.Handler

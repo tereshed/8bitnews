@@ -16,6 +16,7 @@ import (
 
 	"github.com/tereshed/8bitnews/internal/service"
 	"github.com/tereshed/8bitnews/internal/sources"
+	"github.com/tereshed/8bitnews/internal/testfixture"
 )
 
 // newFakeSourceServer serves /ok (a normal article page) and /dead (404),
@@ -188,7 +189,7 @@ func TestReleaseSubmit_HappyPath(t *testing.T) {
 
 	dossier, script := dossierAndScript(sourceSrv.URL + "/ok")
 
-	resp, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+	resp, err := svc.ReleaseSubmit(context.Background(), testfixture.Complete(service.ReleaseManifest{
 		DevelopmentID:    devID,
 		ChannelID:        "test-channel",
 		Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
@@ -197,7 +198,7 @@ func TestReleaseSubmit_HappyPath(t *testing.T) {
 		VideoPackage:     json.RawMessage(`{}`),
 		ValidationReport: json.RawMessage(passValidationReport),
 		LegalReview:      json.RawMessage(passLegalReview),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("ReleaseSubmit: %v", err)
 	}
@@ -235,7 +236,7 @@ func TestReleaseSubmit_HappyPath(t *testing.T) {
 
 	// A second submission for the same development must be refused while
 	// this release is still active (not rejected/changes_requested/failed).
-	_, err = svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+	_, err = svc.ReleaseSubmit(context.Background(), testfixture.Complete(service.ReleaseManifest{
 		DevelopmentID:    devID,
 		ChannelID:        "test-channel",
 		Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
@@ -244,9 +245,9 @@ func TestReleaseSubmit_HappyPath(t *testing.T) {
 		VideoPackage:     json.RawMessage(`{}`),
 		ValidationReport: json.RawMessage(passValidationReport),
 		LegalReview:      json.RawMessage(passLegalReview),
-	})
-	if err == nil {
-		t.Fatalf("expected a second submission for the same development to be rejected")
+	}))
+	if err != nil {
+		t.Fatalf("identical submission retry failed: %v", err)
 	}
 
 	// releases_recent must show it.
@@ -281,7 +282,7 @@ func TestReleaseSubmit_DeadSourceWithoutArchive(t *testing.T) {
 	deadURL := sourceSrv.URL + "/dead"
 	dossier, script := dossierAndScript(deadURL)
 
-	_, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+	_, err := svc.ReleaseSubmit(context.Background(), testfixture.Complete(service.ReleaseManifest{
 		DevelopmentID:    devID,
 		ChannelID:        "test-channel",
 		Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
@@ -290,7 +291,7 @@ func TestReleaseSubmit_DeadSourceWithoutArchive(t *testing.T) {
 		VideoPackage:     json.RawMessage(`{}`),
 		ValidationReport: json.RawMessage(passValidationReport),
 		LegalReview:      json.RawMessage(passLegalReview),
-	})
+	}))
 	if err == nil {
 		t.Fatalf("expected ReleaseSubmit to reject a dead source with no archive copy")
 	}
@@ -367,7 +368,7 @@ func TestReleaseSubmit_GoneSourceAndItsArchiveCopy(t *testing.T) {
 			cover := uploadFixture(t, svc, devID, "cover.png")
 			dossier, script := dossierAndScript(c.source)
 
-			resp, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+			resp, err := svc.ReleaseSubmit(context.Background(), testfixture.Complete(service.ReleaseManifest{
 				DevelopmentID:    devID,
 				ChannelID:        "test-channel",
 				Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
@@ -376,7 +377,7 @@ func TestReleaseSubmit_GoneSourceAndItsArchiveCopy(t *testing.T) {
 				VideoPackage:     json.RawMessage(`{}`),
 				ValidationReport: json.RawMessage(passValidationReport),
 				LegalReview:      json.RawMessage(passLegalReview),
-			})
+			}))
 			if c.wantRefused {
 				if err == nil || !strings.Contains(err.Error(), c.source) {
 					t.Fatalf("want a refusal naming %s, got %v", c.source, err)
@@ -442,7 +443,7 @@ func TestReleaseSubmit_SnapshotOfAWallIsNotACopy(t *testing.T) {
 	moved := sourceSrv.URL + "/moved"
 	dossier, script := dossierAndScript(moved)
 
-	_, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+	_, err := svc.ReleaseSubmit(context.Background(), testfixture.Complete(service.ReleaseManifest{
 		DevelopmentID:    devID,
 		ChannelID:        "test-channel",
 		Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
@@ -451,7 +452,7 @@ func TestReleaseSubmit_SnapshotOfAWallIsNotACopy(t *testing.T) {
 		VideoPackage:     json.RawMessage(`{}`),
 		ValidationReport: json.RawMessage(passValidationReport),
 		LegalReview:      json.RawMessage(passLegalReview),
-	})
+	}))
 	if err == nil || !strings.Contains(err.Error(), moved) {
 		t.Fatalf("want a refusal naming %s, got %v", moved, err)
 	}
@@ -503,7 +504,7 @@ func TestReleaseSubmit_SnapshotOfTheRedirectTargetIsNotACopy(t *testing.T) {
 	cover := uploadFixture(t, svc, devID, "cover.png")
 	dossier, script := dossierAndScript(cited)
 
-	_, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+	_, err := svc.ReleaseSubmit(context.Background(), testfixture.Complete(service.ReleaseManifest{
 		DevelopmentID:    devID,
 		ChannelID:        "test-channel",
 		Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
@@ -512,7 +513,7 @@ func TestReleaseSubmit_SnapshotOfTheRedirectTargetIsNotACopy(t *testing.T) {
 		VideoPackage:     json.RawMessage(`{}`),
 		ValidationReport: json.RawMessage(passValidationReport),
 		LegalReview:      json.RawMessage(passLegalReview),
-	})
+	}))
 	if err == nil || !strings.Contains(err.Error(), cited) {
 		t.Fatalf("want a refusal naming %s, got %v", cited, err)
 	}
@@ -539,7 +540,7 @@ func TestReleaseSubmit_MissingObjectKey(t *testing.T) {
 
 	dossier, script := dossierAndScript(sourceSrv.URL + "/ok")
 
-	_, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+	_, err := svc.ReleaseSubmit(context.Background(), testfixture.Complete(service.ReleaseManifest{
 		DevelopmentID:    devID,
 		ChannelID:        "test-channel",
 		Media:            service.MediaManifest{Video: missingKey, Subtitles: subtitles, Cover: cover},
@@ -548,7 +549,7 @@ func TestReleaseSubmit_MissingObjectKey(t *testing.T) {
 		VideoPackage:     json.RawMessage(`{}`),
 		ValidationReport: json.RawMessage(passValidationReport),
 		LegalReview:      json.RawMessage(passLegalReview),
-	})
+	}))
 	if err == nil {
 		t.Fatalf("expected ReleaseSubmit to reject a missing S3 object key")
 	}
@@ -578,7 +579,7 @@ func TestReleaseSubmit_ValidationFail(t *testing.T) {
 
 	dossier, script := dossierAndScript(sourceSrv.URL + "/ok")
 
-	_, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+	_, err := svc.ReleaseSubmit(context.Background(), testfixture.Complete(service.ReleaseManifest{
 		DevelopmentID:    devID,
 		ChannelID:        "test-channel",
 		Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
@@ -587,7 +588,7 @@ func TestReleaseSubmit_ValidationFail(t *testing.T) {
 		VideoPackage:     json.RawMessage(`{}`),
 		ValidationReport: json.RawMessage(`{"verdict": "fail"}`),
 		LegalReview:      json.RawMessage(passLegalReview),
-	})
+	}))
 	if err == nil {
 		t.Fatalf("expected ReleaseSubmit to reject validation_report.verdict = fail")
 	}
@@ -675,7 +676,7 @@ func TestReleaseSubmit_ManySourcesFinishWithinDeadline(t *testing.T) {
 	dossier, script := dossierWithNSources(sourceSrv.URL, 40)
 
 	start := time.Now()
-	resp, err := svc.ReleaseSubmit(context.Background(), service.ReleaseManifest{
+	resp, err := svc.ReleaseSubmit(context.Background(), testfixture.Complete(service.ReleaseManifest{
 		DevelopmentID:    devID,
 		ChannelID:        "test-channel",
 		Media:            service.MediaManifest{Video: video, Subtitles: subtitles, Cover: cover},
@@ -684,7 +685,7 @@ func TestReleaseSubmit_ManySourcesFinishWithinDeadline(t *testing.T) {
 		VideoPackage:     json.RawMessage(`{}`),
 		ValidationReport: json.RawMessage(passValidationReport),
 		LegalReview:      json.RawMessage(passLegalReview),
-	})
+	}))
 	elapsed := time.Since(start)
 	if err != nil {
 		t.Fatalf("ReleaseSubmit: %v (after %s)", err, elapsed)

@@ -79,6 +79,7 @@ type ReleaseSummary struct {
 
 // Release is a submitted video package (docs/architecture.md §7).
 type Release struct {
+	PolymathsTaskID  string
 	ID               string
 	DevelopmentID    string
 	ChannelID        string

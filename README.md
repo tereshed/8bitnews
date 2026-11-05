@@ -5,6 +5,7 @@
 
 - Архитектура и роадмап — [docs/architecture.md](docs/architecture.md)
 - Профили каналов — [channels/](channels/)
+- Автоматизация, доработки и проверки — [docs/automation.md](docs/automation.md)
 
 Контент генерируют команды агентов PolyMaths (проект `8bitnews`); модерацию, публикацию, статистику
 и эксперименты ведёт Go-сервис `hub`; дашборды — DataLens.

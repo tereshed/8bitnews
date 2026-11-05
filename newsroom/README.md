@@ -19,12 +19,17 @@
   в stdout — `video_package`.
 - `tools/video_review_kit.py` — QA и Legal скачивают ключевые кадры, обложку и субтитры ролика для просмотра.
 - `tools/release_submit.py` — editor сдаёт готовый ролик в hub (`release_submit`) по id артефактов.
+- `tools/stage_report.py` — проверяемый разбор результатов пяти команд и привязки ревью к артефакту, без пересказа LLM.
+- `automation.py schedules` — план расписаний каналов; `--apply` создаёт отсутствующие в PolyMaths.
+- `automation.py status` — статусы, наличие квитанций и обнаружение зависших прогонов только на чтение.
 - `tools/hublib.py` — общий клиент hub и чтение ключей из skills.
 - `contracts/<kind>.schema.json` — JSON Schema (draft 2020-12) контракта артефакта. Общие части (источник, факт,
   группа мнений) повторяются в нескольких схемах, поэтому JSON генерируется: правь `gen_contracts.py` и запускай
   `python3 newsroom/gen_contracts.py`, затем `sync.py`.
 
 ## Команды
+
+Надёжность, очередь доработок, запуск расписаний и проверка готовности — [docs/automation.md](../docs/automation.md).
 
 | Команда | Статус | Агенты → артефакт |
 |---|---|---|
