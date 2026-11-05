@@ -485,14 +485,22 @@ func TestAnApprovalPostsThePublicationPackage(t *testing.T) {
 	}
 
 	docs := tg.byMethod("sendDocument")
-	if len(docs) != 2 || docs[0].params["filename"] != "n-video_no_music.mp4" || docs[1].params["filename"] != "c-cover.png" {
+	if len(docs) != 3 || docs[0].params["filename"] != "n-video_no_music.mp4" || docs[1].params["filename"] != "c-cover.png" ||
+		docs[2].params["filename"] != "c-cover.png" {
 		t.Fatalf("documents = %v", docs)
 	}
 	if !strings.Contains(docs[0].params["caption"].(string), "без музыки") ||
 		!strings.Contains(docs[0].params["reply_parameters"].(string), fmt.Sprintf(`"message_id":%d`, msgs[1].id)) {
 		t.Errorf("the YouTube file: %v", docs[0].params)
 	}
-	if strings.Join(media.all, ",") != "releases/dev/n-video_no_music.mp4,releases/dev/c-cover.png" {
+	if !strings.Contains(docs[1].params["caption"].(string), "YouTube Shorts: обложка") ||
+		!strings.Contains(docs[1].params["reply_parameters"].(string), fmt.Sprintf(`"message_id":%d`, msgs[1].id)) {
+		t.Errorf("the YouTube cover: %v", docs[1].params)
+	}
+	if !strings.Contains(yt, "Обложка — файл ниже") {
+		t.Errorf("youtube message doesn't announce the cover:\n%s", yt)
+	}
+	if strings.Join(media.all, ",") != "releases/dev/n-video_no_music.mp4,releases/dev/c-cover.png,releases/dev/c-cover.png" {
 		t.Errorf("opened %v", media.all)
 	}
 }

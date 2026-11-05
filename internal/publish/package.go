@@ -86,7 +86,7 @@ type PlatformPackage struct {
 	// without music when there is one (format.md «Музыка и длина»).
 	Video string
 	// Cover is the object key of the cover image, for the platforms that
-	// take an uploaded one (Instagram).
+	// take an uploaded one (YouTube, Instagram).
 	Cover string
 }
 
@@ -202,6 +202,7 @@ func Build(in Input) Package {
 		switch p {
 		case "youtube":
 			pp.Tags = meta.Tags
+			pp.Cover = media.Cover // left alone, YouTube picks a frame that may not say what the video is about
 			// YouTube refuses "<" and ">" in a title or description.
 			pp.Title, pp.Description = noAngles(pp.Title), noAngles(pp.Description)
 			if v := vp.Media.VideoNoMusic; strings.HasPrefix(v, "releases/") {
