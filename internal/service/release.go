@@ -78,6 +78,11 @@ func (s *Service) ReleaseSubmit(ctx context.Context, manifest ReleaseManifest) (
 	if err := validateReleaseManifest(manifest); err != nil {
 		return ReleaseSubmitResponse{}, err
 	}
+	if prior, err := s.store.FindMatchingRelease(ctx, params); err == nil {
+		return s.submissionResponse(ctx, prior)
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return ReleaseSubmitResponse{}, err
+	}
 	if prior, err := s.store.FindActiveRelease(ctx, manifest.DevelopmentID); err == nil {
 		if !store.MatchesRelease(prior, params) {
 			return ReleaseSubmitResponse{}, conflictf("development %q already has a different active release", manifest.DevelopmentID)
@@ -193,11 +198,23 @@ func (s *Service) checkMediaHashes(ctx context.Context, manifest ReleaseManifest
 			SHA256 string `json:"sha256"`
 			Bytes  int64  `json:"bytes"`
 		} `json:"files"`
+		Media map[string]json.RawMessage `json:"media"`
 	}
 	if err := json.Unmarshal(manifest.VideoPackage, &pkg); err != nil {
 		return invalidf("invalid video_package")
 	}
-	for name, key := range map[string]string{"video": manifest.Media.Video, "subtitles": manifest.Media.Subtitles, "cover": manifest.Media.Cover} {
+	keys := map[string]string{"video": manifest.Media.Video, "subtitles": manifest.Media.Subtitles, "cover": manifest.Media.Cover}
+	if raw, ok := pkg.Media["video_no_music"]; ok {
+		var key string
+		if json.Unmarshal(raw, &key) != nil || key == "" {
+			return invalidf("invalid video_no_music key")
+		}
+		keys["video_no_music"] = key
+	}
+	if _, required := pkg.Files["video_no_music"]; required && keys["video_no_music"] == "" {
+		return invalidf("video_no_music is not uploaded")
+	}
+	for name, key := range keys {
 		if !strings.HasPrefix(key, "releases/"+manifest.DevelopmentID+"/") {
 			return invalidf("media.%s does not belong to this development", name)
 		}

@@ -19,7 +19,11 @@ func (s *Store) ClaimRework(ctx context.Context) (ReworkJob, bool, error) {
 	}
 	// Releases which have since been withdrawn/rejected no longer need work.
 	_, err = s.pool.Exec(ctx, `UPDATE rework_jobs j SET status='cancelled', updated_at=now()
-		FROM releases r WHERE r.id=j.release_id AND r.status <> 'changes_requested' AND j.status IN ('pending','dispatching')`)
+		FROM releases r WHERE r.id=j.release_id AND
+		 (r.status <> 'changes_requested' OR r.moderation_note<>j.note OR EXISTS(
+		 SELECT 1 FROM releases newer WHERE newer.development_id=r.development_id AND newer.created_at>r.created_at
+		 AND newer.status NOT IN ('rejected','changes_requested','failed')))
+		 AND j.status IN ('pending','dispatching')`)
 	if err != nil {
 		return ReworkJob{}, false, err
 	}
@@ -27,7 +31,9 @@ func (s *Store) ClaimRework(ctx context.Context) (ReworkJob, bool, error) {
 	err = s.pool.QueryRow(ctx, `UPDATE rework_jobs SET status='dispatching', attempts=attempts+1,
 		lease_token=gen_random_uuid(), lease_until=now()+interval '2 minutes', updated_at=now()
 		WHERE id=(SELECT id FROM rework_jobs WHERE
-			(status='pending' AND available_at<=now()) OR (status='dispatching' AND lease_until<now())
+			((status='pending' AND available_at<=now()) OR (status='dispatching' AND lease_until<now()))
+			AND EXISTS(SELECT 1 FROM releases r WHERE r.id=rework_jobs.release_id AND r.status='changes_requested' AND r.moderation_note=rework_jobs.note
+			 AND NOT EXISTS(SELECT 1 FROM releases newer WHERE newer.development_id=r.development_id AND newer.created_at>r.created_at AND newer.status NOT IN ('rejected','changes_requested','failed')))
 			ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
 		RETURNING id, release_id, task_id, note, lease_token, attempts`).Scan(&job.ID, &job.ReleaseID, &job.TaskID, &job.Note, &job.LeaseToken, &job.Attempts)
 	if errors.Is(mapNotFound(err), ErrNotFound) {

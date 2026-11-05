@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -103,6 +104,35 @@ func (s *Store) FindActiveRelease(ctx context.Context, developmentID string) (Re
 	return r, mapNotFound(err)
 }
 
+type releaseQuery interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}
+
+func (s *Store) FindMatchingRelease(ctx context.Context, p NewReleaseParams) (Release, error) {
+	return findMatchingRelease(ctx, s.pool, p)
+}
+
+func findMatchingRelease(ctx context.Context, db releaseQuery, p NewReleaseParams) (Release, error) {
+	rows, err := db.Query(ctx, `SELECT `+releaseColumns+` FROM releases WHERE development_id=$1 ORDER BY created_at DESC`, p.DevelopmentID)
+	if err != nil {
+		return Release{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r Release
+		if err := scanRelease(rows, &r); err != nil {
+			return Release{}, err
+		}
+		if MatchesRelease(r, p) {
+			return r, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return Release{}, err
+	}
+	return Release{}, ErrNotFound
+}
+
 // MatchesRelease compares content rather than JSON whitespace/key order. A different
 // build for an already active development is a conflict, never an idempotent retry.
 func MatchesRelease(r Release, p NewReleaseParams) bool {
@@ -112,7 +142,10 @@ func MatchesRelease(r Release, p NewReleaseParams) bool {
 	for _, pair := range [][2]json.RawMessage{{r.Media, p.Media}, {r.ResearchDossier, p.ResearchDossier},
 		{r.Script, p.Script}, {r.VideoPackage, p.VideoPackage}, {r.ValidationReport, p.ValidationReport}, {r.LegalReview, p.LegalReview}} {
 		var a, b any
-		if json.Unmarshal(nonNilJSON(pair[0]), &a) != nil || json.Unmarshal(nonNilJSON(pair[1]), &b) != nil || !reflect.DeepEqual(a, b) {
+		da, db := json.NewDecoder(bytes.NewReader(nonNilJSON(pair[0]))), json.NewDecoder(bytes.NewReader(nonNilJSON(pair[1])))
+		da.UseNumber()
+		db.UseNumber()
+		if da.Decode(&a) != nil || db.Decode(&b) != nil || !reflect.DeepEqual(a, b) {
 			return false
 		}
 	}
@@ -128,6 +161,11 @@ func (s *Store) CreateReleaseWithSources(ctx context.Context, p NewReleaseParams
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, p.DevelopmentID); err != nil {
+		return Release{}, false, err
+	}
+	if prior, err := findMatchingRelease(ctx, tx, p); err == nil {
+		return prior, false, tx.Commit(ctx)
+	} else if !errors.Is(err, ErrNotFound) {
 		return Release{}, false, err
 	}
 	var existing Release

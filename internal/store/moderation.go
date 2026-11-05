@@ -109,7 +109,8 @@ func (s *Store) SetModerationNote(ctx context.Context, releaseID, note string) e
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	tag, err := tx.Exec(ctx, `
-		UPDATE releases SET moderation_note = $2, updated_at = now()
+		UPDATE releases SET moderation_revision=moderation_revision+CASE WHEN moderation_note IS DISTINCT FROM $2 THEN 1 ELSE 0 END,
+		 moderation_note = $2, updated_at = now()
 		WHERE id = $1 AND status IN ('rejected', 'changes_requested')
 	`, releaseID, note)
 	if err != nil {
@@ -120,9 +121,14 @@ func (s *Store) SetModerationNote(ctx context.Context, releaseID, note string) e
 	}
 	// A committed moderator note always has a durable dispatch job. Repeated
 	// Telegram deliveries of the same note do not create another feedback.
+	_, err = tx.Exec(ctx, `UPDATE rework_jobs SET status='cancelled', lease_token=NULL, lease_until=NULL, updated_at=now()
+	 WHERE release_id=$1 AND note<>$2 AND status IN ('pending','dispatching','needs_human')`, releaseID, note)
+	if err != nil {
+		return err
+	}
 	_, err = tx.Exec(ctx, `INSERT INTO rework_jobs(release_id, task_id, note, note_hash, status, last_error)
 		SELECT r.id, COALESCE(NULLIF(r.polymaths_task_id, ''), d.polymaths_task_id, ''), $2,
-		 encode(digest($2, 'sha256'), 'hex'),
+		 encode(digest($2 || ':' || r.moderation_revision::text, 'sha256'), 'hex'),
 		 CASE WHEN COALESCE(NULLIF(r.polymaths_task_id, ''), NULLIF(d.polymaths_task_id, ''), '') = '' THEN 'needs_human' ELSE 'pending' END,
 		 CASE WHEN COALESCE(NULLIF(r.polymaths_task_id, ''), NULLIF(d.polymaths_task_id, ''), '') = '' THEN 'Originating PolyMaths task is unknown' ELSE '' END
 		FROM releases r JOIN story_developments d ON d.id = r.development_id

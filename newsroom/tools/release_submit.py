@@ -31,6 +31,7 @@ def main() -> int:
     args = ap.parse_args()
 
     story_brief, _, task_id = artifact_with_origin(args.story_brief, "story_brief")
+    research_dossier, dossier_id = artifact_with_id(args.research_dossier, "research_dossier")
     script, script_id = artifact_with_id(args.script, "script")
     video_package, video_id = artifact_with_id(args.video_package, "video_package")
     validation_report = artifact(args.validation_report, "validation_report")
@@ -40,6 +41,8 @@ def main() -> int:
     # The artifacts must be about one and the same video: a QA pass or a Legal pass for an earlier build says
     # nothing about this one.
     mismatch = []
+    if script.get("dossier") != dossier_id:
+        mismatch.append("script.dossier does not match the submitted research dossier")
     if video_package.get("script") != script_id:
         mismatch.append(f"video_package собран по сценарию {video_package.get('script')}, а сдаётся {script_id}")
     if validation_report.get("video_package") != video_id:
@@ -56,13 +59,14 @@ def main() -> int:
     if missing:
         sys.exit(f"в video_package.media нет {', '.join(missing)}: ролик не загружен в хранилище")
     manifest = {
+        "research_dossier_artifact_id": dossier_id,
         "script_artifact_id": script_id,
         "video_package_artifact_id": video_id,
         "development_id": development_id,
         "polymaths_task_id": task_id or "",
         "channel_id": video_package["channel_id"],
         "media": {"video": media["video"], "subtitles": media["subtitles"], "cover": media["cover"]},
-        "research_dossier": artifact(args.research_dossier, "research_dossier"),
+        "research_dossier": research_dossier,
         "script": script,
         "video_package": video_package,
         "validation_report": validation_report,

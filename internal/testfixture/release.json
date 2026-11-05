@@ -759,7 +759,7 @@
         "on_screen_text": "Sources in the description"
       }
     ],
-    "dossier": "0f464b7d-e3b0-439b-96c4-c7b3fb01cf11",
+    "dossier": "33333333-3333-4333-8333-333333333333",
     "language": "en-US",
     "metadata": {
       "tiktok": {
@@ -925,5 +925,6 @@
     "checked_against": [
       "fixture policy"
     ]
-  }
+  },
+  "research_dossier_artifact_id": "33333333-3333-4333-8333-333333333333"
 }

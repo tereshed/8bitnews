@@ -17,6 +17,7 @@ func TestReleaseManifestRejectsMixedBuildsAndUnvalidatedReports(t *testing.T) {
 		mutate      func(map[string]any)
 	}{
 		{"wrong channel", "script", func(d map[string]any) { d["channel_id"] = "another-channel" }},
+		{"different dossier", "script", func(d map[string]any) { d["dossier"] = "44444444-4444-4444-8444-444444444444" }},
 		{"different script", "video_package", func(d map[string]any) { d["script"] = "33333333-3333-4333-8333-333333333333" }},
 		{"old QA", "validation_report", func(d map[string]any) { d["video_package"] = "33333333-3333-4333-8333-333333333333" }},
 		{"old Legal", "legal_review", func(d map[string]any) { d["video_package"] = "33333333-3333-4333-8333-333333333333" }},

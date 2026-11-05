@@ -85,3 +85,17 @@ func TestPublicURL(t *testing.T) {
 		}
 	}
 }
+
+func TestCostsViewerKeyIsSeparateFromFeedbackWriteKey(t *testing.T) {
+	t.Setenv("HUB_POLYMATHS_API_KEY", "viewer-key")
+	t.Setenv("HUB_POLYMATHS_WRITE_API_KEY", "writer-key")
+	t.Setenv("HUB_POLYMATHS_PROJECT_ID", "project")
+	t.Setenv("HUB_POLYMATHS_NEWSROOM_TEAM_ID", "newsroom")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Costs.APIKey != "viewer-key" || cfg.PolymathsWriteAPIKey != "writer-key" {
+		t.Fatal("viewer/write keys mixed")
+	}
+}

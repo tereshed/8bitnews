@@ -6,6 +6,9 @@ import (
 )
 
 func validateReleaseManifest(m ReleaseManifest) error {
+	if _, err := parseID("research_dossier_artifact_id", m.ResearchDossierArtifactID); err != nil {
+		return err
+	}
 	if m.PolymathsTaskID != "" {
 		if _, err := parseID("polymaths_task_id", m.PolymathsTaskID); err != nil {
 			return err
@@ -73,13 +76,17 @@ func validateReleaseManifest(m ReleaseManifest) error {
 		}
 	}
 	var script struct {
-		Scenes []struct {
+		Dossier string `json:"dossier"`
+		Scenes  []struct {
 			Facts    []string `json:"fact_ids"`
 			Groups   []string `json:"group_ids"`
 			Clusters []string `json:"cluster_ids"`
 		} `json:"scenes"`
 	}
 	_ = json.Unmarshal(m.Script, &script)
+	if script.Dossier != m.ResearchDossierArtifactID {
+		return invalidf("script.dossier differs from research_dossier_artifact_id")
+	}
 	for _, scene := range script.Scenes {
 		for _, refs := range [][]string{scene.Facts, scene.Groups, scene.Clusters} {
 			for _, id := range refs {

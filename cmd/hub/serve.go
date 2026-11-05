@@ -72,10 +72,10 @@ func runServe(_ []string) {
 		SourcesBackgroundArchiveTimeout: cfg.SourcesBackgroundArchiveTimeout,
 	})
 	pub := publish.Config{PublicURL: cfg.PublicURL, CorrectionsContact: cfg.CorrectionsContact}
-	if cfg.PolymathsAPIKey != "" {
-		go polymaths.Run(ctx, st, &polymaths.Client{URL: cfg.PolymathsURL, APIKey: cfg.PolymathsAPIKey}, logger)
+	if cfg.PolymathsWriteAPIKey != "" {
+		go polymaths.Run(ctx, st, &polymaths.Client{URL: cfg.PolymathsURL, APIKey: cfg.PolymathsWriteAPIKey}, logger)
 	} else {
-		logger.Info("rework dispatcher off: HUB_POLYMATHS_API_KEY is not set; feedback stays queued")
+		logger.Info("rework dispatcher off: HUB_POLYMATHS_WRITE_API_KEY is not set; feedback stays queued")
 	}
 	// The admin page needs the bot, which hands out its login links and is
 	// how decisions reach the moderation group, and a public address for them.

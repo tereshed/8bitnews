@@ -1,6 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 ALTER TABLE releases ADD COLUMN polymaths_task_id text NOT NULL DEFAULT '';
+ALTER TABLE releases ADD COLUMN moderation_revision bigint NOT NULL DEFAULT 0;
 CREATE TABLE story_registrations (
     channel_id text NOT NULL REFERENCES channels(id),
     registration_key text NOT NULL,
@@ -32,4 +33,5 @@ CREATE INDEX rework_jobs_pending_idx ON rework_jobs(available_at) WHERE status I
 DROP TABLE rework_jobs;
 DROP TABLE story_registrations;
 ALTER TABLE releases DROP COLUMN polymaths_task_id;
+ALTER TABLE releases DROP COLUMN moderation_revision;
 -- +goose StatementEnd

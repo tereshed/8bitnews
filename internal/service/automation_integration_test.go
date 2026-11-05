@@ -64,6 +64,20 @@ func TestReleaseWithSourcesRollsBackAndRetriesConcurrently(t *testing.T) {
 	if _, _, err := st.CreateReleaseWithSources(ctx, p, nil); !errors.Is(err, store.ErrConflict) {
 		t.Fatalf("changed build was not rejected: %v", err)
 	}
+	p.Script = nil
+	if _, ok, err := st.ClaimReleaseForCard(ctx, time.Minute); err != nil || !ok {
+		t.Fatal(err)
+	}
+	if _, _, err := st.DecideRelease(ctx, a.ID, "changes_requested", "moderator"); err != nil {
+		t.Fatal(err)
+	}
+	if prior, created, err := st.CreateReleaseWithSources(ctx, p, nil); err != nil || created || prior.ID != a.ID {
+		t.Fatalf("stale retry resurrected a release: %+v %v %v", prior, created, err)
+	}
+	p.Script = []byte(`{"corrected":true}`)
+	if corrected, created, err := st.CreateReleaseWithSources(ctx, p, nil); err != nil || !created || corrected.ID == a.ID {
+		t.Fatalf("corrected release blocked: %+v %v %v", corrected, created, err)
+	}
 }
 
 func TestReleaseRejectsMediaWithAnotherChecksum(t *testing.T) {
@@ -86,6 +100,14 @@ func TestReleaseRejectsMediaWithAnotherChecksum(t *testing.T) {
 	}
 	if _, err := st.FindActiveRelease(ctx, dev); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("rejected media left a release: %v", err)
+	}
+	m = testfixture.Complete(service.ReleaseManifest{DevelopmentID: dev, ChannelID: "checksums", Media: files, ResearchDossier: dossier, Script: script})
+	_ = json.Unmarshal(m.VideoPackage, &pkg)
+	pkg["media"].(map[string]any)["video_no_music"] = "releases/another-development/video.mp4"
+	pkg["files"].(map[string]any)["video_no_music"] = pkg["files"].(map[string]any)["video"]
+	m.VideoPackage, _ = json.Marshal(pkg)
+	if _, err := svc.ReleaseSubmit(ctx, m); err == nil || !strings.Contains(err.Error(), "does not belong") {
+		t.Fatalf("foreign YouTube video accepted: %v", err)
 	}
 }
 
@@ -191,5 +213,66 @@ func TestStoryReservationDeduplicatesConcurrentTasks(t *testing.T) {
 		if _, _, err := st.RegisterDevelopment(ctx, p); !errors.Is(err, store.ErrConflict) {
 			t.Fatalf("task changed its event: %v", err)
 		}
+	}
+}
+
+func TestReworkUsesLatestNoteAndCancelsAfterReplacement(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "latest-note")
+	d, err := st.GetDevelopment(ctx, r.DevelopmentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Seed a release whose originating task is known.
+	d2, err := st.CreateDevelopment(ctx, d.StoryID, "New event", time.Now(), []byte(`[]`), "11111111-1111-4111-8111-111111111111")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r2, err := st.CreateRelease(ctx, store.NewReleaseParams{DevelopmentID: d2.ID, ChannelID: r.ChannelID, ArmID: "default"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if _, _, err := st.ClaimReleaseForCard(ctx, time.Hour); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, _, err := st.DecideRelease(ctx, r2.ID, "changes_requested", "moderator"); err != nil {
+		t.Fatal(err)
+	}
+	for _, note := range []string{"Heading A", "Correction: heading B", "Heading A"} {
+		if err := st.SetModerationNote(ctx, r2.ID, note); err != nil {
+			t.Fatal(err)
+		}
+	}
+	job, ok, err := st.ClaimRework(ctx)
+	if err != nil || !ok || job.Note != "Heading A" {
+		t.Fatalf("latest note missing: %+v %v %v", job, ok, err)
+	}
+	if _, ok, err := st.ClaimRework(ctx); err != nil || ok {
+		t.Fatalf("old correction still queued: %v %v", ok, err)
+	}
+	if err := st.FinishRework(ctx, job, "", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetModerationNote(ctx, r2.ID, "Queued while worker was off"); err != nil {
+		t.Fatal(err)
+	}
+	replacement, err := st.CreateRelease(ctx, store.NewReleaseParams{DevelopmentID: d2.ID, ChannelID: r.ChannelID, ArmID: "default"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.ClaimReleaseForCard(ctx, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.DecideRelease(ctx, replacement.ID, "approved", "moderator"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.SetPublished(ctx, replacement.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := st.ClaimRework(ctx); err != nil || ok {
+		t.Fatalf("published replacement still receives stale rework: %v %v", ok, err)
 	}
 }
