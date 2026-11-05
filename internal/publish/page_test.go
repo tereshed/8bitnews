@@ -116,6 +116,10 @@ func (s pageStore) GetCountry(context.Context, string) (store.Country, error) {
 	return s.in.Country, nil
 }
 
+func (s pageStore) ChannelCosts(context.Context, string, int) (store.ChannelCosts, error) {
+	return store.ChannelCosts{}, nil
+}
+
 func get(t *testing.T, h http.Handler, path string) (int, http.Header, string) {
 	t.Helper()
 	rec := httptest.NewRecorder()

@@ -48,6 +48,12 @@ telegram_moderation_chat_id: "{{ lookup('env', 'TELEGRAM_MODERATION_CHAT_ID') }}
 hub_public_url: "{{ lookup('env', 'HUB_PUBLIC_URL') | default('https://' ~ hub_domain, true) }}"
 hub_corrections_contact: "{{ lookup('env', 'HUB_CORRECTIONS_CONTACT') }}"
 
+# The public costs page reads each run's tokens from PolyMaths. The key must be
+# a viewer's, never the owner's; empty, the page shows only the pictures' cost.
+hub_polymaths_api_key: "{{ lookup('env', 'HUB_POLYMATHS_API_KEY') }}"
+hub_polymaths_project_id: dc720749-e93f-4078-b7fc-d5a3193eefc3
+hub_polymaths_newsroom_team_id: 4952c227-94ab-4391-90a8-76ff59e41dfb
+
 # hub's own S3 env names (internal/config/config.go's HUB_S3_* contract);
 # mapped from the r2_* controller vars above, not read from the
 # environment directly — the app doesn't need to know these are R2.
