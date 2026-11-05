@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
@@ -24,6 +27,7 @@ type legalReviewPlatform struct {
 }
 
 type legalReviewDoc struct {
+	Country   string                         `json:"country"`
 	Mode      string                         `json:"mode"`
 	Verdict   string                         `json:"verdict"`
 	Platforms map[string]legalReviewPlatform `json:"platforms"`
@@ -61,18 +65,44 @@ func (s *Service) ReleaseSubmit(ctx context.Context, manifest ReleaseManifest) (
 		return ReleaseSubmitResponse{}, invalidf("development %q belongs to channel %q, not %q", manifest.DevelopmentID, story.ChannelID, manifest.ChannelID)
 	}
 
-	active, err := s.store.ActiveReleaseExists(ctx, manifest.DevelopmentID)
+	mediaJSON, err := json.Marshal(manifest.Media)
 	if err != nil {
+		return ReleaseSubmitResponse{}, invalidf("encoding media: %v", err)
+	}
+	params := store.NewReleaseParams{
+		DevelopmentID: manifest.DevelopmentID, ChannelID: manifest.ChannelID, ArmID: defaultArmID, PolymathsTaskID: manifest.PolymathsTaskID,
+		Media: mediaJSON, ResearchDossier: nonEmptyJSON(manifest.ResearchDossier), Script: nonEmptyJSON(manifest.Script),
+		VideoPackage: nonEmptyJSON(manifest.VideoPackage), ValidationReport: nonEmptyJSON(manifest.ValidationReport),
+		LegalReview: nonEmptyJSON(manifest.LegalReview),
+	}
+	if err := validateReleaseManifest(manifest); err != nil {
 		return ReleaseSubmitResponse{}, err
 	}
-	if active {
-		return ReleaseSubmitResponse{}, conflictf("development %q already has an active release (not rejected, changes_requested or failed)", manifest.DevelopmentID)
+	if prior, err := s.store.FindMatchingRelease(ctx, params); err == nil {
+		return s.submissionResponse(ctx, prior)
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return ReleaseSubmitResponse{}, err
+	}
+	if prior, err := s.store.FindActiveRelease(ctx, manifest.DevelopmentID); err == nil {
+		if !store.MatchesRelease(prior, params) {
+			return ReleaseSubmitResponse{}, conflictf("development %q already has a different active release", manifest.DevelopmentID)
+		}
+		return s.submissionResponse(ctx, prior)
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return ReleaseSubmitResponse{}, err
+	}
+	channel, err := s.store.GetChannel(ctx, manifest.ChannelID)
+	if err != nil {
+		return ReleaseSubmitResponse{}, err
 	}
 
 	if err := s.checkMediaObjects(ctx, manifest.Media); err != nil {
 		return ReleaseSubmitResponse{}, err
 	}
 
+	if err := s.checkMediaHashes(ctx, manifest); err != nil {
+		return ReleaseSubmitResponse{}, err
+	}
 	var validation validationReportDoc
 	if err := json.Unmarshal(nonEmptyJSON(manifest.ValidationReport), &validation); err != nil {
 		return ReleaseSubmitResponse{}, invalidf("parsing validation_report: %v", err)
@@ -91,6 +121,9 @@ func (s *Service) ReleaseSubmit(ctx context.Context, manifest ReleaseManifest) (
 	if legal.Verdict != "pass" {
 		return ReleaseSubmitResponse{}, invalidf("legal_review.verdict is %q, must be %q", legal.Verdict, "pass")
 	}
+	if !strings.EqualFold(legal.Country, channel.CountryCC) {
+		return ReleaseSubmitResponse{}, invalidf("legal_review.country differs from channel country")
+	}
 	allowedPlatforms := make([]string, 0, len(legal.Platforms))
 	for platform, p := range legal.Platforms {
 		if p.Verdict == "pass" {
@@ -99,6 +132,20 @@ func (s *Service) ReleaseSubmit(ctx context.Context, manifest ReleaseManifest) (
 	}
 	sort.Strings(allowedPlatforms)
 
+	var configured map[string]struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.Unmarshal(channel.Platforms, &configured); err != nil {
+		return ReleaseSubmitResponse{}, err
+	}
+	for _, platform := range allowedPlatforms {
+		if !configured[platform].Enabled {
+			return ReleaseSubmitResponse{}, invalidf("legal_review permits disabled or unknown platform %q", platform)
+		}
+	}
+	if len(allowedPlatforms) == 0 {
+		return ReleaseSubmitResponse{}, invalidf("legal_review permits no publication platform")
+	}
 	sourceRecords, badLinks, err := s.checkAndArchiveSources(ctx, manifest.ResearchDossier, manifest.Script)
 	if err != nil {
 		return ReleaseSubmitResponse{}, err
@@ -107,37 +154,17 @@ func (s *Service) ReleaseSubmit(ctx context.Context, manifest ReleaseManifest) (
 		return ReleaseSubmitResponse{}, invalidf("broken sources with no archive copy: %s", strings.Join(badLinks, ", "))
 	}
 
-	mediaJSON, err := json.Marshal(manifest.Media)
-	if err != nil {
-		return ReleaseSubmitResponse{}, invalidf("encoding media: %v", err)
-	}
-
-	release, err := s.store.CreateRelease(ctx, store.NewReleaseParams{
-		DevelopmentID:    manifest.DevelopmentID,
-		ChannelID:        manifest.ChannelID,
-		ArmID:            defaultArmID,
-		Media:            mediaJSON,
-		ResearchDossier:  nonEmptyJSON(manifest.ResearchDossier),
-		Script:           nonEmptyJSON(manifest.Script),
-		VideoPackage:     nonEmptyJSON(manifest.VideoPackage),
-		ValidationReport: nonEmptyJSON(manifest.ValidationReport),
-		LegalReview:      nonEmptyJSON(manifest.LegalReview),
-		AllowedPlatforms: allowedPlatforms,
-	})
+	params.AllowedPlatforms = allowedPlatforms
+	release, created, err := s.store.CreateReleaseWithSources(ctx, params, sourceRecords)
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
-			return ReleaseSubmitResponse{}, conflictf("development %q already has an active release", manifest.DevelopmentID)
+			return ReleaseSubmitResponse{}, conflictf("development %q already has a different active release", manifest.DevelopmentID)
 		}
 		return ReleaseSubmitResponse{}, err
 	}
-
-	for i := range sourceRecords {
-		sourceRecords[i].ReleaseID = release.ID
+	if !created {
+		return s.submissionResponse(ctx, release)
 	}
-	if err := s.store.InsertReleaseSources(ctx, sourceRecords); err != nil {
-		return ReleaseSubmitResponse{}, err
-	}
-
 	s.archiveOKSourcesAsync(release.ID, sourceRecords)
 
 	views := make([]ReleaseSourceView, 0, len(sourceRecords))
@@ -151,6 +178,69 @@ func (s *Service) ReleaseSubmit(ctx context.Context, manifest ReleaseManifest) (
 		AllowedPlatforms: allowedPlatforms,
 		Sources:          views,
 	}, nil
+}
+
+func (s *Service) submissionResponse(ctx context.Context, release store.Release) (ReleaseSubmitResponse, error) {
+	sources, err := s.store.ListReleaseSources(ctx, release.ID)
+	if err != nil {
+		return ReleaseSubmitResponse{}, err
+	}
+	views := make([]ReleaseSourceView, 0, len(sources))
+	for _, source := range sources {
+		views = append(views, toReleaseSourceView(source))
+	}
+	return ReleaseSubmitResponse{ReleaseID: release.ID, Status: release.Status, AllowedPlatforms: release.AllowedPlatforms, Sources: views}, nil
+}
+
+func (s *Service) checkMediaHashes(ctx context.Context, manifest ReleaseManifest) error {
+	var pkg struct {
+		Files map[string]struct {
+			SHA256 string `json:"sha256"`
+			Bytes  int64  `json:"bytes"`
+		} `json:"files"`
+		Media map[string]json.RawMessage `json:"media"`
+	}
+	if err := json.Unmarshal(manifest.VideoPackage, &pkg); err != nil {
+		return invalidf("invalid video_package")
+	}
+	keys := map[string]string{"video": manifest.Media.Video, "subtitles": manifest.Media.Subtitles, "cover": manifest.Media.Cover}
+	if raw, ok := pkg.Media["video_no_music"]; ok {
+		var key string
+		if json.Unmarshal(raw, &key) != nil || key == "" {
+			return invalidf("invalid video_no_music key")
+		}
+		keys["video_no_music"] = key
+	}
+	if _, required := pkg.Files["video_no_music"]; required && keys["video_no_music"] == "" {
+		return invalidf("video_no_music is not uploaded")
+	}
+	for name, key := range keys {
+		if !strings.HasPrefix(key, "releases/"+manifest.DevelopmentID+"/") {
+			return invalidf("media.%s does not belong to this development", name)
+		}
+		record := pkg.Files[name]
+		if record.Bytes < 1 || record.Bytes > 50<<20 {
+			return invalidf("media.%s size is outside the publication limit", name)
+		}
+		body, size, err := s.media.Open(ctx, key)
+		if err != nil {
+			return err
+		}
+		if size != record.Bytes {
+			_ = body.Close()
+			return invalidf("media.%s size differs from video_package", name)
+		}
+		h := sha256.New()
+		n, err := io.Copy(h, io.LimitReader(body, record.Bytes+1))
+		_ = body.Close()
+		if err != nil {
+			return err
+		}
+		if n != record.Bytes || hex.EncodeToString(h.Sum(nil)) != record.SHA256 {
+			return invalidf("media.%s checksum differs from video_package", name)
+		}
+	}
+	return nil
 }
 
 func (s *Service) checkMediaObjects(ctx context.Context, media MediaManifest) error {

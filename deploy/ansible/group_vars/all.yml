@@ -76,3 +76,7 @@ hub_vm_http_port: 9201
 # The guest VM's only login user: created by cloud-init on the host side
 # (hub_vm.yml) and used as ansible_user by the hub_guest inventory entry.
 hub_admin_user: bitnews
+
+# Optional moderator rework dispatcher (kept off without credentials).
+hub_polymaths_url: "{{ lookup('env', 'HUB_POLYMATHS_URL') | default('https://polymaths.work/api/v1', true) }}"
+hub_polymaths_write_api_key: "{{ lookup('env', 'HUB_POLYMATHS_WRITE_API_KEY') | default('', true) }}"

@@ -1,0 +1,27 @@
+# Each invocation uses a unique Compose project and random loopback ports.
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_USER: automation_test
+      POSTGRES_PASSWORD: automation_test
+      POSTGRES_DB: automation_test
+    ports: ["127.0.0.1::5432"]
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U automation_test -d automation_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  s3:
+    image: zenko/cloudserver:latest-7.10.19
+    environment:
+      SCALITY_ACCESS_KEY_ID: automation_test
+      SCALITY_SECRET_ACCESS_KEY: automation_test_secret
+      ENDPOINT: s3
+    ports: ["127.0.0.1::8000"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8000/; [ $? -ne 4 ]"]
+      interval: 2s
+      timeout: 3s
+      retries: 60

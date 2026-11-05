@@ -23,7 +23,9 @@
 - 2 — неверные аргументы.
 
 Docker в песочнице — отдельный сайдкар, поэтому файлы туда и обратно едут через `docker cp`, а не монтированием;
-контейнеры помечены меткой, и новый запуск убирает оставшиеся от прерванного. Ключи: `HUB_URL`, `HUB_API_KEY`,
+контейнеры и образы принадлежат своему run_id; каждый запуск удаляет только свои контейнеры. Таймер внутри
+контейнера ограничивает работу даже при потере клиента; кеш изображений живёт в отдельном volume.
+Ключи: `HUB_URL`, `HUB_API_KEY`,
 `STUDIO_OPENROUTER_API_KEY` — `hublib.load_keys` (env или файлы skills проекта `hub-access` и `studio-video`);
 ключ генератора уходит в контейнер через окружение, а не в аргументах команды. `PM_READ_KEY` — как у `pm_artifact.py`.
 """
@@ -42,14 +44,18 @@ import tarfile
 import tempfile
 import time
 import traceback
+import uuid
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "newsroom" / "tools"))
 
 from hublib import Hub, artifact_with_id, load_keys  # noqa: E402
 
-IMAGE = "8bitnews-studio:video"
+RUN_ID = uuid.uuid4().hex
+IMAGE = f"8bitnews-studio:video-{RUN_ID}"
+BASE_IMAGE = f"8bitnews-studio:base-{RUN_ID}"
 LABEL = "8bitnews.video_build=1"
+CACHE_VOLUME = os.environ.get("STUDIO_IMAGE_CACHE_VOLUME", "8bitnews-studio-image-cache-v1")
 # What the studio reads from the repository besides its own folder (STUDIO_REPO_ROOT).
 REPO_PARTS = ("channels", "countries", "newsroom/contracts", "music/catalog.yaml")
 # Package files that go to the store one by one: what QA, Legal and the publisher open.
@@ -73,20 +79,16 @@ def log(msg: str) -> None:
 def docker(*args: str, check: bool = True, capture: bool = False, env: dict | None = None) -> subprocess.CompletedProcess:
     """`docker …`; whatever it prints goes to stderr unless captured: stdout is the video_package alone. A failure
     names only the subcommand, never the arguments (they could carry a path or a value from the script)."""
-    proc = subprocess.run(["docker", *args], text=True, stdout=subprocess.PIPE if capture else sys.stderr,
-                          stderr=subprocess.PIPE if capture else None, env=env)
+    try:
+        proc = subprocess.run(["docker", *args], text=True, stdout=subprocess.PIPE if capture else sys.stderr,
+                              stderr=subprocess.PIPE if capture else None, env=env,
+                              timeout=float(os.environ.get("STUDIO_COMMAND_TIMEOUT_S", "1800")))
+    except subprocess.TimeoutExpired:
+        raise Failure(EXIT_ERROR, f"docker {args[0]} exceeded STUDIO_COMMAND_TIMEOUT_S") from None
     if check and proc.returncode != 0:
         detail = (proc.stderr or "").strip().splitlines()[-1:] if capture else []
         raise Failure(EXIT_ERROR, f"docker {args[0]} failed ({proc.returncode}){': ' + detail[0] if detail else ''}")
     return proc
-
-
-def clean_orphans() -> None:
-    """Containers a killed earlier run left behind (the client died, the sidecar kept them running)."""
-    ids = docker("ps", "-aq", "--filter", f"label={LABEL}", capture=True, check=False).stdout.split()
-    if ids:
-        log(f"removing {len(ids)} container(s) of an interrupted earlier run")
-        docker("rm", "-f", *ids, capture=True, check=False)
 
 
 def build_image(work: pathlib.Path) -> None:
@@ -100,8 +102,8 @@ def build_image(work: pathlib.Path) -> None:
         dst.parent.mkdir(parents=True, exist_ok=True)
         (shutil.copytree if src.is_dir() else shutil.copy2)(src, dst)
     log("building the studio image (the first build downloads the voice model, about 5 minutes)")
-    docker("build", "-q", "-t", "8bitnews-studio:base", str(ctx / "studio"), capture=True)
-    (ctx / "Dockerfile").write_text("FROM 8bitnews-studio:base\nCOPY repo /repo\nENV STUDIO_REPO_ROOT=/repo\n")
+    docker("build", "-q", "-t", BASE_IMAGE, str(ctx / "studio"), capture=True)
+    (ctx / "Dockerfile").write_text(f"FROM {BASE_IMAGE}\nCOPY repo /repo\nENV STUDIO_REPO_ROOT=/repo\n")
     docker("build", "-q", "-t", IMAGE, str(ctx), capture=True)
 
 
@@ -115,7 +117,11 @@ def run_studio(argv: list[list[str]], inputs: dict[str, pathlib.Path], outputs: 
     script += "; code=$?" + "".join("; " + " ".join(shlex.quote(a) for a in cmd) for cmd in argv[1:]) + "; exit $code"
     env = dict(os.environ, **(env_names or {}))
     env_args = [a for name in (env_names or {}) for a in ("-e", name)]
-    cid = docker("create", "--label", LABEL, *env_args, "--entrypoint", "sh", IMAGE, "-c", script,
+    deadline = os.environ.get("STUDIO_COMMAND_TIMEOUT_S", "1800")
+    cid = docker("create", "--label", LABEL, "--label", f"8bitnews.run_id={RUN_ID}",
+                 "--mount", f"type=volume,src={CACHE_VOLUME},dst=/image-cache",
+                 "-e", "STUDIO_IMAGE_CACHE=/image-cache", *env_args, "--entrypoint", "timeout", IMAGE,
+                 "--signal=TERM", "--kill-after=10s", deadline, "sh", "-c", script,
                  capture=True, env=env).stdout.strip()
     staged = pathlib.Path(tempfile.mkdtemp(prefix="video_build-in-"))
     try:
@@ -201,7 +207,7 @@ def main() -> int:
         shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True, exist_ok=True)
     work = pathlib.Path(tempfile.mkdtemp(prefix="video_build-"))
-    report: dict = {"ok": False, "steps": []}
+    report: dict = {"ok": False, "run_id": RUN_ID, "steps": []}
 
     def step(name: str, **info) -> None:
         report["steps"].append({"step": name, **info})
@@ -260,7 +266,6 @@ def build(args, excludes: dict, keys: dict, out: pathlib.Path, work: pathlib.Pat
         package = json.loads(package_path.read_text())
         pick = json.loads((out / "pick.json").read_text())
     else:
-        clean_orphans()
         recent = retry("hub releases_recent", lambda: hub.recent(channel_id))
         (work / "script.json").write_text(json.dumps(script, ensure_ascii=False, indent=2))
         (work / "recent.json").write_text(json.dumps(recent))
@@ -296,7 +301,8 @@ def build(args, excludes: dict, keys: dict, out: pathlib.Path, work: pathlib.Pat
                            ["sh", "-c", "python -m studio validate --package /work/out/package.json > /work/validate.txt 2>&1"]],
                           inputs, {"/work/out": out / "package", "/work/validate.txt": out / "validate.txt",
                                    "/work/build.err": out / "build.err"},
-                          env_names={"STUDIO_OPENROUTER_API_KEY": keys["STUDIO_OPENROUTER_API_KEY"], "STUDIO_MUSIC_DIR": "/music"})
+                          env_names={"STUDIO_OPENROUTER_API_KEY": keys["STUDIO_OPENROUTER_API_KEY"], "STUDIO_MUSIC_DIR": "/music",
+                                     "STUDIO_IMAGE_BUDGET_USD": os.environ.get("STUDIO_IMAGE_BUDGET_USD", "2")})
         package_path = out / "package" / "package.json"
         if not package_path.is_file():
             err = (out / "build.err").read_text() if (out / "build.err").is_file() else ""

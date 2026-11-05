@@ -96,9 +96,20 @@ def artifact(artifact_id: str, kind: str | None = None):
 
 
 def artifact_with_id(artifact_id: str, kind: str | None = None):
-    """(content, id of the artifact actually read): for a delegation_result that is the artifact found in it."""
+    content, actual_id, _ = artifact_with_origin(artifact_id, kind)
+    return content, actual_id
+
+
+def artifact_with_origin(artifact_id: str, kind: str | None = None):
+    """(content, actual artifact id, originating task id)."""
+    art = artifact_details(artifact_id, kind)
+    return art["content"], art.get("id") or artifact_id, art.get("task_id")
+
+
+def artifact_details(artifact_id: str, kind: str | None = None):
+    """Full artifact, including parent_id binding a review to its exact input."""
     if pathlib.Path(artifact_id).is_file():
-        return json.loads(pathlib.Path(artifact_id).read_text()), artifact_id
+        return {"content": json.loads(pathlib.Path(artifact_id).read_text()), "id": artifact_id}
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
     import pm_artifact
 
@@ -111,4 +122,4 @@ def artifact_with_id(artifact_id: str, kind: str | None = None):
         if not found:
             sys.exit(f"delegation_result {artifact_id} has no {kind!r} artifact")
         art = pm_artifact.fetch(s, found[-1]["id"])
-    return art["content"], art.get("id") or artifact_id
+    return art

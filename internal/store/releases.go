@@ -1,10 +1,15 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // terminalReleaseStatuses are the statuses release_submit treats as "no
@@ -19,6 +24,7 @@ var terminalReleaseStatuses = map[string]bool{
 // NewReleaseParams is the input to CreateRelease: everything release_submit
 // validated and wants stored.
 type NewReleaseParams struct {
+	PolymathsTaskID  string
 	DevelopmentID    string
 	ChannelID        string
 	ExperimentID     *string
@@ -36,7 +42,7 @@ type NewReleaseParams struct {
 const releaseColumns = `id, development_id, channel_id, experiment_id, arm_id, status,
 	media, research_dossier, script, video_package, validation_report, legal_review,
 	allowed_platforms, created_at, updated_at,
-	moderation_chat_id, moderation_message_id, moderated_by, moderated_at, moderation_note`
+	moderation_chat_id, moderation_message_id, moderated_by, moderated_at, moderation_note, polymaths_task_id`
 
 type rowScanner interface {
 	Scan(dest ...any) error
@@ -48,28 +54,37 @@ func scanRelease(row rowScanner, r *Release) error {
 		&r.Media, &r.ResearchDossier, &r.Script, &r.VideoPackage, &r.ValidationReport, &r.LegalReview,
 		&r.AllowedPlatforms, &r.CreatedAt, &r.UpdatedAt,
 		&r.Moderation.ChatID, &r.Moderation.MessageID, &r.Moderation.By, &r.Moderation.At, &r.Moderation.Note,
+		&r.PolymathsTaskID,
 	)
 }
 
 // CreateRelease inserts a new release in status "submitted".
+type releaseDB interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
 func (s *Store) CreateRelease(ctx context.Context, p NewReleaseParams) (Release, error) {
+	return createRelease(ctx, s.pool, p)
+}
+
+func createRelease(ctx context.Context, db releaseDB, p NewReleaseParams) (Release, error) {
 	allowed := p.AllowedPlatforms
 	if allowed == nil {
 		allowed = []string{}
 	}
 	var r Release
-	row := s.pool.QueryRow(ctx, `
+	row := db.QueryRow(ctx, `
 		INSERT INTO releases (
 			development_id, channel_id, experiment_id, arm_id, status,
 			media, research_dossier, script, video_package, validation_report, legal_review,
-			allowed_platforms
+			allowed_platforms, polymaths_task_id
 		)
-		VALUES ($1, $2, $3, $4, 'submitted', $5, $6, $7, $8, $9, $10, $11)
+		VALUES ($1, $2, $3, $4, 'submitted', $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING `+releaseColumns,
 		p.DevelopmentID, p.ChannelID, p.ExperimentID, p.ArmID,
 		nonNilJSON(p.Media), nonNilJSON(p.ResearchDossier), nonNilJSON(p.Script),
 		nonNilJSON(p.VideoPackage), nonNilJSON(p.ValidationReport), nonNilJSON(p.LegalReview),
-		allowed,
+		allowed, p.PolymathsTaskID,
 	)
 	err := scanRelease(row, &r)
 	if err != nil {
@@ -79,6 +94,104 @@ func (s *Store) CreateRelease(ctx context.Context, p NewReleaseParams) (Release,
 		return Release{}, fmt.Errorf("creating release: %w", err)
 	}
 	return r, nil
+}
+
+// FindActiveRelease supports safe retries after a lost submission response.
+func (s *Store) FindActiveRelease(ctx context.Context, developmentID string) (Release, error) {
+	var r Release
+	err := scanRelease(s.pool.QueryRow(ctx, `SELECT `+releaseColumns+` FROM releases
+		WHERE development_id = $1 AND status NOT IN ('rejected', 'changes_requested', 'failed')`, developmentID), &r)
+	return r, mapNotFound(err)
+}
+
+type releaseQuery interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}
+
+func (s *Store) FindMatchingRelease(ctx context.Context, p NewReleaseParams) (Release, error) {
+	return findMatchingRelease(ctx, s.pool, p)
+}
+
+func findMatchingRelease(ctx context.Context, db releaseQuery, p NewReleaseParams) (Release, error) {
+	rows, err := db.Query(ctx, `SELECT `+releaseColumns+` FROM releases WHERE development_id=$1 ORDER BY created_at DESC`, p.DevelopmentID)
+	if err != nil {
+		return Release{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r Release
+		if err := scanRelease(rows, &r); err != nil {
+			return Release{}, err
+		}
+		if MatchesRelease(r, p) {
+			return r, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return Release{}, err
+	}
+	return Release{}, ErrNotFound
+}
+
+// MatchesRelease compares content rather than JSON whitespace/key order. A different
+// build for an already active development is a conflict, never an idempotent retry.
+func MatchesRelease(r Release, p NewReleaseParams) bool {
+	if r.ChannelID != p.ChannelID || r.DevelopmentID != p.DevelopmentID || r.PolymathsTaskID != p.PolymathsTaskID {
+		return false
+	}
+	for _, pair := range [][2]json.RawMessage{{r.Media, p.Media}, {r.ResearchDossier, p.ResearchDossier},
+		{r.Script, p.Script}, {r.VideoPackage, p.VideoPackage}, {r.ValidationReport, p.ValidationReport}, {r.LegalReview, p.LegalReview}} {
+		var a, b any
+		da, db := json.NewDecoder(bytes.NewReader(nonNilJSON(pair[0]))), json.NewDecoder(bytes.NewReader(nonNilJSON(pair[1])))
+		da.UseNumber()
+		db.UseNumber()
+		if da.Decode(&a) != nil || db.Decode(&b) != nil || !reflect.DeepEqual(a, b) {
+			return false
+		}
+	}
+	return true
+}
+
+// CreateReleaseWithSources makes the card and all its sources visible together.
+// The development lock serializes identical retries and conflicting submissions.
+func (s *Store) CreateReleaseWithSources(ctx context.Context, p NewReleaseParams, sources []ReleaseSource) (Release, bool, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Release{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, p.DevelopmentID); err != nil {
+		return Release{}, false, err
+	}
+	if prior, err := findMatchingRelease(ctx, tx, p); err == nil {
+		return prior, false, tx.Commit(ctx)
+	} else if !errors.Is(err, ErrNotFound) {
+		return Release{}, false, err
+	}
+	var existing Release
+	err = scanRelease(tx.QueryRow(ctx, `SELECT `+releaseColumns+` FROM releases WHERE development_id = $1
+		AND status NOT IN ('rejected', 'changes_requested', 'failed')`, p.DevelopmentID), &existing)
+	if err == nil {
+		if !MatchesRelease(existing, p) {
+			return Release{}, false, ErrConflict
+		}
+		return existing, false, tx.Commit(ctx)
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return Release{}, false, err
+	}
+	r, err := createRelease(ctx, tx, p)
+	if err != nil {
+		return Release{}, false, err
+	}
+	records := append([]ReleaseSource(nil), sources...)
+	for i := range records {
+		records[i].ReleaseID = r.ID
+	}
+	if err = insertReleaseSources(ctx, tx, records); err != nil {
+		return Release{}, false, err
+	}
+	return r, true, tx.Commit(ctx)
 }
 
 // GetRelease returns a release by id.
@@ -122,12 +235,20 @@ func (s *Store) ActiveReleaseExists(ctx context.Context, developmentID string) (
 // InsertReleaseSources batch-inserts the checked, archived sources of a
 // release.
 func (s *Store) InsertReleaseSources(ctx context.Context, sources []ReleaseSource) error {
+	return insertReleaseSources(ctx, s.pool, sources)
+}
+
+type sourceDB interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
+func insertReleaseSources(ctx context.Context, db sourceDB, sources []ReleaseSource) error {
 	for _, src := range sources {
 		factIDs := src.FactIDs
 		if factIDs == nil {
 			factIDs = []string{}
 		}
-		_, err := s.pool.Exec(ctx, `
+		_, err := db.Exec(ctx, `
 			INSERT INTO release_sources (
 				release_id, url, final_url, outlet, title, published_at, fact_ids,
 				is_primary, paywall, state_media, check_status, http_status, archive_url,

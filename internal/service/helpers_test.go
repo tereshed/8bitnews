@@ -51,11 +51,17 @@ func newTestStore(t *testing.T) *store.Store {
 	dsn := testDSN()
 
 	if err := store.MigrateUp(dsn); err != nil {
+		if os.Getenv("HUB_TEST_REQUIRE_SERVICES") == "true" {
+			t.Fatalf("required integration service failed: %v", err)
+		}
 		t.Skipf("skipping integration test: migrating test database %s: %v", dsn, err)
 	}
 
 	st, err := store.Open(context.Background(), dsn)
 	if err != nil {
+		if os.Getenv("HUB_TEST_REQUIRE_SERVICES") == "true" {
+			t.Fatalf("required integration service failed: %v", err)
+		}
 		t.Skipf("skipping integration test: connecting to test database: %v", err)
 	}
 	t.Cleanup(st.Close)
@@ -91,6 +97,9 @@ func newTestMedia(t *testing.T) *storage.Client {
 		t.Fatalf("building S3 client: %v", err)
 	}
 	if _, err := media.Exists(context.Background(), "healthcheck-probe-object"); err != nil {
+		if os.Getenv("HUB_TEST_REQUIRE_SERVICES") == "true" {
+			t.Fatalf("required integration service failed: %v", err)
+		}
 		t.Skipf("skipping integration test: S3 not reachable: %v", err)
 	}
 	return media

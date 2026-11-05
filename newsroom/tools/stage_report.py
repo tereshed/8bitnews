@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""Extract stage verdicts from structured artifacts and exact review bindings."""
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+from hublib import artifact, artifact_details
+
+
+def build_report(result_id: str, delegation: dict, fetch=artifact, fetch_details=artifact_details) -> dict:
+    team = delegation["team"]
+    if team not in ("Research", "Script", "Video", "QA", "Legal"):
+        raise ValueError("Unsupported content team")
+    ids = {item["kind"]: item["id"] for item in delegation.get("artifacts", [])}
+    report = {"team": team, "state": delegation["state"], "delegation_result_id": result_id,
+              "artifacts": ids, "verdict": "missing", "fix_owners": {}, "notes": []}
+    if report["state"] != "done":
+        return report
+    kind = {"Research": "research_dossier", "Script": "script", "Video": "video_package",
+            "QA": "validation_report", "Legal": "legal_review"}[team]
+    if kind not in ids:
+        if team == "Video" and delegation.get("summary", "").startswith("Сценарий не собирается:"):
+            report.update(verdict="fail", fix_owners={"script": ["studio"]}, notes=[delegation["summary"]])
+        return report
+    if team in ("Research", "Script"):
+        report["verdict"] = "not_approved"
+        if "review" in ids:
+            review = fetch_details(ids["review"], "review")
+            if review.get("parent_id") == ids[kind] and review["content"].get("decision") == "approved":
+                report["verdict"] = "approved"
+            elif review.get("parent_id") != ids[kind]:
+                report["notes"].append("Review is not bound to the latest output artifact")
+        return report
+    doc = fetch(ids[kind], kind)
+
+    def fix(owner, issue_id):
+        if owner not in ("script", "video", "editor", "none") or not issue_id:
+            raise ValueError("Invalid fix owner or missing issue ID")
+        report["fix_owners"].setdefault(owner, []).append(issue_id)
+
+    if team == "Video":
+        validation = doc["validate"]
+        failed = [check for check in validation["checks"] if not check["ok"]]
+        report["verdict"] = "built" if validation["passed"] and not failed and validation["checks"] else "fail"
+        for check in failed:
+            fix("script" if check["id"] == "duration" else "video", check["id"])
+            report["notes"].append(f"{check['id']}: {check.get('note', '')}")
+        if report["verdict"] == "fail" and not failed:
+            fix("video", "inconsistent_validation")
+    else:
+        report["verdict"] = doc["verdict"]
+        if team == "Legal":
+            report["notes"].append(f"mode: {doc['mode']}")
+            report["platforms"] = {name: info["verdict"] for name, info in doc["platforms"].items()}
+        for issue in doc.get("issues", []):
+            relevant = (issue.get("severity") in ("major", "blocker") if team == "QA"
+                        else issue.get("resolved_by_exclusion") is not True)
+            if relevant:
+                fix(issue["fix_owner"], issue["id"])
+                if report["verdict"] == "pass" and (team == "QA" or issue.get("severity") in ("blocker", "high")):
+                    report["verdict"] = "fail" if team == "QA" else "fix_required"
+        if team == "QA" and (not doc["technical"]["passed"] or doc["technical"]["failed_checks"]):
+            report["verdict"] = "fail"
+            if not report["fix_owners"]:
+                fix("video", "technical")
+    return report
+
+
+def summary(report: dict) -> str:
+    mode = next((n.removeprefix("mode: ") for n in report["notes"] if n.startswith("mode: ")), "")
+    team = report["team"] + (f" {mode}" if mode else "")
+    ids = ", ".join(f"{kind}={value}" for kind, value in sorted(report["artifacts"].items()))
+    fixes = ", ".join(f"{owner}=[{','.join(ids)}]" for owner, ids in sorted(report["fix_owners"].items()))
+    platforms = ", ".join(f"{name}={verdict}" for name, verdict in sorted(report.get("platforms", {}).items()))
+    return f"{team} {report['state']}: {report['verdict']}. ids: {ids}. fix: {fixes}. platforms: {platforms}"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("delegation_result_id")
+    parser.add_argument("--out", required=True)
+    args = parser.parse_args()
+    report = build_report(args.delegation_result_id, artifact(args.delegation_result_id, "delegation_result"))
+    Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2))
+    Path(args.out + ".summary.txt").write_text(summary(report))
+    print(summary(report))
+
+
+if __name__ == "__main__":
+    main()
