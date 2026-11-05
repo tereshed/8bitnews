@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -22,6 +23,12 @@ const (
 
 // CostStages lists the stages in that order.
 var CostStages = []string{StageResearch, StageScript, StageLegal, StageEditor, StageVideo, StageOther}
+
+// The sources the costs sync reads, for SetCostSyncOK.
+const (
+	CostSourceRuns   = "runs"
+	CostSourceBuilds = "builds"
+)
 
 // TokenCounts is what a run's agents read and wrote.
 type TokenCounts struct {
@@ -51,18 +58,20 @@ type CostRun struct {
 	MeasuredRuns    int
 	Tokens          TokenCounts
 	Stages          map[string]int64 // total tokens by pipeline stage
+	Complete        bool             // false: the figures are known to fall short
 	SourceUpdatedAt time.Time
 }
 
 // CostRunState is what the sync needs to know to decide whether to measure a run again.
 type CostRunState struct {
+	Complete        bool
 	SourceUpdatedAt time.Time
 	MeasuredAt      time.Time
 }
 
 // CostRunStates returns every stored run's state, by task id.
 func (s *Store) CostRunStates(ctx context.Context) (map[string]CostRunState, error) {
-	rows, err := s.pool.Query(ctx, `SELECT task_id, source_updated_at, measured_at FROM cost_runs`)
+	rows, err := s.pool.Query(ctx, `SELECT task_id, complete, source_updated_at, measured_at FROM cost_runs`)
 	if err != nil {
 		return nil, fmt.Errorf("listing cost runs: %w", err)
 	}
@@ -71,7 +80,7 @@ func (s *Store) CostRunStates(ctx context.Context) (map[string]CostRunState, err
 	for rows.Next() {
 		var id string
 		var st CostRunState
-		if err := rows.Scan(&id, &st.SourceUpdatedAt, &st.MeasuredAt); err != nil {
+		if err := rows.Scan(&id, &st.Complete, &st.SourceUpdatedAt, &st.MeasuredAt); err != nil {
 			return nil, fmt.Errorf("scanning a cost run: %w", err)
 		}
 		out[id] = st
@@ -83,26 +92,24 @@ func (s *Store) CostRunStates(ctx context.Context) (map[string]CostRunState, err
 }
 
 // SaveCostRun stores a run's usage. A measurement with fewer tokens than the
-// stored one doesn't replace them, only marks the run as checked: PolyMaths
-// forgets a run's usage after 30 days, and a run never uses tokens back.
+// stored one doesn't replace them, only marks the run as checked: a run never
+// uses tokens back, so a smaller reading means PolyMaths has forgotten some.
 func (s *Store) SaveCostRun(ctx context.Context, r CostRun) error {
 	stages, err := json.Marshal(r.Stages)
 	if err != nil {
 		return fmt.Errorf("encoding the stages of cost run %s: %w", r.TaskID, err)
 	}
-	var development *string
-	if r.DevelopmentID != "" {
-		development = &r.DevelopmentID
-	}
 	_, err = s.pool.Exec(ctx, `
 		INSERT INTO cost_runs (task_id, channel_id, development_id, started_at, agent_runs, measured_runs,
 		                       input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
-		                       stages, source_updated_at, measured_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())
+		                       stages, complete, source_updated_at, measured_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now())
 		ON CONFLICT (task_id) DO UPDATE SET
+			channel_id = EXCLUDED.channel_id,
 			development_id = COALESCE(EXCLUDED.development_id, cost_runs.development_id),
 			source_updated_at = EXCLUDED.source_updated_at,
 			measured_at = now(),
+			complete = CASE WHEN `+newUsageIsWhole+` THEN EXCLUDED.complete ELSE cost_runs.complete END,
 			agent_runs = CASE WHEN `+newUsageIsWhole+` THEN EXCLUDED.agent_runs ELSE cost_runs.agent_runs END,
 			measured_runs = CASE WHEN `+newUsageIsWhole+` THEN EXCLUDED.measured_runs ELSE cost_runs.measured_runs END,
 			input_tokens = CASE WHEN `+newUsageIsWhole+` THEN EXCLUDED.input_tokens ELSE cost_runs.input_tokens END,
@@ -110,9 +117,9 @@ func (s *Store) SaveCostRun(ctx context.Context, r CostRun) error {
 			cache_write_tokens = CASE WHEN `+newUsageIsWhole+` THEN EXCLUDED.cache_write_tokens ELSE cost_runs.cache_write_tokens END,
 			cache_read_tokens = CASE WHEN `+newUsageIsWhole+` THEN EXCLUDED.cache_read_tokens ELSE cost_runs.cache_read_tokens END,
 			stages = CASE WHEN `+newUsageIsWhole+` THEN EXCLUDED.stages ELSE cost_runs.stages END
-	`, r.TaskID, r.ChannelID, development, r.StartedAt, r.AgentRuns, r.MeasuredRuns,
+	`, r.TaskID, r.ChannelID, nullable(r.DevelopmentID), r.StartedAt, r.AgentRuns, r.MeasuredRuns,
 		r.Tokens.Input, r.Tokens.Output, r.Tokens.CacheWrite, r.Tokens.CacheRead,
-		stages, r.SourceUpdatedAt)
+		stages, r.Complete, r.SourceUpdatedAt)
 	if err != nil {
 		return fmt.Errorf("saving cost run %s: %w", r.TaskID, err)
 	}
@@ -122,17 +129,45 @@ func (s *Store) SaveCostRun(ctx context.Context, r CostRun) error {
 const newUsageIsWhole = `(EXCLUDED.input_tokens + EXCLUDED.output_tokens + EXCLUDED.cache_write_tokens + EXCLUDED.cache_read_tokens)
 	>= (cost_runs.input_tokens + cost_runs.output_tokens + cost_runs.cache_write_tokens + cost_runs.cache_read_tokens)`
 
-// DevelopmentExists reports whether hub knows a development.
-func (s *Store) DevelopmentExists(ctx context.Context, id string) (bool, error) {
-	var found bool
-	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM story_developments WHERE id = $1)`, id).Scan(&found)
+// MarkCostRunUnread records that a run's usage couldn't be read: the page says
+// so, instead of the run dropping out of sight. What was stored stays, and the
+// sync tries again on its next pass.
+func (s *Store) MarkCostRunUnread(ctx context.Context, r CostRun) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO cost_runs (task_id, channel_id, development_id, started_at, complete, source_updated_at)
+		VALUES ($1, $2, $3, $4, false, $5)
+		ON CONFLICT (task_id) DO UPDATE SET complete = false
+	`, r.TaskID, r.ChannelID, nullable(r.DevelopmentID), r.StartedAt, r.SourceUpdatedAt)
 	if err != nil {
-		return false, fmt.Errorf("looking for development %s: %w", id, err)
+		return fmt.Errorf("marking cost run %s unread: %w", r.TaskID, err)
 	}
-	return found, nil
+	return nil
 }
 
-// CostBuildKeys returns the package archives already read.
+func nullable(id string) *string {
+	if id == "" {
+		return nil
+	}
+	return &id
+}
+
+// DevelopmentChannel returns the channel a development belongs to; false if hub
+// doesn't know the development.
+func (s *Store) DevelopmentChannel(ctx context.Context, id string) (string, bool, error) {
+	var channel string
+	err := s.pool.QueryRow(ctx, `
+		SELECT st.channel_id FROM story_developments d JOIN stories st ON st.id = d.story_id WHERE d.id = $1
+	`, id).Scan(&channel)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("looking for development %s: %w", id, err)
+	}
+	return channel, true, nil
+}
+
+// CostBuildKeys returns the package archives already dealt with.
 func (s *Store) CostBuildKeys(ctx context.Context) (map[string]bool, error) {
 	rows, err := s.pool.Query(ctx, `SELECT object_key FROM cost_builds`)
 	if err != nil {
@@ -153,14 +188,39 @@ func (s *Store) CostBuildKeys(ctx context.Context) (map[string]bool, error) {
 	return out, nil
 }
 
-// SaveCostBuild records what one build's pictures cost. A build is read once.
-func (s *Store) SaveCostBuild(ctx context.Context, key, developmentID string, usd float64) error {
+// CostBuild is one build's package. USD is nil if the package can't be read.
+type CostBuild struct {
+	Key           string
+	DevelopmentID string
+	USD           *float64
+	PackageSHA256 string
+}
+
+// SaveCostBuild records what one build's pictures cost. A build is read once. A
+// package identical to one already counted for its development is a retried
+// upload of the same build: it's recorded, so it isn't read again, but not counted.
+func (s *Store) SaveCostBuild(ctx context.Context, b CostBuild) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO cost_builds (object_key, development_id, images_usd) VALUES ($1, $2, $3)
+		INSERT INTO cost_builds (object_key, development_id, images_usd, package_sha256, counted)
+		VALUES ($1, $2, $3, $4, $3::numeric IS NOT NULL AND NOT EXISTS (
+			SELECT 1 FROM cost_builds WHERE development_id = $2 AND package_sha256 = $4 AND counted
+		))
 		ON CONFLICT (object_key) DO NOTHING
-	`, key, developmentID, usd)
+	`, b.Key, b.DevelopmentID, b.USD, b.PackageSHA256)
 	if err != nil {
-		return fmt.Errorf("saving cost build %s: %w", key, err)
+		return fmt.Errorf("saving cost build %s: %w", b.Key, err)
+	}
+	return nil
+}
+
+// SetCostSyncOK records that a source has just been read in full.
+func (s *Store) SetCostSyncOK(ctx context.Context, source string) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO cost_sync (source, ok_at) VALUES ($1, now())
+		ON CONFLICT (source) DO UPDATE SET ok_at = now()
+	`, source)
+	if err != nil {
+		return fmt.Errorf("recording the %s sync: %w", source, err)
 	}
 	return nil
 }
@@ -187,7 +247,12 @@ type ChannelCosts struct {
 	// Every agent run behind the channel's figures, and how many have a record.
 	AgentRuns    int
 	MeasuredRuns int
-	UpdatedAt    *time.Time
+	// Where the figures are known to fall short.
+	IncompleteRuns   int
+	UnreadableBuilds int
+	// When each source was last read in full.
+	TokensUpdatedAt   *time.Time
+	PicturesUpdatedAt *time.Time
 }
 
 // ChannelCosts adds up a channel's costs: per published video, as on the
@@ -216,6 +281,9 @@ func (s *Store) ChannelCosts(ctx context.Context, channelID string, n int) (Chan
 	if err := s.addBuildCosts(ctx, channelID, &out, byDevelopment); err != nil {
 		return out, err
 	}
+	if err := s.addCostSync(ctx, &out); err != nil {
+		return out, err
+	}
 	return out, nil
 }
 
@@ -238,7 +306,7 @@ func scanVideoCosts(rows pgx.Rows, out *ChannelCosts, byDevelopment map[string]i
 func (s *Store) addRunCosts(ctx context.Context, channelID string, out *ChannelCosts, byDevelopment map[string]int) error {
 	rows, err := s.pool.Query(ctx, `
 		SELECT COALESCE(development_id::text, ''), agent_runs, measured_runs,
-		       input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, stages, measured_at
+		       input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, stages, complete
 		FROM cost_runs WHERE channel_id = $1
 	`, channelID)
 	if err != nil {
@@ -250,14 +318,16 @@ func (s *Store) addRunCosts(ctx context.Context, channelID string, out *ChannelC
 		var agentRuns, measuredRuns int
 		var tokens TokenCounts
 		var stagesJSON []byte
-		var measuredAt time.Time
+		var complete bool
 		if err := rows.Scan(&development, &agentRuns, &measuredRuns, &tokens.Input, &tokens.Output,
-			&tokens.CacheWrite, &tokens.CacheRead, &stagesJSON, &measuredAt); err != nil {
+			&tokens.CacheWrite, &tokens.CacheRead, &stagesJSON, &complete); err != nil {
 			return fmt.Errorf("scanning a cost run of channel %s: %w", channelID, err)
 		}
 		out.AgentRuns += agentRuns
 		out.MeasuredRuns += measuredRuns
-		out.noteUpdate(measuredAt)
+		if !complete {
+			out.IncompleteRuns++
+		}
 		i, published := byDevelopment[development]
 		if !published {
 			out.OtherRuns++
@@ -284,7 +354,10 @@ func (s *Store) addRunCosts(ctx context.Context, channelID string, out *ChannelC
 
 func (s *Store) addBuildCosts(ctx context.Context, channelID string, out *ChannelCosts, byDevelopment map[string]int) error {
 	rows, err := s.pool.Query(ctx, `
-		SELECT b.development_id::text, count(*), sum(b.images_usd)::float8, max(b.read_at)
+		SELECT b.development_id::text,
+		       count(*) FILTER (WHERE b.counted),
+		       COALESCE(sum(b.images_usd) FILTER (WHERE b.counted), 0)::float8,
+		       count(*) FILTER (WHERE b.images_usd IS NULL)
 		FROM cost_builds b
 		JOIN story_developments d ON d.id = b.development_id
 		JOIN stories st ON st.id = d.story_id
@@ -297,13 +370,12 @@ func (s *Store) addBuildCosts(ctx context.Context, channelID string, out *Channe
 	defer rows.Close()
 	for rows.Next() {
 		var development string
-		var builds int
+		var builds, unreadable int
 		var usd float64
-		var readAt time.Time
-		if err := rows.Scan(&development, &builds, &usd, &readAt); err != nil {
+		if err := rows.Scan(&development, &builds, &usd, &unreadable); err != nil {
 			return fmt.Errorf("scanning cost builds of channel %s: %w", channelID, err)
 		}
-		out.noteUpdate(readAt)
+		out.UnreadableBuilds += unreadable
 		if i, published := byDevelopment[development]; published {
 			out.Videos[i].Builds = builds
 			out.Videos[i].ImagesUSD = usd
@@ -318,8 +390,27 @@ func (s *Store) addBuildCosts(ctx context.Context, channelID string, out *Channe
 	return nil
 }
 
-func (c *ChannelCosts) noteUpdate(t time.Time) {
-	if c.UpdatedAt == nil || t.After(*c.UpdatedAt) {
-		c.UpdatedAt = &t
+func (s *Store) addCostSync(ctx context.Context, out *ChannelCosts) error {
+	rows, err := s.pool.Query(ctx, `SELECT source, ok_at FROM cost_sync`)
+	if err != nil {
+		return fmt.Errorf("reading the costs sync's dates: %w", err)
 	}
+	defer rows.Close()
+	for rows.Next() {
+		var source string
+		var at time.Time
+		if err := rows.Scan(&source, &at); err != nil {
+			return fmt.Errorf("scanning the costs sync's dates: %w", err)
+		}
+		switch source {
+		case CostSourceRuns:
+			out.TokensUpdatedAt = &at
+		case CostSourceBuilds:
+			out.PicturesUpdatedAt = &at
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterating the costs sync's dates: %w", err)
+	}
+	return nil
 }

@@ -4,12 +4,13 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"path"
 	"strings"
 	"time"
 
@@ -17,21 +18,28 @@ import (
 )
 
 const (
-	// measureWindow: a run left alone this long isn't measured again. It has to
-	// stay under PolyMaths' 30 days, after which a run's usage reads as nothing.
+	// retention is how long PolyMaths keeps a run's usage.
+	retention = 30 * 24 * time.Hour
+	// measureWindow: a run this old isn't measured again, so that a later reading
+	// can't mix what PolyMaths still has with what it has forgotten. The page lists
+	// work on a run after this as not counted.
 	measureWindow = 25 * 24 * time.Hour
 	// recheckAfter catches usage a run's own updated_at doesn't show, such as
 	// work on one of its finished subtasks.
 	recheckAfter = 24 * time.Hour
 
-	buildsPrefix  = "releases/"
-	packageSuffix = "-package.tar.gz"
-	readTimeout   = 5 * time.Minute
+	passDeadline = 20 * time.Minute
+	readTimeout  = 5 * time.Minute
 
-	maxTreeTasks   = 1000
-	maxPackageJSON = 32 << 20
-	maxUnpacked    = 2 << 30
-	maxBuildUSD    = 1000
+	buildsPrefix    = "releases/"
+	packageSuffix   = "-package.tar.gz"
+	packageJSONPath = "package/package.json" // newsroom/tools/video_build.py packs the build under package/
+
+	maxTreeTasks     = 1000
+	maxPackageJSON   = 32 << 20
+	maxUnpacked      = 2 << 30
+	maxBuildUSD      = 50 // far above any real build; pictures have cost about $1
+	maxBuildAttempts = 5
 )
 
 // PolyMaths is what the sync reads from PolyMaths (Client).
@@ -46,9 +54,11 @@ type PolyMaths interface {
 type Store interface {
 	CostRunStates(ctx context.Context) (map[string]store.CostRunState, error)
 	SaveCostRun(ctx context.Context, r store.CostRun) error
-	DevelopmentExists(ctx context.Context, id string) (bool, error)
+	MarkCostRunUnread(ctx context.Context, r store.CostRun) error
+	DevelopmentChannel(ctx context.Context, id string) (string, bool, error)
 	CostBuildKeys(ctx context.Context) (map[string]bool, error)
-	SaveCostBuild(ctx context.Context, key, developmentID string, usd float64) error
+	SaveCostBuild(ctx context.Context, b store.CostBuild) error
+	SetCostSyncOK(ctx context.Context, source string) error
 	GetChannel(ctx context.Context, id string) (store.Channel, error)
 }
 
@@ -66,24 +76,38 @@ type Syncer struct {
 	interval time.Duration
 	log      *slog.Logger
 	now      func() time.Time
-	// unreadable: packages that can't be read, not asked for again until a restart.
-	unreadable map[string]bool
+
+	// Runs that say nothing usable about where they belong, as of their
+	// updated_at: not read again until they change. Only the runs pass uses it.
+	unplaced map[string]time.Time
+	// What the builds pass has tried: failures per package, and packages of a
+	// development hub doesn't know, which can't be stored.
+	attempts map[string]int
+	orphans  map[string]bool
 }
 
 // NewSyncer builds a Syncer; pm may be nil.
 func NewSyncer(pm PolyMaths, st Store, media Media, interval time.Duration, log *slog.Logger) *Syncer {
-	return &Syncer{pm: pm, store: st, media: media, interval: interval, log: log, now: time.Now, unreadable: map[string]bool{}}
+	return &Syncer{pm: pm, store: st, media: media, interval: interval, log: log, now: time.Now,
+		unplaced: map[string]time.Time{}, attempts: map[string]int{}, orphans: map[string]bool{}}
 }
 
-// Run syncs now and then every interval, until ctx ends.
+// Run reads both sources now and then every interval, until ctx ends. They run
+// apart, so a slow PolyMaths doesn't hold up the pictures' dollars.
 func (s *Syncer) Run(ctx context.Context) {
 	if s.pm == nil {
 		s.log.Info("costs: HUB_POLYMATHS_API_KEY is not set, the costs page has no token figures")
+	} else {
+		go s.every(ctx, s.passRuns)
 	}
+	s.every(ctx, s.passBuilds)
+}
+
+func (s *Syncer) every(ctx context.Context, pass func(context.Context)) {
 	t := time.NewTicker(s.interval)
 	defer t.Stop()
 	for {
-		s.Once(ctx)
+		pass(ctx)
 		select {
 		case <-ctx.Done():
 			return
@@ -92,15 +116,35 @@ func (s *Syncer) Run(ctx context.Context) {
 	}
 }
 
-// Once does one pass. A failure is logged and tried again on the next pass.
+// Once does one pass of each source, one after the other.
 func (s *Syncer) Once(ctx context.Context) {
 	if s.pm != nil {
-		if err := s.syncRuns(ctx); err != nil && ctx.Err() == nil {
-			s.log.Error("costs: syncing runs failed", "error", err)
-		}
+		s.passRuns(ctx)
 	}
-	if err := s.syncBuilds(ctx); err != nil && ctx.Err() == nil {
-		s.log.Error("costs: syncing builds failed", "error", err)
+	s.passBuilds(ctx)
+}
+
+func (s *Syncer) passRuns(ctx context.Context) {
+	s.pass(ctx, store.CostSourceRuns, s.syncRuns)
+}
+
+func (s *Syncer) passBuilds(ctx context.Context) {
+	s.pass(ctx, store.CostSourceBuilds, s.syncBuilds)
+}
+
+// pass runs one source under a deadline and records when it was read in full. A
+// failure is logged and tried again on the next pass.
+func (s *Syncer) pass(ctx context.Context, source string, sync func(context.Context) error) {
+	ctx, cancel := context.WithTimeout(ctx, passDeadline)
+	defer cancel()
+	if err := sync(ctx); err != nil {
+		if ctx.Err() == nil || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			s.log.Error("costs: a sync pass failed", "source", source, "error", err)
+		}
+		return
+	}
+	if err := s.store.SetCostSyncOK(ctx, source); err != nil {
+		s.log.Error("costs: recording a sync pass failed", "source", source, "error", err)
 	}
 }
 
@@ -113,29 +157,38 @@ func (s *Syncer) syncRuns(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	failed := 0
 	for _, run := range runs {
+		if asOf, ok := s.unplaced[run.ID]; ok && !run.UpdatedAt.After(asOf) {
+			continue
+		}
 		state, known := states[run.ID]
 		if !dueForMeasuring(run, state, known, s.now()) {
 			continue
 		}
-		if err := s.measure(ctx, run); err != nil {
+		// One run's failure mustn't hold up the others.
+		if err := s.syncRun(ctx, run, known); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			// One run's failure mustn't hold up the others.
+			failed++
 			s.log.Error("costs: measuring a run failed", "task", run.ID, "error", err)
 		}
+	}
+	if failed > 0 {
+		return fmt.Errorf("%d runs failed", failed)
 	}
 	return nil
 }
 
 func dueForMeasuring(run Run, state store.CostRunState, known bool, now time.Time) bool {
-	if !known {
-		return true
-	}
 	switch {
-	case now.Sub(run.UpdatedAt) > measureWindow:
+	case !known:
+		return true
+	case now.Sub(run.CreatedAt) > measureWindow:
 		return false
+	case !state.Complete:
+		return true
 	case run.UpdatedAt.After(state.SourceUpdatedAt):
 		return true
 	case !finished(run.Status):
@@ -154,34 +207,64 @@ func finished(status string) bool {
 	return false
 }
 
-func (s *Syncer) measure(ctx context.Context, run Run) error {
-	brief, ok, err := s.pm.Brief(ctx, run.ID)
+func (s *Syncer) syncRun(ctx context.Context, run Run, known bool) error {
+	brief, ok, err := s.place(ctx, run)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		return nil // nothing says which channel it was for: not a video's run
+		s.unplaced[run.ID] = run.UpdatedAt
+		return nil
+	}
+	total := store.CostRun{TaskID: run.ID, ChannelID: brief.ChannelID, DevelopmentID: brief.DevelopmentID,
+		StartedAt: run.CreatedAt, SourceUpdatedAt: run.UpdatedAt, Stages: map[string]int64{},
+		// First read this late, PolyMaths may have forgotten part of it already.
+		Complete: known || s.now().Sub(run.CreatedAt) < retention}
+	if err := s.measure(ctx, run, &total); err != nil {
+		if ctx.Err() == nil {
+			// A partial sum would read as a cheaper video: say it's missing instead.
+			if markErr := s.store.MarkCostRunUnread(ctx, total); markErr != nil {
+				return errors.Join(err, markErr)
+			}
+		}
+		return err
+	}
+	return s.store.SaveCostRun(ctx, total)
+}
+
+// place works out which channel and story a run belongs to; false if it can't
+// tell. A named development decides the channel, as it does for the run's builds.
+func (s *Syncer) place(ctx context.Context, run Run) (Brief, bool, error) {
+	brief, ok, err := s.pm.Brief(ctx, run.ID)
+	if err != nil || !ok {
+		return Brief{}, false, err
+	}
+	if brief.DevelopmentID != "" {
+		channel, found, err := s.store.DevelopmentChannel(ctx, brief.DevelopmentID)
+		if err != nil {
+			return Brief{}, false, err
+		}
+		switch {
+		case !found:
+			s.log.Warn("costs: a run names an unknown development", "task", run.ID, "development", brief.DevelopmentID)
+			brief.DevelopmentID = ""
+		case channel != brief.ChannelID:
+			s.log.Warn("costs: a run's channel isn't its development's", "task", run.ID, "brief", brief.ChannelID, "development", channel)
+			brief.ChannelID = channel
+		}
 	}
 	if _, err := s.store.GetChannel(ctx, brief.ChannelID); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			s.log.Warn("costs: a run names an unknown channel", "task", run.ID, "channel", brief.ChannelID)
-			return nil
+			return Brief{}, false, nil
 		}
-		return err
+		return Brief{}, false, err
 	}
-	if brief.DevelopmentID != "" {
-		exists, err := s.store.DevelopmentExists(ctx, brief.DevelopmentID)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			s.log.Warn("costs: a run names an unknown development", "task", run.ID, "development", brief.DevelopmentID)
-			brief.DevelopmentID = ""
-		}
-	}
+	return brief, true, nil
+}
 
-	total := store.CostRun{TaskID: run.ID, ChannelID: brief.ChannelID, DevelopmentID: brief.DevelopmentID,
-		StartedAt: run.CreatedAt, SourceUpdatedAt: run.UpdatedAt, Stages: map[string]int64{}}
+// measure adds up a run and all its subtasks into total.
+func (s *Syncer) measure(ctx context.Context, run Run, total *store.CostRun) error {
 	from := run.CreatedAt.Add(-24 * time.Hour)
 	seen := map[string]bool{run.ID: true}
 	queue := []string{run.ID}
@@ -190,7 +273,7 @@ func (s *Syncer) measure(ctx context.Context, run Run) error {
 		queue = queue[1:]
 		u, err := s.pm.Usage(ctx, id, from)
 		if err != nil {
-			return err // a partial sum would read as a cheaper video
+			return err
 		}
 		total.AgentRuns += u.AgentRuns
 		total.MeasuredRuns += u.MeasuredRuns
@@ -215,7 +298,7 @@ func (s *Syncer) measure(ctx context.Context, run Run) error {
 			}
 		}
 	}
-	return s.store.SaveCostRun(ctx, total)
+	return nil
 }
 
 func (s *Syncer) syncBuilds(ctx context.Context) error {
@@ -227,21 +310,22 @@ func (s *Syncer) syncBuilds(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	failed := 0
 	for _, key := range keys {
 		development, ok := buildDevelopment(key)
-		if !ok || known[key] || s.unreadable[key] {
+		if !ok || known[key] || s.orphans[key] {
 			continue
 		}
 		if err := s.readBuild(ctx, key, development); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			var bad *badPackageError
-			if errors.As(err, &bad) {
-				s.unreadable[key] = true
-			}
+			failed++
 			s.log.Error("costs: reading a build failed", "key", key, "error", err)
 		}
+	}
+	if failed > 0 {
+		return fmt.Errorf("%d builds failed", failed)
 	}
 	return nil
 }
@@ -261,66 +345,93 @@ func buildDevelopment(key string) (string, bool) {
 }
 
 func (s *Syncer) readBuild(ctx context.Context, key, development string) error {
-	exists, err := s.store.DevelopmentExists(ctx, development)
+	if _, found, err := s.store.DevelopmentChannel(ctx, development); err != nil {
+		return err
+	} else if !found {
+		s.orphans[key] = true
+		s.log.Warn("costs: a build's development isn't in hub", "key", key)
+		return nil
+	}
+	usd, sum, err := s.readPackage(ctx, key)
 	if err != nil {
+		// A dropped connection and a damaged archive look alike from here, so
+		// any failure gets a few tries. Then the page counts it as unreadable.
+		s.attempts[key]++
+		if ctx.Err() != nil || s.attempts[key] < maxBuildAttempts {
+			return err
+		}
+		if saveErr := s.store.SaveCostBuild(ctx, store.CostBuild{Key: key, DevelopmentID: development}); saveErr != nil {
+			return errors.Join(err, saveErr)
+		}
 		return err
 	}
-	if !exists {
-		return &badPackageError{"its development isn't in hub"}
-	}
+	return s.store.SaveCostBuild(ctx, store.CostBuild{Key: key, DevelopmentID: development, USD: &usd, PackageSHA256: sum})
+}
+
+func (s *Syncer) readPackage(ctx context.Context, key string) (float64, string, error) {
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
 	body, _, err := s.media.Open(ctx, key)
 	if err != nil {
-		return err
+		return 0, "", err
 	}
 	defer func() { _ = body.Close() }()
-	usd, err := imagesCost(body)
-	if err != nil {
-		return err
-	}
-	return s.store.SaveCostBuild(ctx, key, development, usd)
+	return imagesCost(body)
 }
 
-// badPackageError: reading the package again won't help.
-type badPackageError struct{ reason string }
-
-func (e *badPackageError) Error() string { return "bad package: " + e.reason }
-
-// imagesCost finds package.json in a package archive and returns what the
-// build's pictures cost: what the provider charged, with nothing for a picture
-// taken from the build's cache (studio/README.md). A build with no generated
-// pictures cost nothing. An agent uploads the package, so its size and its
-// figure are both checked.
-func imagesCost(archive io.Reader) (float64, error) {
+// imagesCost finds package.json in a package archive and returns what the build's
+// pictures cost, as the provider charged it, and the file's hash, which tells a
+// retried upload from a real rebuild. A build with no generated pictures has no
+// "images" and cost nothing. An agent uploads the package, so its path, size and
+// figure are all checked.
+func imagesCost(archive io.Reader) (float64, string, error) {
 	gz, err := gzip.NewReader(archive)
 	if err != nil {
-		return 0, &badPackageError{"not gzip: " + err.Error()}
+		return 0, "", fmt.Errorf("not a gzip archive: %w", err)
 	}
 	defer func() { _ = gz.Close() }()
 	tr := tar.NewReader(io.LimitReader(gz, maxUnpacked))
 	for {
 		h, err := tr.Next()
 		if errors.Is(err, io.EOF) {
-			return 0, &badPackageError{"no package.json"}
+			return 0, "", errors.New("no " + packageJSONPath)
 		}
 		if err != nil {
-			return 0, fmt.Errorf("reading the package: %w", err)
+			return 0, "", fmt.Errorf("reading the package: %w", err)
 		}
-		if h.Typeflag != tar.TypeReg || path.Base(h.Name) != "package.json" {
+		if h.Typeflag != tar.TypeReg || h.Name != packageJSONPath {
 			continue
 		}
-		var pkg struct {
-			Images struct {
-				CostUSD float64 `json:"cost_usd"`
-			} `json:"images"`
+		raw, err := io.ReadAll(io.LimitReader(tr, maxPackageJSON))
+		if err != nil {
+			return 0, "", fmt.Errorf("reading %s: %w", packageJSONPath, err)
 		}
-		if err := json.NewDecoder(io.LimitReader(tr, maxPackageJSON)).Decode(&pkg); err != nil {
-			return 0, &badPackageError{"package.json: " + err.Error()}
+		usd, err := parseImagesCost(raw)
+		if err != nil {
+			return 0, "", err
 		}
-		if usd := pkg.Images.CostUSD; usd < 0 || usd > maxBuildUSD {
-			return 0, &badPackageError{fmt.Sprintf("implausible images.cost_usd %v", usd)}
-		}
-		return pkg.Images.CostUSD, nil
+		sum := sha256.Sum256(raw)
+		return usd, hex.EncodeToString(sum[:]), nil
 	}
+}
+
+func parseImagesCost(raw []byte) (float64, error) {
+	var pkg struct {
+		Images *struct {
+			CostUSD *float64 `json:"cost_usd"`
+		} `json:"images"`
+	}
+	if err := json.Unmarshal(raw, &pkg); err != nil {
+		return 0, fmt.Errorf("decoding %s: %w", packageJSONPath, err)
+	}
+	if pkg.Images == nil {
+		return 0, nil
+	}
+	if pkg.Images.CostUSD == nil {
+		return 0, errors.New("images has no cost_usd")
+	}
+	if usd := *pkg.Images.CostUSD; usd < 0 || usd > maxBuildUSD {
+		return 0, fmt.Errorf("implausible images.cost_usd %v", usd)
+	}
+	return *pkg.Images.CostUSD, nil
 }

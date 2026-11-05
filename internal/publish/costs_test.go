@@ -24,7 +24,8 @@ func videoCost(id, title string, tokens, cached int64, stages map[string]int64, 
 }
 
 func sampleCosts() store.ChannelCosts {
-	updated := time.Date(2026, 11, 5, 10, 0, 0, 0, time.UTC)
+	tokens := time.Date(2026, 11, 5, 10, 0, 0, 0, time.UTC)
+	pictures := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
 	return store.ChannelCosts{
 		Videos: []store.VideoCost{
 			videoCost("77a54dc9-6f0c-4826-9e1b-cf59cc3be8a2", `<script>alert("x")</script> Cook`, 60_000_000, 57_000_000,
@@ -33,7 +34,7 @@ func sampleCosts() store.ChannelCosts {
 				map[string]int64{store.StageResearch: 40_000_000}, 3, 2.25),
 		},
 		OtherRuns: 2, OtherTokens: store.TokenCounts{CacheRead: 5_500_000}, OtherBuilds: 4, OtherImagesUSD: 3.2,
-		AgentRuns: 44, MeasuredRuns: 42, UpdatedAt: &updated,
+		AgentRuns: 44, MeasuredRuns: 42, IncompleteRuns: 1, UnreadableBuilds: 2, TokensUpdatedAt: &tokens, PicturesUpdatedAt: &pictures,
 	}
 }
 
@@ -67,21 +68,25 @@ func TestBuildCostsNumbers(t *testing.T) {
 	if !strings.HasPrefix(page.Unmeasured, "2 of 44 ") {
 		t.Errorf("unmeasured %q", page.Unmeasured)
 	}
-	if page.Updated != "Figures updated Nov 5, 2026." {
-		t.Errorf("updated %q", page.Updated)
+	if len(page.Updated) != 2 || !strings.Contains(page.Updated[0], "Nov 5, 2026") || !strings.Contains(page.Updated[1], "Nov 3, 2026") {
+		t.Errorf("updated %q: each source keeps its own date", page.Updated)
 	}
-	// Under 1% of a video's tokens still draws a mark, and a stage with none draws none.
+	if !strings.HasPrefix(page.Incomplete, "Figures are incomplete for 1 ") || !strings.HasPrefix(page.Unreadable, "The packages of 2 ") {
+		t.Errorf("%q / %q", page.Incomplete, page.Unreadable)
+	}
+	// A stage with no tokens draws no mark.
 	if n := len(page.Bars[1].Segments); n != 1 {
 		t.Errorf("a video with one stage has %d segments", n)
 	}
 }
 
-func TestSpanishNumbers(t *testing.T) {
+func TestNumbers(t *testing.T) {
 	for n, want := range map[int64]string{
 		950:           "950",
 		880_000:       "880\u00a0mil",
 		62_400_000:    "62,4\u00a0M",
 		1_200_000_000: "1.200\u00a0M",
+		999_500:       "1\u00a0M",
 	} {
 		if got := spanish.compact(n); got != want {
 			t.Errorf("%d: %q, want %q", n, got, want)
@@ -93,10 +98,42 @@ func TestSpanishNumbers(t *testing.T) {
 	if got := spanish.percent(52.4); got != "52\u00a0%" {
 		t.Errorf("%q", got)
 	}
-	for n, want := range map[int64]string{950: "950", 880_000: "880K", 62_400_000: "62.4M", 123_456_789: "123M", 1_200_000_000: "1.2B"} {
+	for n, want := range map[int64]string{
+		950: "950", 880_000: "880K", 62_400_000: "62.4M", 123_456_789: "123M", 1_200_000_000: "1.2B",
+		// The unit is chosen after rounding.
+		999_500: "1M", 99_950_000: "100M", 999_500_000: "1B",
+	} {
 		if got := english.compact(n); got != want {
 			t.Errorf("%d: %q, want %q", n, got, want)
 		}
+	}
+}
+
+func TestAShareTooSmallToRoundIsNotZero(t *testing.T) {
+	if got := english.percent(0.4); got != "<1%" {
+		t.Errorf("%q", got)
+	}
+	if got := spanish.percent(0.4); got != "<1\u00a0%" {
+		t.Errorf("%q", got)
+	}
+	if got := english.percent(0); got != "0%" {
+		t.Errorf("%q", got)
+	}
+}
+
+// An old outlier off the charts doesn't shrink what they draw.
+func TestTheAxisFitsWhatIsDrawn(t *testing.T) {
+	var c store.ChannelCosts
+	for i := 0; i < chartMax; i++ {
+		c.Videos = append(c.Videos, videoCost("77a54dc9-6f0c-4826-9e1b-cf59cc3be8a2", "v", 60_000_000, 0, map[string]int64{store.StageResearch: 60_000_000}, 1, 1))
+	}
+	c.Videos = append(c.Videos, videoCost("77a54dc9-6f0c-4826-9e1b-cf59cc3be8a2", "old", 9_000_000_000, 0, map[string]int64{store.StageResearch: 9_000_000_000}, 1, 49))
+	page := BuildCosts(store.Channel{ID: "x", Language: "en-US"}, c)
+	if len(page.Bars) != chartMax || page.Bars[0].WidthPct != 100 || page.Pictures[0].PictureBar != pictureBarMax {
+		t.Errorf("%d bars, width %v, picture %v", len(page.Bars), page.Bars[0].WidthPct, page.Pictures[0].PictureBar)
+	}
+	if len(page.Rows) != chartMax+1 {
+		t.Errorf("the table has %d rows: it lists them all", len(page.Rows))
 	}
 }
 
@@ -152,16 +189,22 @@ func TestTheCostsPage(t *testing.T) {
 	}
 	for _, want := range []string{
 		`<html lang="en">`,
-		"<title>8BitNewsUS: what our videos cost</title>",
+		"<title>8BitNewsUS: what each video took</title>",
 		`<a href="/c/8bitnews-us">8BitNewsUS</a>`,
 		`<a href="/s/77a54dc96f">`,
 		"&lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt; Cook",
 		`class="seg fill-research"`,
 		`title="Research: 30M (50%)"`,
 		"Video and QA",
+		"Legal risk check",
 		"$0.81", "$2.25",
-		"Not counted:",
-		"flat-rate subscription",
+		"Not counted: the subscription itself",
+		"builds that failed before reaching storage",
+		"Each rebuild draws its pictures again",
+		"Figures are incomplete for 1 runs",
+		"The packages of 2 builds",
+		"Tokens last read in full on Nov 5, 2026.",
+		"Pictures last read in full on Nov 3, 2026.",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the page lacks %q", want)
@@ -173,14 +216,13 @@ func TestTheCostsPage(t *testing.T) {
 	if strings.Contains(body, "ZgotmplZ") {
 		t.Error("the template refused a value: a width or a color came out as ZgotmplZ")
 	}
-	// The release's full id and the words for the pipeline's internals stay out.
 	if strings.Contains(body, "77a54dc9-6f0c") {
 		t.Error("a full release id is on the page")
 	}
 
 	es := store.Channel{ID: "8bitnews-es", Name: "8BitNewsES", Language: "es-ES", Timezone: "Europe/Madrid"}
-	_, _, body = get(t, NewPages(costsStore{es, store.ChannelCosts{}}, cfg, logger), "/c/8bitnews-es/costs")
-	for _, want := range []string{`<html lang="es">`, "Cuánto cuestan nuestros vídeos", "Todavía no hay vídeos en esta lista."} {
+	_, _, body = get(t, NewPages(costsStore{es, store.ChannelCosts{OtherRuns: 1, OtherTokens: store.TokenCounts{CacheRead: 9}}}, cfg, logger), "/c/8bitnews-es/costs")
+	for _, want := range []string{`<html lang="es">`, "Qué consume cada vídeo", "Todavía no hay vídeos en esta lista.", "fuera de los totales: 1 (9 tokens)"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the empty Spanish page lacks %q:\n%s", want, body)
 		}
@@ -194,7 +236,7 @@ func TestTheCostsPage(t *testing.T) {
 	if code, _, _ := get(t, pages, "/c/nope/costs"); code != http.StatusNotFound {
 		t.Errorf("an unknown channel: %d", code)
 	}
-	if _, _, body := get(t, pages, "/c/8bitnews-us"); !strings.Contains(body, `<a href="/c/8bitnews-us/costs">What our videos cost</a>`) {
+	if _, _, body := get(t, pages, "/c/8bitnews-us"); !strings.Contains(body, `<a href="/c/8bitnews-us/costs">What each video took</a>`) {
 		t.Errorf("the channel's list doesn't link to its costs:\n%s", body)
 	}
 }
@@ -208,5 +250,21 @@ func TestAVideoWithNoRecordShowsADash(t *testing.T) {
 	}
 	if page.HasTokens || page.HasImages {
 		t.Errorf("charts with nothing to draw: %v %v", page.HasTokens, page.HasImages)
+	}
+	if !page.NoTokens {
+		t.Error("the page doesn't say the token figures are missing")
+	}
+	if tot := page.Total; tot.Tokens != "—" || tot.Written != "—" || tot.Builds != "—" || tot.Pictures != "—" {
+		t.Errorf("a total of nothing reads as free: %+v", tot)
+	}
+}
+
+// A median that stands on some of the videos says how many.
+func TestATileSaysHowManyVideosItCounts(t *testing.T) {
+	measured := videoCost("77a54dc9-6f0c-4826-9e1b-cf59cc3be8a2", "A", 60_000_000, 0, map[string]int64{store.StageResearch: 60_000_000}, 1, 1)
+	missing := videoCost("0408ab3b-0000-0000-0000-000000000000", "B", 0, 0, map[string]int64{}, 0, 0)
+	page := BuildCosts(store.Channel{ID: "x", Language: "en-US"}, store.ChannelCosts{Videos: []store.VideoCost{measured, missing}})
+	if got := page.Tiles[1].Label; got != "Tokens per video, median (1 of 2 videos)" {
+		t.Errorf("%q", got)
 	}
 }

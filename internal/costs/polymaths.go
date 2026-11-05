@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -89,7 +90,7 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 // Runs returns the Newsroom team's root tasks.
 func (c *Client) Runs(ctx context.Context) ([]Run, error) {
 	var out []Run
-	for offset := 0; ; offset += listPage {
+	for offset := 0; ; {
 		var page struct {
 			Tasks []Run `json:"tasks"`
 			Total int   `json:"total"`
@@ -104,7 +105,8 @@ func (c *Client) Runs(ctx context.Context) ([]Run, error) {
 				out = append(out, t)
 			}
 		}
-		if len(page.Tasks) == 0 || offset+len(page.Tasks) >= page.Total {
+		offset += len(page.Tasks)
+		if len(page.Tasks) == 0 || offset >= page.Total {
 			return out, nil
 		}
 	}
@@ -193,22 +195,24 @@ var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
 func (c *Client) Brief(ctx context.Context, taskID string) (Brief, bool, error) {
 	var list struct {
 		Items []struct {
-			ID   string `json:"id"`
-			Kind string `json:"kind"`
+			ID        string    `json:"id"`
+			Kind      string    `json:"kind"`
+			CreatedAt time.Time `json:"created_at"`
 		} `json:"items"`
 	}
 	path := "/tasks/" + url.PathEscape(taskID) + "/artifacts"
 	if err := c.get(ctx, path, &list); err != nil {
 		return Brief{}, false, err
 	}
-	for i := len(list.Items) - 1; i >= 0; i-- {
-		if list.Items[i].Kind != "story_brief" {
+	sort.SliceStable(list.Items, func(i, j int) bool { return list.Items[i].CreatedAt.After(list.Items[j].CreatedAt) })
+	for _, item := range list.Items {
+		if item.Kind != "story_brief" {
 			continue
 		}
 		var artifact struct {
 			Content json.RawMessage `json:"content"`
 		}
-		if err := c.get(ctx, path+"/"+url.PathEscape(list.Items[i].ID), &artifact); err != nil {
+		if err := c.get(ctx, path+"/"+url.PathEscape(item.ID), &artifact); err != nil {
 			return Brief{}, false, err
 		}
 		if b, ok := parseBrief(artifact.Content); ok {
@@ -219,18 +223,25 @@ func (c *Client) Brief(ctx context.Context, taskID string) (Brief, bool, error) 
 }
 
 func parseBrief(content json.RawMessage) (Brief, bool) {
+	// The content is an object, or an object written out as a string.
+	var text string
+	if err := json.Unmarshal(content, &text); err == nil {
+		content = json.RawMessage(text)
+	}
 	var doc struct {
-		ChannelID   string `json:"channel_id"`
-		Development struct {
-			HubDevelopmentID string `json:"hub_development_id"`
-		} `json:"development"`
+		ChannelID   string          `json:"channel_id"`
+		Development json.RawMessage `json:"development"`
 	}
 	if err := json.Unmarshal(content, &doc); err != nil || doc.ChannelID == "" {
 		return Brief{}, false
 	}
 	b := Brief{ChannelID: doc.ChannelID}
-	if id := strings.ToLower(doc.Development.HubDevelopmentID); uuidPattern.MatchString(id) {
-		b.DevelopmentID = id
+	// A development the agent got wrong leaves the run without one, not without a channel.
+	var development map[string]any
+	if err := json.Unmarshal(doc.Development, &development); err == nil {
+		if id, ok := development["hub_development_id"].(string); ok && uuidPattern.MatchString(strings.ToLower(id)) {
+			b.DevelopmentID = strings.ToLower(id)
+		}
 	}
 	return b, true
 }

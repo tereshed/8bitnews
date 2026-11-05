@@ -253,13 +253,14 @@ var indexTemplate = template.Must(template.New("index").Parse(pageHead + `<title
 // The stages' colors are the validated categorical slots of the dataviz method,
 // in its fixed order, stepped for each mode: checked against this page's own
 // light and dark backgrounds. Three light slots are under 3:1 there, which is
-// why every figure is also in the table. Dollars get the violet slot: pictures
+// why every figure is also in the table. A figure on a block takes the ink with
+// the better contrast, measured for each slot in both modes. Dollars get the violet slot: pictures
 // aren't one of the stages, and a color follows what it stands for. There is no
 // script on these pages (see write), so a mark's tooltip is its title attribute.
 const costsStyle = `<style>
-:root { --s-research: #2a78d6; --s-script: #eb6834; --s-legal: #1baf7a; --s-editor: #eda100; --s-video: #e87ba4; --s-other: #008300; --on-editor: #0b0b0b; --pictures: #6250d6; }
+:root { --s-research: #2a78d6; --s-script: #eb6834; --s-legal: #1baf7a; --s-editor: #eda100; --s-video: #e87ba4; --s-other: #008300; --pictures: #6250d6; }
 @media (prefers-color-scheme: dark) {
-  :root { --s-research: #3987e5; --s-script: #d95926; --s-legal: #199e70; --s-editor: #c98500; --s-video: #d55181; --s-other: #008300; --on-editor: #fff; --pictures: #9085e9; }
+  :root { --s-research: #3987e5; --s-script: #d95926; --s-legal: #199e70; --s-editor: #c98500; --s-video: #d55181; --s-other: #008300; --pictures: #9085e9; }
 }
 .fill-research { background: var(--s-research); } .fill-script { background: var(--s-script); } .fill-legal { background: var(--s-legal); }
 .fill-editor { background: var(--s-editor); } .fill-video { background: var(--s-video); } .fill-other { background: var(--s-other); }
@@ -269,8 +270,8 @@ const costsStyle = `<style>
 .tile b { display: block; font-size: 26px; line-height: 1.2; font-weight: 600; }
 .tile span { color: var(--muted); font-size: 14px; line-height: 1.3; display: block; margin-top: 2px; }
 .shares { display: flex; gap: 2px; height: 28px; }
-.share { min-width: 2px; border-radius: 4px; color: #fff; font-size: 13px; line-height: 28px; padding-left: 6px; white-space: nowrap; }
-.share.fill-editor { color: var(--on-editor); }
+.share { min-width: 2px; border-radius: 4px; color: #0b0b0b; font-size: 13px; line-height: 28px; padding-left: 6px; white-space: nowrap; }
+.share.fill-other { color: #fff; }
 .share.empty { padding-left: 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 14px; color: var(--muted); }
 .legend li { margin: 0; display: flex; align-items: center; gap: 6px; }
@@ -365,12 +366,15 @@ var costsTemplate = template.Must(template.New("costs").Parse(pageHead + costsSt
 
 <h2>{{.T.CostsMethodTitle}}</h2>
 <p>{{.T.CostsMethodTokens}}{{if .CachedLine}} {{.CachedLine}}{{end}}</p>
+{{if .NoTokens}}<p>{{.T.CostsNoTokens}}</p>{{end}}
 {{if .Unmeasured}}<p>{{.Unmeasured}}</p>{{end}}
+{{if .Incomplete}}<p>{{.Incomplete}}</p>{{end}}
 <p>{{.T.CostsMethodPictures}}</p>
+{{if .Unreadable}}<p>{{.Unreadable}}</p>{{end}}
 <p>{{.T.CostsMethodFree}}</p>
 <p>{{.T.CostsMethodExcluded}}</p>
-{{if .Updated}}<p class="small">{{.Updated}}</p>{{end}}
-</main>
+{{range .Updated}}<p class="small">{{.}}</p>
+{{end}}</main>
 </body>
 </html>
 `))

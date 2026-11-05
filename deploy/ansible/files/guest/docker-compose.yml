@@ -61,6 +61,8 @@ services:
       HUB_POLYMATHS_API_KEY: ${HUB_POLYMATHS_API_KEY:-}
       HUB_POLYMATHS_PROJECT_ID: ${HUB_POLYMATHS_PROJECT_ID:-}
       HUB_POLYMATHS_NEWSROOM_TEAM_ID: ${HUB_POLYMATHS_NEWSROOM_TEAM_ID:-}
+      HUB_POLYMATHS_URL: ${HUB_POLYMATHS_URL:-}
+      HUB_COSTS_SYNC_INTERVAL: ${HUB_COSTS_SYNC_INTERVAL:-}
     volumes:
       - ${HUB_REPO_DIR:-/opt/8bitnews/repo}/channels:/repo/channels:ro
       - ${HUB_REPO_DIR:-/opt/8bitnews/repo}/countries:/repo/countries:ro

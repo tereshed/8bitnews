@@ -45,7 +45,10 @@ type CostsPage struct {
 	OtherBuilds string
 	CachedLine  string
 	Unmeasured  string
-	Updated     string
+	Incomplete  string
+	Unreadable  string
+	NoTokens    bool
+	Updated     []string
 }
 
 // CostTile is one headline number.
@@ -115,32 +118,39 @@ func BuildCosts(ch store.Channel, c store.ChannelCosts) CostsPage {
 	var tokensPerVideo, usdPerVideo []float64
 	var totalUSD, maxTokens, maxUSD float64
 	totalBuilds := 0
-	for _, v := range c.Videos {
+	for i, v := range c.Videos {
 		total = addTokens(total, v.Tokens)
 		for k, n := range v.Stages {
 			stages[k] += n
 		}
 		if t := v.Tokens.Total(); t > 0 {
 			tokensPerVideo = append(tokensPerVideo, float64(t))
-			maxTokens = math.Max(maxTokens, float64(t))
+			if i < chartMax { // the axis fits what's drawn
+				maxTokens = math.Max(maxTokens, float64(t))
+			}
 		}
 		if v.Builds > 0 {
 			usdPerVideo = append(usdPerVideo, v.ImagesUSD)
 			totalUSD += v.ImagesUSD
 			totalBuilds += v.Builds
-			maxUSD = math.Max(maxUSD, v.ImagesUSD)
+			if i < chartMax {
+				maxUSD = math.Max(maxUSD, v.ImagesUSD)
+			}
 		}
 	}
 	page.HasTokens = maxTokens > 0
 	page.HasImages = maxUSD > 0
+	page.NoTokens = len(c.Videos) > 0 && len(tokensPerVideo) == 0
 
 	if len(c.Videos) > 0 {
 		page.Tiles = []CostTile{{w.CostsTileVideos, fmt.Sprint(len(c.Videos))}}
-		if page.HasTokens {
-			page.Tiles = append(page.Tiles, CostTile{w.CostsTileTokens, w.compact(int64(median(tokensPerVideo)))})
+		if len(tokensPerVideo) > 0 {
+			page.Tiles = append(page.Tiles, CostTile{w.tileLabel(w.CostsTileTokens, len(tokensPerVideo), len(c.Videos)), w.compact(int64(median(tokensPerVideo)))})
 		}
-		if page.HasImages {
-			page.Tiles = append(page.Tiles, CostTile{w.CostsTilePictures, w.usd(median(usdPerVideo))}, CostTile{w.CostsTilePicturesAll, w.usd(totalUSD)})
+		if len(usdPerVideo) > 0 {
+			page.Tiles = append(page.Tiles,
+				CostTile{w.tileLabel(w.CostsTilePictures, len(usdPerVideo), len(c.Videos)), w.usd(median(usdPerVideo))},
+				CostTile{w.CostsTilePicturesAll, w.usd(totalUSD)})
 		}
 	}
 
@@ -159,14 +169,16 @@ func BuildCosts(ch store.Channel, c store.ChannelCosts) CostsPage {
 		bar := CostBar{Title: title, URL: url}
 		if t := v.Tokens.Total(); t > 0 {
 			row.Tokens, row.Written = w.compact(t), w.compact(v.Tokens.Output)
-			bar.Value, bar.WidthPct = w.compact(t), float64(t)/top*100
-			bar.Segments = videoSegments(w, v)
+			if i < chartMax {
+				bar.Value, bar.WidthPct = w.compact(t), float64(t)/top*100
+				bar.Segments = videoSegments(w, v)
+			}
 		}
 		if v.Builds > 0 {
 			row.Builds, row.Pictures = fmt.Sprint(v.Builds), w.usd(v.ImagesUSD)
 			bar.Pictures = w.usd(v.ImagesUSD)
 			bar.Builds = fmt.Sprintf(w.CostsBuildsOf, v.Builds)
-			if maxUSD > 0 {
+			if i < chartMax && maxUSD > 0 {
 				bar.PictureBar = v.ImagesUSD / maxUSD * pictureBarMax
 			}
 		}
@@ -178,7 +190,14 @@ func BuildCosts(ch store.Channel, c store.ChannelCosts) CostsPage {
 			}
 		}
 	}
-	page.Total = CostRow{Tokens: w.compact(total.Total()), Written: w.compact(total.Output), Builds: fmt.Sprint(totalBuilds), Pictures: w.usd(totalUSD)}
+	// A total of nothing would read as free.
+	page.Total = CostRow{Tokens: "—", Written: "—", Builds: "—", Pictures: "—"}
+	if total.Total() > 0 {
+		page.Total.Tokens, page.Total.Written = w.compact(total.Total()), w.compact(total.Output)
+	}
+	if totalBuilds > 0 {
+		page.Total.Builds, page.Total.Pictures = fmt.Sprint(totalBuilds), w.usd(totalUSD)
+	}
 
 	if c.OtherRuns > 0 {
 		page.OtherRuns = fmt.Sprintf(w.CostsOtherRuns, c.OtherRuns, w.compact(c.OtherTokens.Total()))
@@ -192,8 +211,17 @@ func BuildCosts(ch store.Channel, c store.ChannelCosts) CostsPage {
 	if c.AgentRuns > c.MeasuredRuns {
 		page.Unmeasured = fmt.Sprintf(w.CostsUnmeasured, c.AgentRuns-c.MeasuredRuns, c.AgentRuns)
 	}
-	if c.UpdatedAt != nil {
-		page.Updated = fmt.Sprintf(w.CostsUpdated, w.date(inZone(*c.UpdatedAt, ch.Timezone)))
+	if c.IncompleteRuns > 0 {
+		page.Incomplete = fmt.Sprintf(w.CostsIncomplete, c.IncompleteRuns)
+	}
+	if c.UnreadableBuilds > 0 {
+		page.Unreadable = fmt.Sprintf(w.CostsUnreadable, c.UnreadableBuilds)
+	}
+	if c.TokensUpdatedAt != nil {
+		page.Updated = append(page.Updated, fmt.Sprintf(w.CostsUpdatedTokens, w.date(inZone(*c.TokensUpdatedAt, ch.Timezone))))
+	}
+	if c.PicturesUpdatedAt != nil {
+		page.Updated = append(page.Updated, fmt.Sprintf(w.CostsUpdatedPictures, w.date(inZone(*c.PicturesUpdatedAt, ch.Timezone))))
 	}
 	return page
 }
@@ -303,29 +331,38 @@ func niceScale(max float64) (top, step float64) {
 }
 
 // compact writes a token count: 880K, 62.4M, 1.2B in English; 880 mil, 62,4 M,
-// 1.200 M in Spanish, where a billón is something else.
+// 1.200 M in Spanish, where a billón is something else. The unit is chosen after
+// rounding, so 999,500 is 1M and not 1,000K.
 func (w pageWords) compact(n int64) string {
-	f := float64(n)
-	switch {
-	case n < 1000:
+	if n < 1000 {
 		return fmt.Sprint(n)
-	case n < 1_000_000:
-		return w.scaled(f/1e3, w.thousand)
-	case n < 1_000_000_000 || w.billion == "":
-		return w.scaled(f/1e6, w.million)
-	default:
-		return w.scaled(f/1e9, w.billion)
 	}
+	type unit struct {
+		size float64
+		name string
+	}
+	units := []unit{{1e3, w.thousand}, {1e6, w.million}}
+	if w.billion != "" {
+		units = append(units, unit{1e9, w.billion})
+	}
+	for i, u := range units {
+		v := float64(n) / u.size
+		rounded := math.Round(v*10) / 10
+		if rounded >= 100 {
+			rounded = math.Round(v)
+		}
+		if rounded < 1000 || i == len(units)-1 {
+			return w.scaled(rounded, u.name)
+		}
+	}
+	return fmt.Sprint(n)
 }
 
 func (w pageWords) scaled(v float64, unit string) string {
-	var s string
-	if v >= 100 || v == math.Trunc(v) {
-		s = w.grouped(int64(math.Round(v)))
-	} else {
-		s = strings.Replace(fmt.Sprintf("%.1f", v), ".", w.decimal, 1)
+	if v == math.Trunc(v) {
+		return w.grouped(int64(v)) + unit
 	}
-	return s + unit
+	return strings.Replace(fmt.Sprintf("%.1f", v), ".", w.decimal, 1) + unit
 }
 
 func (w pageWords) grouped(n int64) string {
@@ -346,8 +383,21 @@ func (w pageWords) usd(v float64) string {
 	return fmt.Sprintf(w.usdFormat, strings.Replace(fmt.Sprintf("%.2f", v), ".", w.decimal, 1))
 }
 
+// percent writes a whole percent; a share that would round to nothing is "<1%",
+// never "0%".
 func (w pageWords) percent(v float64) string {
+	if v > 0 && v < 0.5 {
+		return "<" + fmt.Sprintf(w.percentFormat, 1.0)
+	}
 	return fmt.Sprintf(w.percentFormat, math.Round(v))
+}
+
+// tileLabel says how many videos a median stands on, when it isn't all of them.
+func (w pageWords) tileLabel(label string, have, all int) string {
+	if have == all {
+		return label
+	}
+	return fmt.Sprintf(w.CostsTileOf, label, have, all)
 }
 
 func (w pageWords) stageName(key string) string {
