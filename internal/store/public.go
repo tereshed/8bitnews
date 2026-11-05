@@ -95,14 +95,14 @@ func (s *Store) SetPublished(ctx context.Context, releaseID string, published bo
 }
 
 // WithdrawRelease closes the sources page of an approved or published release
-// (a mistaken approval, a claim) by moving it to "rejected". It reports false,
-// with the release as it is, if the release was in neither status.
-func (s *Store) WithdrawRelease(ctx context.Context, releaseID string) (Release, bool, error) {
+// (a mistaken approval, a claim) by moving it to "rejected", recording who did.
+// It reports false, with the release as it is, if the release was in neither status.
+func (s *Store) WithdrawRelease(ctx context.Context, releaseID, by string) (Release, bool, error) {
 	var r Release
 	err := scanRelease(s.pool.QueryRow(ctx, `
-		UPDATE releases SET status = 'rejected', updated_at = now()
+		UPDATE releases SET status = 'rejected', moderated_by = $2, moderated_at = now(), updated_at = now()
 		WHERE id = $1 AND status IN ('approved', 'published')
-		RETURNING `+releaseColumns, releaseID), &r)
+		RETURNING `+releaseColumns, releaseID, by), &r)
 	if err == nil {
 		return r, true, nil
 	}

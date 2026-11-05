@@ -29,9 +29,10 @@ const (
 
 // fakeTelegram records every Bot API call and answers like the real one.
 type fakeTelegram struct {
-	mu      sync.Mutex
-	calls   []call
-	nextMsg int64
+	mu         sync.Mutex
+	failAdmins bool
+	calls      []call
+	nextMsg    int64
 }
 
 type call struct {
@@ -44,6 +45,13 @@ type call struct {
 func (f *fakeTelegram) handler(t *testing.T) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		method := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+		f.mu.Lock()
+		failAdmins := f.failAdmins
+		f.mu.Unlock()
+		if method == "getChatAdministrators" && failAdmins {
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error_code": 403, "description": "bot was kicked"})
+			return
+		}
 		c := call{method: method, params: map[string]any{}}
 		if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
 			if err := r.ParseMultipartForm(1 << 20); err != nil {
@@ -171,7 +179,7 @@ func (s *fakeStore) SetPublished(_ context.Context, id string, published bool) (
 	return s.release, true, nil
 }
 
-func (s *fakeStore) WithdrawRelease(_ context.Context, id string) (store.Release, bool, error) {
+func (s *fakeStore) WithdrawRelease(_ context.Context, id, by string) (store.Release, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if id != s.release.ID {
@@ -181,6 +189,7 @@ func (s *fakeStore) WithdrawRelease(_ context.Context, id string) (store.Release
 		return s.release, false, nil
 	}
 	s.release.Status = "rejected"
+	s.release.Moderation.By = by
 	return s.release, true, nil
 }
 
@@ -690,5 +699,263 @@ func TestALongDescriptionStillReachesTheModerator(t *testing.T) {
 		if n := utf16Len(text); n > messageLimit {
 			t.Errorf("a message of %d units", n)
 		}
+	}
+}
+
+func TestActFromAdminPage(t *testing.T) {
+	const cardID = int64(555)
+	for _, c := range []struct {
+		name, status, action, note, wantStatus, wantReply string
+		wantButtons                                       []string
+	}{
+		{"approve", "pending_approval", "approve", "", "approved", "✅ Одобрено — Kostya", []string{"🟢"}},
+		{"changes", "pending_approval", "changes", "fix S3", "changes_requested", "Причина: fix S3", nil},
+		{"reject", "pending_approval", "reject", "off topic", "rejected", "❌ Отклонено — Kostya", nil},
+		{"published", "approved", "published", "", "published", "🟢 Выложено — Kostya", []string{"↩️"}},
+		{"unpublished", "published", "unpublished", "", "approved", "↩️ Не выложено — Kostya", []string{"🟢"}},
+		{"withdraw", "published", "withdraw", "claim", "rejected", "🚫 Страница источников закрыта", nil},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			m, tg, st, media := newBot(t, c.status)
+			id := cardID
+			st.release.Moderation.MessageID = &id
+			r, changed, err := m.Act(context.Background(), release, c.action, "Kostya", adminID, c.note)
+			if err != nil || !changed || r.Status != c.wantStatus {
+				t.Fatalf("%+v %v %v", r.Status, changed, err)
+			}
+			msgs := tg.byMethod("sendMessage")
+			if len(msgs) != 1 || !strings.Contains(msgs[0].params["text"].(string), c.wantReply) {
+				t.Fatalf("group message: %+v", msgs)
+			}
+			if got := msgs[0].params["chat_id"]; fmt.Sprint(got) != fmt.Sprint(chatID) {
+				t.Errorf("sent to %v", got)
+			}
+			if fm := msgs[0].params["reply_parameters"]; fm == nil {
+				t.Error("doesn't reply to the card")
+			}
+			kb := tg.byMethod("editMessageReplyMarkup")
+			if len(kb) != 1 {
+				t.Fatalf("card's buttons: %+v", kb)
+			}
+			raw, _ := json.Marshal(kb[0].params["reply_markup"])
+			for _, b := range c.wantButtons {
+				if !strings.Contains(string(raw), b) {
+					t.Errorf("no %q in %s", b, raw)
+				}
+			}
+			if c.wantButtons == nil && strings.Contains(string(raw), "callback_data") {
+				t.Errorf("a closed card keeps buttons: %s", raw)
+			}
+			// No uploads: the admin page shows the package.
+			if len(tg.byMethod("sendDocument")) != 0 || len(tg.byMethod("sendVideo")) != 0 || len(media.opened) != 0 {
+				t.Errorf("the package went out: docs %d, videos %d, opened %d", len(tg.byMethod("sendDocument")), len(tg.byMethod("sendVideo")), len(media.opened))
+			}
+			if c.note != "" && c.action != "withdraw" && st.note != c.note {
+				t.Errorf("reason not recorded: %q", st.note)
+			}
+			last := st.events[len(st.events)-1]
+			if last["via"] != "admin" || last["by"] != "Kostya" {
+				t.Errorf("event: %v", last)
+			}
+		})
+	}
+}
+
+func TestActOnAlreadyDecidedChangesNothing(t *testing.T) {
+	m, tg, st, _ := newBot(t, "approved")
+	r, changed, err := m.Act(context.Background(), release, "reject", "Kostya", adminID, "too late")
+	if err != nil || changed || r.Status != "approved" {
+		t.Fatalf("%v %v %v", r.Status, changed, err)
+	}
+	if len(tg.byMethod("sendMessage")) != 0 || len(tg.byMethod("editMessageReplyMarkup")) != 0 || st.note != "" || len(st.events) != 0 {
+		t.Errorf("something happened: %+v note %q events %v", tg.calls, st.note, st.events)
+	}
+}
+
+func TestActWithoutACardStillTellsTheGroup(t *testing.T) {
+	m, tg, _, _ := newBot(t, "pending_approval")
+	if _, changed, err := m.Act(context.Background(), release, "approve", "Kostya", adminID, ""); err != nil || !changed {
+		t.Fatalf("%v %v", changed, err)
+	}
+	if len(tg.byMethod("editMessageReplyMarkup")) != 0 {
+		t.Error("edited a card that doesn't exist")
+	}
+	if len(tg.byMethod("sendMessage")) != 1 {
+		t.Error("the group wasn't told")
+	}
+}
+
+func TestActUnknownAction(t *testing.T) {
+	m, _, st, _ := newBot(t, "pending_approval")
+	if _, _, err := m.Act(context.Background(), release, "package", "Kostya", adminID, ""); err == nil {
+		t.Error("accepted an action the page doesn't have")
+	}
+	if st.release.Status != "pending_approval" {
+		t.Errorf("status moved to %s", st.release.Status)
+	}
+}
+
+func TestAdminCommand(t *testing.T) {
+	const link = "https://hub.example.org/admin/login?t=TOKEN"
+	private := func(from int64, text string) Update {
+		return Update{Message: &Message{MessageID: 1, From: &User{ID: from, FirstName: "K"}, Chat: Chat{ID: from, Type: "private"}, Text: text}}
+	}
+	group := func(chat, from int64, text string) Update {
+		return Update{Message: &Message{MessageID: 1, From: &User{ID: from, FirstName: "K"}, Chat: Chat{ID: chat, Type: "group"}, Text: text}}
+	}
+	for _, c := range []struct {
+		name     string
+		update   Update
+		wantLink bool
+		wantText string
+		wantNone bool
+	}{
+		{"moderator, private", private(adminID, "/admin"), true, "", false},
+		{"moderator, /start", private(adminID, "/start"), true, "", false},
+		{"moderator, addressed", private(adminID, "/admin@EightBitNewsBot"), true, "", false},
+		{"stranger, private", private(otherID, "/admin"), false, "", true},
+		{"stranger, /start", private(otherID, "/start"), false, "", true},
+		{"moderator, group", group(chatID, adminID, "/admin"), false, "в личные сообщения", false},
+		{"stranger, group", group(chatID, otherID, "/admin"), false, "", true},
+		{"moderator, another group", group(-777, adminID, "/admin"), false, "", true},
+		{"/start in a group", group(chatID, adminID, "/start"), false, "", true},
+		{"ordinary text, private", private(adminID, "hello"), false, "", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			m, tg, _, _ := newBot(t, "pending_approval")
+			m.SetAdminLogin(func(int64, string) string { return link })
+			m.Handle(context.Background(), c.update)
+			msgs := tg.byMethod("sendMessage")
+			if c.wantNone {
+				if len(msgs) != 0 {
+					t.Fatalf("answered: %+v", msgs)
+				}
+				return
+			}
+			if len(msgs) != 1 {
+				t.Fatalf("messages: %+v", msgs)
+			}
+			text := msgs[0].params["text"].(string)
+			if got := strings.Contains(text, link); got != c.wantLink {
+				t.Errorf("link in %q: %v", text, got)
+			}
+			if c.wantText != "" && !strings.Contains(text, c.wantText) {
+				t.Errorf("%q has no %q", text, c.wantText)
+			}
+			if fmt.Sprint(msgs[0].params["chat_id"]) != fmt.Sprint(c.update.Message.Chat.ID) {
+				t.Errorf("sent to %v", msgs[0].params["chat_id"])
+			}
+		})
+	}
+}
+
+func TestAdminCommandOffWithoutLogin(t *testing.T) {
+	m, tg, _, _ := newBot(t, "pending_approval")
+	m.Handle(context.Background(), Update{Message: &Message{From: &User{ID: adminID}, Chat: Chat{ID: adminID, Type: "private"}, Text: "/admin"}})
+	if len(tg.byMethod("sendMessage")) != 0 {
+		t.Error("answered /admin with no admin page")
+	}
+}
+
+func TestIsModeratorDistrustsAnOldList(t *testing.T) {
+	m, tg, _, _ := newBot(t, "pending_approval")
+	ctx := context.Background()
+	if !m.IsModerator(ctx, adminID) {
+		t.Fatal("an administrator isn't a moderator")
+	}
+	if m.IsModerator(ctx, otherID) {
+		t.Fatal("a stranger is a moderator")
+	}
+
+	// Telegram stops answering: the list still counts for a while...
+	tg.mu.Lock()
+	tg.failAdmins = true
+	tg.mu.Unlock()
+	m.mu.Lock()
+	m.adminsAt = time.Now().Add(-10 * time.Minute)
+	m.mu.Unlock()
+	if !m.IsModerator(ctx, adminID) {
+		t.Error("a 10-minute-old list isn't trusted")
+	}
+	// ...but not for ever, for the page. The card's buttons keep working.
+	m.mu.Lock()
+	m.adminsAt = time.Now().Add(-adminsMaxAge - time.Minute)
+	m.mu.Unlock()
+	if m.IsModerator(ctx, adminID) {
+		t.Error("the page trusts a list Telegram hasn't confirmed for too long")
+	}
+	if !m.isModerator(ctx, adminID) {
+		t.Error("the bot's own check changed")
+	}
+}
+
+func TestActFinishesAfterTheBrowserLeaves(t *testing.T) {
+	m, tg, st, _ := newBot(t, "pending_approval")
+	id := int64(555)
+	st.release.Moderation.MessageID = &id
+	ctx, cancel := context.WithCancel(context.Background())
+	// The store's write has gone through when the browser goes away.
+	m.store = cancelAfterDecide{fakeStore: st, cancel: cancel}
+	if _, changed, err := m.Act(ctx, release, "reject", "Kostya", adminID, "off topic"); err != nil || !changed {
+		t.Fatalf("%v %v", changed, err)
+	}
+	if st.note != "off topic" {
+		t.Errorf("the reason was lost: %q", st.note)
+	}
+	if len(tg.byMethod("sendMessage")) != 1 || len(tg.byMethod("editMessageReplyMarkup")) != 1 {
+		t.Errorf("the group or the card wasn't told: %+v", tg.calls)
+	}
+}
+
+type cancelAfterDecide struct {
+	*fakeStore
+	cancel context.CancelFunc
+}
+
+func (c cancelAfterDecide) DecideRelease(ctx context.Context, id, status, by string) (store.Release, bool, error) {
+	r, changed, err := c.fakeStore.DecideRelease(ctx, id, status, by)
+	c.cancel()
+	return r, changed, err
+}
+
+func TestNewCardFollowsADecisionMadeDuringItsUpload(t *testing.T) {
+	for _, c := range []struct {
+		status string
+		want   string // on the keyboard; "" means no buttons
+		edits  int
+	}{
+		{"pending_approval", "", 0},
+		{"approved", "🟢", 1},
+		{"published", "↩️", 1},
+		{"rejected", "", 1},
+	} {
+		t.Run(c.status, func(t *testing.T) {
+			m, tg, st, _ := newBot(t, c.status)
+			m.syncNewCard(context.Background(), st.release.ID, 777)
+			edits := tg.byMethod("editMessageReplyMarkup")
+			if len(edits) != c.edits {
+				t.Fatalf("edits: %+v", edits)
+			}
+			if c.edits == 0 {
+				return
+			}
+			raw, _ := json.Marshal(edits[0].params["reply_markup"])
+			if c.want == "" && strings.Contains(string(raw), "callback_data") {
+				t.Errorf("buttons left: %s", raw)
+			}
+			if c.want != "" && !strings.Contains(string(raw), c.want) {
+				t.Errorf("no %q in %s", c.want, raw)
+			}
+		})
+	}
+}
+
+func TestWithdrawRecordsWho(t *testing.T) {
+	m, _, st, _ := newBot(t, "published")
+	if _, changed, err := m.Act(context.Background(), release, "withdraw", "Kostya", adminID, ""); err != nil || !changed {
+		t.Fatalf("%v %v", changed, err)
+	}
+	if st.release.Moderation.By != "Kostya" {
+		t.Errorf("credited to %q", st.release.Moderation.By)
 	}
 }

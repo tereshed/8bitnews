@@ -63,10 +63,10 @@ func TestSourcesPageOpensOnApprovalAndTheListOnPublished(t *testing.T) {
 	if _, _, err := st.SetPublished(ctx, r.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	if withdrawn, changed, err := st.WithdrawRelease(ctx, r.ID); err != nil || !changed || withdrawn.Status != "rejected" {
+	if withdrawn, changed, err := st.WithdrawRelease(ctx, r.ID, "K"); err != nil || !changed || withdrawn.Status != "rejected" {
 		t.Fatalf("WithdrawRelease = %s, %v, %v", withdrawn.Status, changed, err)
 	}
-	if again, changed, err := st.WithdrawRelease(ctx, r.ID); err != nil || changed || again.Status != "rejected" {
+	if again, changed, err := st.WithdrawRelease(ctx, r.ID, "K"); err != nil || changed || again.Status != "rejected" {
 		t.Fatalf("a second WithdrawRelease = %s, %v, %v", again.Status, changed, err)
 	}
 	if _, err := st.PublicRelease(ctx, code); !errors.Is(err, store.ErrNotFound) {
@@ -75,7 +75,7 @@ func TestSourcesPageOpensOnApprovalAndTheListOnPublished(t *testing.T) {
 	if list, err := st.PublicReleases(ctx, "pub-us", 10); err != nil || len(list) != 0 {
 		t.Fatalf("a withdrawn release is listed: %v, %v", list, err)
 	}
-	if _, _, err := st.WithdrawRelease(ctx, "00000000-0000-0000-0000-000000000000"); !errors.Is(err, store.ErrNotFound) {
+	if _, _, err := st.WithdrawRelease(ctx, "00000000-0000-0000-0000-000000000000", "K"); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("WithdrawRelease of a missing release: %v", err)
 	}
 	for _, bad := range []string{"", code[:9], code + "0", "zzzzzzzzzz", "ffffffffff"} {

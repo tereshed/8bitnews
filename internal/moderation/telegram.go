@@ -39,7 +39,8 @@ type User struct {
 }
 
 type Chat struct {
-	ID int64 `json:"id"`
+	ID   int64  `json:"id"`
+	Type string `json:"type"` // "private", "group", "supergroup", "channel"
 }
 
 type Message struct {
