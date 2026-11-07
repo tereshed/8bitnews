@@ -91,6 +91,34 @@
         }
       }
     },
+    "cover": {
+      "type": "object",
+      "required": [
+        "frame",
+        "layout",
+        "picture"
+      ],
+      "description": "What files.cover shows (studio build): the picture across the whole frame and where the title's black plate sits. Absent in packages built before 07.11.2026.",
+      "properties": {
+        "frame": {
+          "type": "string",
+          "pattern": "^(custom|S[0-9]+)$",
+          "description": "script.cover.frame"
+        },
+        "layout": {
+          "enum": [
+            "bottom",
+            "top"
+          ],
+          "description": "The cover title's plate: low in the safe zone just above the AI line, or at its top; studio pick alternates them (owner, 07.11.2026)"
+        },
+        "picture": {
+          "type": "string",
+          "pattern": "^(custom|template|S[0-9]+)$",
+          "description": "The scene whose picture it is (for an anchor scene, what its screen shows), custom (the drawn cover picture) or template (the template's placeholder: a build without pictures)"
+        }
+      }
+    },
     "render": {
       "type": "object",
       "required": [
@@ -400,6 +428,13 @@
             "string",
             "null"
           ]
+        },
+        "cover_layout": {
+          "enum": [
+            "bottom",
+            "top"
+          ],
+          "description": "The cover title's plate: low in the safe zone just above the AI line, or at its top; studio pick alternates them (owner, 07.11.2026)"
         },
         "reasons": {
           "type": "object"

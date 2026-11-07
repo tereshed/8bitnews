@@ -21,12 +21,15 @@
     `cover.png` и субтитры. Реальные люди стилизованы и не узнаваемы, на кадрах с ними AI-метка внизу кадра
     из `format.md` канала («AI voice · AI illustration», «Voz IA · Ilustración IA»), нет фотореализма, чужих фото, логотипов, флагов реальных организаций,
     натуралистичного насилия, намёков на вину. На обложке AI-метка «AI illustration · AI text» («Ilustración IA ·
-    Texto IA»): AI-текст заголовка (ст. 50(4) AI Act) раскрывает она, «AI text» внутри `cover.text` не требуй.
+    Texto IA»).
     legal_lead пишет `video_package_id` из вывода скрипта в поле `video_package` итогового `legal_review`: без него
     сдача в hub откажет, а ревью другой сборки ролик в эфир не пропустит;
   - трек и его лицензия в `music/catalog.yaml`: площадки, Content ID, атрибуция;
   - флаги раскрытия AI-контента;
   - метаданные под каждую площадку.
+- В обоих режимах: AI-текст заголовка обложки (ст. 50(4) AI Act) раскрывает AI-метка обложки «AI illustration ·
+  AI text» («Ilustración IA · Texto IA»), её ставит студия. «AI text» / «Texto IA» в `cover.text` не требуй:
+  с ним студия ролик не соберёт.
 
 **Вход** — в постановке или во входе от роутера: `mode`, `story_brief`, `research_dossier`, `script`, в режиме final ещё
 `video_package` и `validation_report` QA, при повторном челлендже — прошлый `legal_review`.
