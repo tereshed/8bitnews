@@ -346,7 +346,10 @@ video is made with (`studio/pick.py`), chosen by code against the channel's last
   the store;
 - **cover_layout** — where the cover title's plate goes, `bottom` or `top` (owner,
   07.11.2026): the opposite of the newest recent video that recorded one (`cover.layout`
-  or `pick.cover_layout`), by the script's hash when none did.
+  or `pick.cover_layout`), by the script's hash when none did. Releases hub marks
+  `rejected`, `changes_requested` or `failed` never reached the feed and don't count
+  (`pick.recent_from_hub`), so a rebuild after "changes requested" keeps its turn;
+  template, anchor and track still rotate against them.
 
 Among what is left, the one used least recently wins (never used first), ties by a hash
 of the script, so the same script and history always give the same pick.
@@ -430,12 +433,18 @@ gap is under 0.3s. The same cues go on screen and into `subtitles.srt`.
 
 **Cover** (`build._render_cover`, owner 07.11.2026: a cover shows what
 happened, not the studio). The story picture fills the whole 270×480 frame:
-for `cover.frame: S*` that scene's own picture, whatever its shot (an anchor
-scene's is its landscape screen picture, center-cropped), for `custom`
-`<assets>/cover.png`, fitted and snapped like any scene picture
-(`engine.scene_palette`); with no picture file (sample builds, tests) the
-template's `cover.layout.background`. No anchor, no studio, no scene plates,
-no subtitles. `cover.text` (format.md: up to 30 characters) is word-wrapped
+for `cover.frame: S*` that scene's own picture; for an anchor scene, what its
+screen shows (`build._cover_picture_id`, as `engine._render_anchor_shot`): its
+own landscape screen picture, center-cropped, else the next scene shot's; for
+`custom` `<assets>/cover.png`; fitted and snapped like any scene picture
+(`engine.scene_palette`). Only a build without pictures (no `--assets`, no
+`--images`: sample builds, tests) uses the template's
+`cover.layout.background`. A cover with no picture to show — the last anchor
+scene, whose screen shows the logo, or a missing file — fails the build
+before TTS and before any picture is paid for (`build.check_cover`, "no
+picture for the cover": `video_build.py` hands it to Script), and so does a
+`cover.text` containing the AI line's own words (`labels.json` `ai_text`, any
+case). No anchor, no studio, no scene plates, no subtitles. `cover.text` (format.md: up to 30 characters) is word-wrapped
 by `cover.layout.text_rect`'s w/h, its x/y no longer matter
 (`cover_title.fit_cover_title`). `cover.layout.font_scale` controls the
 title size independently of scene text (default 1 for older templates).
@@ -454,7 +463,8 @@ there, "AI illustration · AI text" («Ilustración IA · Texto IA»,
 `labels.json` `ai_text`): the picture and the title are generated (AI Act
 art. 50(4)), so `cover.text` doesn't carry "AI text" itself. The cover is
 drawn at 270×480 and upscaled, not re-quantized. `package.json` `cover`
-records `{frame, layout, picture: <scene id> | custom | template}`. `studio
+records `{frame, layout, picture: <scene id> | custom | template}`
+(`video_package.schema.json` `cover`). `studio
 template validate` places both plates for the longest title a build accepts
 and requires them inside `common_safe_rect` and clear of the AI line.
 

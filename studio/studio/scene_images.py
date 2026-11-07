@@ -150,6 +150,23 @@ def fallback_card(template: TemplatePackage, logo: Image.Image, size: tuple[int,
     return card
 
 
+def picture_jobs(script: dict) -> list[tuple[str, str, str]]:
+    """(name, visual, kind) of every picture `generate_scene_images` draws, each
+    written to images/<name>.png even when no attempt passes: every scene shot;
+    the screen of an anchor shot whose `visual` says what it shows, except the
+    last one, which shows the channel logo (engine._render_anchor_shot); a
+    custom cover."""
+    jobs = []
+    for i, s in enumerate(script["scenes"]):
+        if s["shot"] == "scene":
+            jobs.append((s["id"], s["visual"], "scene"))
+        elif any(later["shot"] == "scene" for later in script["scenes"][i + 1:]) and screen_content(s["visual"]):
+            jobs.append((s["id"], screen_content(s["visual"]), "screen"))
+    if script["cover"]["frame"] == "custom":
+        jobs.append(("cover", script["cover"]["visual"], "scene"))
+    return jobs
+
+
 def generate_scene_images(
     script: dict,
     template: TemplatePackage,
@@ -169,16 +186,7 @@ def generate_scene_images(
         shutil.rmtree(images_dir)
     (images_dir / "attempts").mkdir(parents=True)
     report = ImagesReport(model, check_model)
-    # (name, visual, kind): every scene shot; the screen of an anchor shot whose `visual` says what it shows,
-    # except the last one, which shows the channel logo (engine._render_anchor_shot); a custom cover.
-    jobs = []
-    for i, s in enumerate(script["scenes"]):
-        if s["shot"] == "scene":
-            jobs.append((s["id"], s["visual"], "scene"))
-        elif any(later["shot"] == "scene" for later in script["scenes"][i + 1:]) and screen_content(s["visual"]):
-            jobs.append((s["id"], screen_content(s["visual"]), "screen"))
-    if script["cover"]["frame"] == "custom":
-        jobs.append(("cover", script["cover"]["visual"], "scene"))
+    jobs = picture_jobs(script)
     logo = load_channel_logo(channel_id)
     serious = bool(script.get("serious_mode"))
     # Every scene is cleaned of everyone in the script: `real_people` lists

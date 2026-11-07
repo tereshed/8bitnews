@@ -450,6 +450,118 @@ def test_the_cover_is_the_picture_of_the_scene_in_cover_frame_without_the_anchor
     assert (pixels["S1"][area] != pixels["S2"][area]).all(axis=1).all()
 
 
+def _short_script(**cover):
+    """short.json (S1 anchor, S2 and S3 scene shots, S4 the last anchor shot) with its cover changed."""
+    from conftest import FIXTURES_DIR
+
+    script = json.loads((FIXTURES_DIR / "scripts" / "short.json").read_text())
+    script["cover"] = dict(script["cover"], **cover)
+    return script
+
+
+def _script_problem(message: str) -> bool:
+    """newsroom/tools/video_build.py hands this `studio build` error to Script (exit 4)."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[2] / "newsroom/tools/video_build.py"
+    spec = importlib.util.spec_from_file_location("video_build_for_cover_tests", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return any(p in message for p in module.SCRIPT_PROBLEMS)
+
+
+def test_an_anchor_cover_without_its_own_picture_shows_the_next_scene(nes_desk_dir, tmp_path):
+    """S1's visual doesn't name a screen picture, so its screen shows S2's
+    (engine._render_anchor_shot), and so does a cover of S1."""
+    template = load_template(nes_desk_dir)
+    assets = load_channel_assets("8bitnews-us")
+    images = tmp_path / "images"
+    images.mkdir()
+    yellow = (230, 200, 40)
+    Image.new("RGB", (576, 1024), yellow).save(images / "S2.png")
+    Image.new("RGB", (576, 1024), (0, 0, 200)).save(images / "S3.png")
+    out = tmp_path / "cover.png"
+    record = _render_cover(_short_script(frame="S1", text="Pixel News"), template, assets, images, out, "bottom")
+    assert record == {"frame": "S1", "layout": "bottom", "picture": "S2"}
+    assert (_logical_cover(out)[_picture_area("Pixel News", template, assets, "bottom")] == yellow).all()
+
+
+def test_the_last_anchor_scene_has_no_cover_picture(nes_desk_dir, tmp_path):
+    """S4's screen shows the channel logo: nothing to put on the cover, even
+    with a picture file of its own. Without any pictures, the template's."""
+    template = load_template(nes_desk_dir)
+    assets = load_channel_assets("8bitnews-us")
+    images = tmp_path / "images"
+    images.mkdir()
+    for scene_id in ("S1", "S2", "S3", "S4"):
+        Image.new("RGB", (576, 1024), (230, 200, 40)).save(images / f"{scene_id}.png")
+    script = _short_script(frame="S4", text="Pixel News")
+    with pytest.raises(BuildError, match="no picture for the cover") as e:
+        _render_cover(script, template, assets, images, tmp_path / "cover.png", "bottom")
+    assert "'S4'" in str(e.value) and "last anchor scene" in str(e.value) and _script_problem(str(e.value))
+    assert _render_cover(script, template, assets, None, tmp_path / "c.png", "bottom")["picture"] == "template"
+
+
+class _NoPictures:
+    """An image client that must not be called: the build fails before any picture is paid for."""
+
+    def generate_image(self, *args, **kwargs):
+        raise AssertionError("a picture was drawn")
+
+    def ask_json(self, *args, **kwargs):
+        raise AssertionError("a picture was checked")
+
+
+@pytest.mark.parametrize("pictures", ["openrouter", "assets"])
+def test_a_cover_without_a_picture_fails_the_build_before_tts(test_channels_dir, tmp_path, monkeypatch, pictures):
+    import studio.build as build_mod
+
+    monkeypatch.setattr(build_mod, "ADAPTERS", {})  # any TTS would fail differently
+    script_path = tmp_path / "script.json"
+    script_path.write_text(json.dumps(_short_script(frame="S4")))
+    options = {"images": "openrouter", "image_client": _NoPictures()} if pictures == "openrouter" else {"assets_dir": tmp_path}
+    with pytest.raises(BuildError, match="no picture for the cover") as e:
+        build_package(script_path=script_path, channel_id="8bitnews-us", out_dir=tmp_path / "out",
+                      channels_dir=test_channels_dir, tts_name="stub", **options)
+    assert _script_problem(str(e.value))
+
+
+def test_the_pictures_the_studio_will_draw_decide_the_cover_before_they_are_drawn():
+    """With --images: S1 (no screen picture of its own) will show S2, which
+    is drawn; a custom cover is drawn; S4 shows the logo."""
+    from studio.build import check_cover
+
+    assets = load_channel_assets("8bitnews-us")
+    for frame in ("S1", "S2", "custom"):
+        check_cover(_short_script(frame=frame), assets, None, "openrouter")
+    with pytest.raises(BuildError, match="no picture for the cover"):
+        check_cover(_short_script(frame="S4"), assets, None, "openrouter")
+    check_cover(_short_script(frame="S4"), assets, None, None)  # no pictures at all: the template's
+
+
+@pytest.mark.parametrize("channel,text", [("8bitnews-us", "165,000 jobs · AI text"), ("8bitnews-us", "ai TEXT: FDA probe"),
+                                          ("8bitnews-es", "Texto IA · Reserva de aceite")])
+def test_a_cover_text_with_the_ai_line_words_is_refused(channel, text):
+    from studio.build import check_cover
+
+    with pytest.raises(BuildError, match="cover text") as e:
+        check_cover(_short_script(text=text), load_channel_assets(channel), None, None)
+    assert _script_problem(str(e.value))
+    check_cover(_short_script(text="165,000 jobs in October"), load_channel_assets(channel), None, None)
+
+
+def test_a_cover_text_with_ai_text_fails_the_build_before_tts(test_channels_dir, tmp_path, monkeypatch):
+    import studio.build as build_mod
+
+    monkeypatch.setattr(build_mod, "ADAPTERS", {})
+    script_path = tmp_path / "script.json"
+    script_path.write_text(json.dumps(_short_script(text="AI text: FDA tumor probe")))
+    with pytest.raises(BuildError, match="cover text 'AI text: FDA tumor probe' contains 'AI text'"):
+        build_package(script_path=script_path, channel_id="8bitnews-us", out_dir=tmp_path / "out",
+                      channels_dir=test_channels_dir, tts_name="stub")
+
+
 @pytest.mark.parametrize("channel", ["8bitnews-us", "8bitnews-es"])
 @pytest.mark.parametrize("template_name", ["nes-desk", "night-report"])
 def test_both_cover_layouts_keep_a_three_line_plate_in_the_safe_zone_and_off_the_ai_line(channel, template_name):

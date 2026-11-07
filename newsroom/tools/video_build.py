@@ -16,8 +16,8 @@
 Код выхода — итог, он же в `<out>/video_build.json` (шаг `done`) и в `<out>/exit_code`:
 - 0 — ролик собран, проверки студии прошли, файлы в хранилище;
 - 3 — ролик собран и загружен, но часть проверок студии не прошла (`failed_checks`);
-- 4 — сценарий в таком виде не собирается (текст не влезает в плашку или обложку, сценарий не по контракту):
-  это работа Script, пакета нет, причина — `script_problem`;
+- 4 — сценарий в таком виде не собирается (текст не влезает в плашку или обложку, «AI text» в заголовке обложки,
+  у `cover.frame` нет картинки, сценарий не по контракту): это работа Script, пакета нет, причина — `script_problem`;
 - 1 — сбой (hub, хранилище, Docker, генератор): пакета нет, причина — `error`; повтор с `--upload-only` догружает
   уже собранный пакет, если сбой был на загрузке;
 - 2 — неверные аргументы.
@@ -62,7 +62,7 @@ REPO_PARTS = ("channels", "countries", "newsroom/contracts", "music/catalog.yaml
 UPLOAD = ("video", "video_no_music", "subtitles", "cover", "timeline", "script")
 # `studio build` errors that only a different script fixes (BuildError texts, studio/studio/build.py, cover_title.py).
 SCRIPT_PROBLEMS = ("does not fit its plate", "cover text", "failed script.schema.json validation",
-                   "does not match any scene id", "is not valid JSON")
+                   "does not match any scene id", "no picture for the cover", "is not valid JSON")
 EXIT_OK, EXIT_ERROR, EXIT_CHECKS, EXIT_SCRIPT = 0, 1, 3, 4
 
 

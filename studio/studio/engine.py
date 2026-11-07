@@ -236,7 +236,8 @@ def _render_anchor_shot(
     draw_layers(front=False)
     screen = template.data["studio"]["screen"]
     # The anchor scene's own picture when it has one (its `visual` says what the screen shows: the hook's screen
-    # is what Legal reviewed on it and on an S1 cover), else the next scene shot's, else the channel logo.
+    # is what Legal reviewed on it), else the next scene shot's, else the channel logo. A cover of this scene
+    # shows the same picture (build._cover_picture_id).
     own = _scene_image_path(assets_dir, scene["id"]) is not None and _next_scene_shot(script, scene["id"]) is not None
     screen_scene = scene if own else _next_scene_shot(script, scene["id"])
     if screen_scene is not None:

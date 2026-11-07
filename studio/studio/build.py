@@ -44,7 +44,7 @@ from .constants import (
     MAX_SUBTITLE_LINES,
 )
 from .engine import (
-    _scene_image_path,
+    _next_scene_shot,
     active_plates,
     ai_label_box,
     draw_ai_label,
@@ -197,28 +197,81 @@ def _draw_cover_title(frame: Image.Image, text: str, template: TemplatePackage, 
     return box
 
 
+def _cover_picture_id(script: dict, has_picture) -> str | None:
+    """Whose picture the cover shows: "custom" or a scene id, None when there
+    is none. A scene shot shows its own picture; an anchor shot what its screen
+    shows (engine._render_anchor_shot): its own picture when it has one and a
+    scene shot follows, else the next scene shot's; the last anchor shot's
+    screen shows the channel logo, so it has none. `has_picture(name)`: is
+    there an <assets>/<name>.png (custom: cover.png)."""
+    frame_id = script["cover"]["frame"]
+    if frame_id == "custom":
+        return "custom" if has_picture("cover") else None
+    scene = next((s for s in script["scenes"] if s["id"] == frame_id), None)
+    if scene is None:
+        raise BuildError(f"cover.frame {frame_id!r} does not match any scene id in the script")
+    if scene["shot"] == "anchor":
+        following = _next_scene_shot(script, frame_id)
+        if following is None:
+            return None
+        if not has_picture(frame_id):
+            frame_id = following["id"]
+    return frame_id if has_picture(frame_id) else None
+
+
+def _no_cover_picture(script: dict) -> BuildError:
+    frame_id = script["cover"]["frame"]
+    scene = next((s for s in script["scenes"] if s["id"] == frame_id), None)
+    if scene is not None and scene["shot"] == "anchor" and _next_scene_shot(script, frame_id) is None:
+        why = "it is the last anchor scene, whose screen shows the channel logo"
+    else:
+        why = "its picture is missing"
+    return BuildError(f"cover.frame {frame_id!r}: no picture for the cover ({why}); choose the scene whose picture "
+                      "best shows the new turn, preferably a shot: scene")
+
+
+def check_cover(script: dict, assets: ChannelAssets, assets_dir: Path | None, images: str | None) -> None:
+    """Raises BuildError, before TTS and before any picture is paid for, on a
+    cover the build can't make: `cover.text` with the AI line's own words in it
+    (the cover's AI line says them, format.md), or a `cover.frame` with no
+    picture to show (`_cover_picture_id`) among the pictures `--images` will
+    draw (`scene_images.picture_jobs`) or `assets_dir` holds. With neither, the
+    cover is the template's background (sample builds, tests)."""
+    text, words = script["cover"]["text"], assets.labels.text
+    if words.lower() in text.lower():
+        raise BuildError(f"cover text {text!r} contains {words!r}: the cover's AI line already says "
+                         f"{assets.labels.cover!r}, leave it out of cover.text")
+    if images is not None:
+        from .scene_images import picture_jobs
+
+        drawn = {name for name, _visual, _kind in picture_jobs(script)}
+        has_picture = drawn.__contains__
+    elif assets_dir is not None:
+        has_picture = lambda name: (Path(assets_dir) / f"{name}.png").is_file()  # noqa: E731
+    else:
+        return
+    if _cover_picture_id(script, has_picture) is None:
+        raise _no_cover_picture(script)
+
+
 def _cover_picture(script: dict, template: TemplatePackage, assets: ChannelAssets,
                    assets_dir: Path | None) -> tuple[Image.Image, str]:
-    """The picture across the whole cover and where it comes from: `cover.frame`
-    S* -> that scene's own picture, whatever its shot (an anchor scene's is the
-    landscape screen picture, center-cropped here); `custom` -> `<assets>/cover.png`.
-    Fitted to 270x480 and snapped like a scene picture (`scene_palette`). With no
-    picture file (sample builds, tests), the template's cover background."""
-    frame_id = script["cover"]["frame"]
+    """The picture across the whole cover and whose it is (`_cover_picture_id`),
+    fitted to 270x480 and snapped like a scene picture (`scene_palette`); an
+    anchor scene's landscape screen picture is center-cropped. Without
+    `assets_dir` (sample builds, tests), the template's cover background."""
     serious = bool(script.get("serious_mode"))
-    if frame_id == "custom":
-        path = Path(assets_dir) / "cover.png" if assets_dir else None
-        path = path if path is not None and path.is_file() else None
-    elif any(scene["id"] == frame_id for scene in script["scenes"]):
-        path = _scene_image_path(assets_dir, frame_id)
-    else:
-        raise BuildError(f"cover.frame {frame_id!r} does not match any scene id in the script")
-    if path is not None:
-        palette = scene_palette(template, serious, assets.channel_id)
-        return quantize(Image.open(path), palette, target_w=LOGICAL_W, target_h=LOGICAL_H).convert("RGBA"), frame_id
-    background = template.load_asset_image(template.data["cover"]["layout"]["background"]).convert("RGB")
-    palette = template.palette(serious=serious)
-    return quantize(background, palette, target_w=LOGICAL_W, target_h=LOGICAL_H).convert("RGBA"), "template"
+    if assets_dir is None:
+        _cover_picture_id(script, lambda name: True)  # an unknown cover.frame still fails
+        background = template.load_asset_image(template.data["cover"]["layout"]["background"]).convert("RGB")
+        palette = template.palette(serious=serious)
+        return quantize(background, palette, target_w=LOGICAL_W, target_h=LOGICAL_H).convert("RGBA"), "template"
+    source = _cover_picture_id(script, lambda name: (Path(assets_dir) / f"{name}.png").is_file())
+    if source is None:
+        raise _no_cover_picture(script)
+    path = Path(assets_dir) / f"{'cover' if source == 'custom' else source}.png"
+    palette = scene_palette(template, serious, assets.channel_id)
+    return quantize(Image.open(path), palette, target_w=LOGICAL_W, target_h=LOGICAL_H).convert("RGBA"), source
 
 
 def _render_cover(
@@ -434,6 +487,7 @@ def build_package(
     fit_cover_title(script["cover"]["text"], cover_cfg["text_rect"], assets.font(cover_font_px(cover_cfg)))
     if cover_layout not in COVER_LAYOUTS:
         raise BuildError(f"cover layout {cover_layout!r}: expected one of {', '.join(COVER_LAYOUTS)}")
+    check_cover(script, assets, assets_dir, images)
     music_choice = choose_music(script, channel_profile, music_file, music_track, music_catalog, music_dir)
     audio_cfg = audio_settings(audio_overrides)
 
