@@ -137,16 +137,17 @@ def _cmd_anchor_build(args: argparse.Namespace) -> int:
 
 
 def _cmd_pick(args: argparse.Namespace) -> int:
-    from .pick import pick
+    from .pick import pick, recent_from_hub
 
     try:
         script = json.loads(Path(args.script).read_text())
         profile = repo.load_channel_profile(args.channel, channels_dir=Path(args.channels_dir) if args.channels_dir else None)
         recent = json.loads(Path(args.recent).read_text()) if args.recent else []
-        if isinstance(recent, dict):  # hub releases_recent's answer
-            recent = [r.get("video_package") if isinstance(r, dict) else None for r in recent.get("releases") or []]
+        cover_recent = None  # a list of package.json: every one counts for the cover layout
+        if isinstance(recent, dict):  # hub releases_recent's answer, with each release's status
+            recent, cover_recent = recent_from_hub(recent)
         exclude = json.loads(Path(args.exclude).read_text()) if args.exclude else {}
-        result = pick(script, profile, recent, exclude=exclude)
+        result = pick(script, profile, recent, exclude=exclude, cover_recent=cover_recent)
     except (BuildError, RepoRootNotSet, FileNotFoundError, json.JSONDecodeError, AttributeError, TypeError) as e:
         print(f"pick failed: {e}", file=sys.stderr)
         return 1

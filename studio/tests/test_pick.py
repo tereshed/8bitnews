@@ -140,13 +140,42 @@ def test_without_a_recorded_cover_layout_the_script_hash_decides(profile):
     assert layouts == {"bottom", "top"}  # different stories spread over both
 
 
-def test_studio_pick_prints_the_cover_layout(tmp_path, capsys):
+def _studio_pick(tmp_path, capsys, recent) -> dict:
     from studio.cli import main
 
     script = tmp_path / "script.json"
     script.write_text(json.dumps(_script()))
-    recent = tmp_path / "recent.json"  # hub releases_recent's answer
-    recent.write_text(json.dumps({"releases": [{"video_package": {"cover": {"layout": "bottom"}}}]}))
-    assert main(["pick", "--script", str(script), "--channel", CHANNEL, "--recent", str(recent)]) == 0
-    printed = json.loads(capsys.readouterr().out)
+    recent_path = tmp_path / "recent.json"
+    recent_path.write_text(json.dumps(recent))
+    assert main(["pick", "--script", str(script), "--channel", CHANNEL, "--recent", str(recent_path)]) == 0
+    return json.loads(capsys.readouterr().out)
+
+
+def test_studio_pick_prints_the_cover_layout(tmp_path, capsys):
+    printed = _studio_pick(tmp_path, capsys, {"releases": [{"video_package": {"cover": {"layout": "bottom"}}}]})
     assert printed["cover_layout"] == "top" and "'bottom'" in printed["reasons"]["cover_layout"]
+    # --recent as a plain list of package.json, newest first: every one counts
+    plain = _studio_pick(tmp_path, capsys, [{"cover": {"layout": "top"}}, {"cover": {"layout": "bottom"}}])
+    assert plain["cover_layout"] == "bottom"
+
+
+@pytest.mark.parametrize("status,want", [("changes_requested", "top"), ("rejected", "top"), ("failed", "top"),
+                                         ("pending", "bottom"), ("approved", "bottom"), ("published", "bottom")])
+def test_the_cover_layout_skips_releases_that_never_reached_the_feed(tmp_path, capsys, status, want):
+    """A rebuild after the moderator's "changes requested" finds its own old
+    release first in hub releases_recent: alternating against it would give
+    two published videos in a row the same layout."""
+    hub = {"releases": [{"status": status, "video_package": {"cover": {"layout": "top"}}},
+                        {"status": "published", "video_package": {"cover": {"layout": "bottom"}}}]}
+    assert _studio_pick(tmp_path, capsys, hub)["cover_layout"] == want
+
+
+def test_template_anchor_and_track_still_rotate_against_every_release():
+    from studio.pick import recent_from_hub
+
+    rework = {"template": "night-report", "cover": {"layout": "top"}}
+    packages, in_feed = recent_from_hub({"releases": [{"status": "changes_requested", "video_package": rework},
+                                                      {"status": "published", "video_package": {"template": "nes-desk"}},
+                                                      "broken"]})
+    assert packages == [rework, {"template": "nes-desk"}, None]
+    assert in_feed == [None, {"template": "nes-desk"}, None]

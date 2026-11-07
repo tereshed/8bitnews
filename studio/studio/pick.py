@@ -21,7 +21,10 @@ that would leave nothing.
 The cover layout (the title plate at the "bottom" or the "top", owner
 07.11.2026) strictly alternates: the opposite of the newest recent package
 that recorded one (the studio's `cover.layout`, or `pick.cover_layout`);
-when none did, the script's hash decides.
+when none did, the script's hash decides. Only videos that reached (or may
+still reach) the feed count: a release hub marks rejected, changes_requested
+or failed doesn't (`recent_from_hub`), so a rebuild after the moderator's
+"changes requested" keeps the layout its turn had.
 """
 from __future__ import annotations
 
@@ -36,6 +39,9 @@ from .music import licensed_for, load_catalog
 from .paths import TEMPLATES_DIR
 
 RECENT = {"template": 3, "anchor": 2, "music": 5}
+# Releases that never reach the feed (hub releases_recent `status`; internal/store/releases.go
+# terminalReleaseStatuses): the cover layout doesn't alternate against them.
+NOT_IN_FEED = ("rejected", "changes_requested", "failed")
 
 
 @dataclass(frozen=True)
@@ -84,6 +90,17 @@ def _recorded_cover_layout(pkg) -> str | None:
         if value in COVER_LAYOUTS:
             return value
     return None
+
+
+def recent_from_hub(answer: dict) -> tuple[list, list]:
+    """hub releases_recent's answer -> (each release's `video_package`, newest
+    first; the same list with the releases that never reached the feed
+    (`NOT_IN_FEED`) as None: what the cover layout alternates against)."""
+    releases = answer.get("releases") or []
+    packages = [r.get("video_package") if isinstance(r, dict) else None for r in releases]
+    in_feed = [pkg if isinstance(r, dict) and r.get("status") not in NOT_IN_FEED else None
+               for r, pkg in zip(releases, packages)]
+    return packages, in_feed
 
 
 def _cover_layout(recent: list, key: str) -> tuple[str, str]:
@@ -135,7 +152,9 @@ def _template_fits(template_id: str, script: dict) -> bool:
 
 
 def pick(script: dict, channel_profile: dict, recent: list, catalog: list[dict] | None = None,
-         exclude: dict | None = None) -> Pick:
+         exclude: dict | None = None, cover_recent: list | None = None) -> Pick:
+    """`cover_recent`: the packages the cover layout alternates against
+    (`recent_from_hub`), when not all of `recent` reached the feed."""
     channel_id = channel_profile["id"]
     key = hashlib.sha256(json.dumps(script, sort_keys=True).encode()).hexdigest()
     exclude = exclude or {}
@@ -179,7 +198,7 @@ def pick(script: dict, channel_profile: dict, recent: list, catalog: list[dict] 
         reasons["music_track"] = f"mood {music.get('mood')}, energy within 1 of the nearest: {why}"
     else:
         reasons["music_track"] = "the script has no music"
-    cover_layout, reasons["cover_layout"] = _cover_layout(recent, key)
+    cover_layout, reasons["cover_layout"] = _cover_layout(recent if cover_recent is None else cover_recent, key)
     return Pick(template, anchor, track, reasons, key_, cover_layout)
 
 
