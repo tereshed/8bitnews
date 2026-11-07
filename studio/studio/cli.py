@@ -8,6 +8,7 @@ from pathlib import Path
 from . import repo
 from .build import build_package
 from .checks import run_checks
+from .cover_title import COVER_LAYOUTS
 from .errors import BuildError, TemplateValidationError
 from .music import synth_test_track
 from .preview import render_preview
@@ -51,6 +52,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
             music_track=args.music_track,
             anchor_id=args.anchor,
             images=args.images,
+            cover_layout=args.cover_layout,
         )
     except (BuildError, RepoRootNotSet, FileNotFoundError) as e:
         print(f"build failed: {e}", file=sys.stderr)
@@ -135,16 +137,17 @@ def _cmd_anchor_build(args: argparse.Namespace) -> int:
 
 
 def _cmd_pick(args: argparse.Namespace) -> int:
-    from .pick import pick
+    from .pick import pick, recent_from_hub
 
     try:
         script = json.loads(Path(args.script).read_text())
         profile = repo.load_channel_profile(args.channel, channels_dir=Path(args.channels_dir) if args.channels_dir else None)
         recent = json.loads(Path(args.recent).read_text()) if args.recent else []
-        if isinstance(recent, dict):  # hub releases_recent's answer
-            recent = [r.get("video_package") if isinstance(r, dict) else None for r in recent.get("releases") or []]
+        cover_recent = None  # a list of package.json: every one counts for the cover layout
+        if isinstance(recent, dict):  # hub releases_recent's answer, with each release's status
+            recent, cover_recent = recent_from_hub(recent)
         exclude = json.loads(Path(args.exclude).read_text()) if args.exclude else {}
-        result = pick(script, profile, recent, exclude=exclude)
+        result = pick(script, profile, recent, exclude=exclude, cover_recent=cover_recent)
     except (BuildError, RepoRootNotSet, FileNotFoundError, json.JSONDecodeError, AttributeError, TypeError) as e:
         print(f"pick failed: {e}", file=sys.stderr)
         return 1
@@ -188,6 +191,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_build.add_argument("--images", default=None, choices=["openrouter"],
                          help="draw the scene pictures with the image provider (env STUDIO_OPENROUTER_API_KEY) "
                               "instead of reading them from --assets")
+    p_build.add_argument("--cover-layout", default="bottom", choices=COVER_LAYOUTS,
+                         help="where the cover title's plate goes (studio pick alternates them); default: bottom")
     p_build.set_defaults(func=_cmd_build)
 
     music = sub.add_parser("music", help="music helpers")
@@ -220,8 +225,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_abuild.add_argument("--vision-model", default=None)
     p_abuild.set_defaults(func=_cmd_anchor_build)
 
-    p_pick = sub.add_parser("pick", help="the template, anchor and music track for a script, avoiding what the "
-                            "channel's last videos used (hub releases_recent)")
+    p_pick = sub.add_parser("pick", help="the template, anchor, music track and cover layout for a script, avoiding "
+                            "what the channel's last videos used (hub releases_recent)")
     p_pick.add_argument("--script", required=True)
     p_pick.add_argument("--channel", required=True)
     p_pick.add_argument("--channels-dir", default=None)

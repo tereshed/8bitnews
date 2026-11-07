@@ -458,6 +458,9 @@ vmusic = {
     "if": {"properties": {"enabled": {"const": True}}},
     "then": {"required": ["track_id", "license"]},
 }
+cover_layout = {"enum": ["bottom", "top"],
+                "description": "The cover title's plate: low in the safe zone just above the AI line, or at its top; "
+                               "studio pick alternates them (owner, 07.11.2026)"}
 vp = schema("video_package",
     "video_producer output and final result of the Video team: the rendered video and everything QA and Legal "
     "need without rewatching it in full.",
@@ -484,6 +487,16 @@ vp = schema("video_package",
                         "description": "The voice alone at the mix level (studio validate measures music against it)"},
          "music_stem": {"$ref": "#/$defs/media",
                         "description": "The ducked music alone at the mix level, when the video has music"}}},
+     "cover": {"type": "object", "required": ["frame", "layout", "picture"],
+               "description": "What files.cover shows (studio build): the picture across the whole frame and where "
+                              "the title's black plate sits. Absent in packages built before 07.11.2026.",
+               "properties": {
+                   "frame": {"type": "string", "pattern": "^(custom|S[0-9]+)$", "description": "script.cover.frame"},
+                   "layout": cover_layout,
+                   "picture": {"type": "string", "pattern": "^(custom|template|S[0-9]+)$",
+                               "description": "The scene whose picture it is (for an anchor scene, what its screen "
+                                              "shows), custom (the drawn cover picture) or template (the template's "
+                                              "placeholder: a build without pictures)"}}},
      "render": {"type": "object", "required": ["width", "height", "fps", "video_codec", "audio_codec", "loudness_lufs"],
                 "properties": {
                     "width": {"type": "integer"}, "height": {"type": "integer"}, "fps": {"type": "number"},
@@ -546,7 +559,8 @@ vp = schema("video_package",
                                  "description": "Keyframe name (S1_first, S1_mid, ...) -> object key"}}},
      "pick": {"type": "object", "description": "What studio pick chose against the channel's last videos, and why",
               "properties": {"template": str1, "anchor": str1, "music_track": {"type": ["string", "null"]},
-                             "music_key": {"type": ["string", "null"]}, "reasons": {"type": "object"}}}},
+                             "music_key": {"type": ["string", "null"]}, "cover_layout": cover_layout,
+                             "reasons": {"type": "object"}}}},
     {"media": media, "vscene": vscene, "vmusic": vmusic})
 vp["allOf"] = [
     {"if": {"required": ["duration_s", "music"],

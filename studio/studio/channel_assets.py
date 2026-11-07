@@ -76,13 +76,20 @@ class AiLabels:
     кадре'; `channels/<id>/labels.json`)."""
     voice: str
     illustration: str
+    text: str
 
     def line(self, illustration: bool) -> str:
         return f"{self.voice} · {self.illustration}" if illustration else self.voice
 
     @property
+    def cover(self) -> str:
+        """The cover's line: its picture is generated and so is its title (AI Act art. 50(4), owner 07.11.2026)."""
+        return f"{self.illustration} · {self.text}"
+
+    @property
     def widest(self) -> str:
-        return self.line(True)
+        """The longest line the channel draws (the font is monospace)."""
+        return max((self.line(True), self.cover), key=len)
 
 
 @dataclass(frozen=True)
@@ -103,7 +110,7 @@ def load_ai_labels(channel_id: str) -> AiLabels:
     must not reach a video unnoticed."""
     with open(channel_dir(channel_id) / "labels.json", encoding="utf-8") as f:
         data = json.load(f)
-    return AiLabels(voice=data["ai_voice"], illustration=data["ai_illustration"])
+    return AiLabels(voice=data["ai_voice"], illustration=data["ai_illustration"], text=data["ai_text"])
 
 
 def load_channel_logo(channel_id: str) -> Image.Image:

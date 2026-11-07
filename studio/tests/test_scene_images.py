@@ -159,9 +159,10 @@ def test_the_drawn_picture_is_what_the_video_shows_in_its_own_colors(generated_b
     assert "#f0d0b0" in colors and "#f0d0b0" not in template.palette().hex_colors
 
 
-def test_a_drawn_cover_carries_the_ai_illustration_line(generated_build, corrupt_copy, test_channels_dir):
+def test_a_drawn_cover_carries_the_cover_ai_line(generated_build, corrupt_copy, test_channels_dir):
     from studio.checks import run_checks
 
+    assert generated_build["package"]["cover"] == {"frame": "custom", "layout": "bottom", "picture": "custom"}
     check = next(c for c in generated_build["package"]["validate"]["checks"] if c["id"] == "ai_label")
     assert check["ok"]
 
@@ -177,7 +178,7 @@ def test_a_drawn_cover_carries_the_ai_illustration_line(generated_build, corrupt
     package = json.loads((copy / "package.json").read_text())
     profile = yaml.safe_load((test_channels_dir / "8bitnews-us" / "channel.yaml").read_text())
     result = next(c for c in run_checks(copy, package, profile)["checks"] if c["id"] == "ai_label")
-    assert not result["ok"] and "a cover drawn by the image model" in result["note"]
+    assert not result["ok"] and "cover.png (the cover): no 'AI illustration · AI text' line" in result["note"]
 
 
 def test_every_scene_is_cleaned_of_everyone_in_the_script(tmp_path, template):

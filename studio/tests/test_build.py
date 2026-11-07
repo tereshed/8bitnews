@@ -12,7 +12,7 @@ from studio.build import (
     build_package,
     fit_cover_title,
 )
-from studio.builtin_script import BUILTIN_SCRIPT, builtin_timeline
+from studio.builtin_script import BUILTIN_SCRIPT
 from studio.channel_assets import load_channel_assets
 from studio.constants import FONT_PX, OUTPUT_H, OUTPUT_W
 from studio.cover_title import cover_font_px, cover_text_capacity, worst_case_title_lines
@@ -95,18 +95,23 @@ def test_fit_cover_title_fits_the_worst_title_on_night_reports_real_rect(night_r
 @pytest.mark.parametrize("template_name", ["nes-desk", "night-report"])
 def test_cover_title_is_twice_scene_text_size(template_name):
     """The actual title footprint must be large, not just a larger rect."""
+    import numpy as np
+
     from studio.build import _draw_cover_title
+    from studio.palette import hex_to_rgb
 
     template = load_template(_resolve_template_dir(template_name, {}, {}))
     frame = Image.new("RGBA", (270, 480), (0, 0, 0, 0))
-    _draw_cover_title(frame, "Trade", template, load_channel_assets("8bitnews-us"))
-    left, top, right, bottom = frame.getbbox()
-    from studio.text_render import text_size
+    _draw_cover_title(frame, "Trade", template, load_channel_assets("8bitnews-us"), "bottom")
+    fill = hex_to_rgb(template.data["subtitles"]["style"]["color"])
+    ys, xs = np.nonzero((np.asarray(frame.convert("RGB")) == fill).all(axis=2))  # the glyphs' ink, not the plate
+    from studio.text_render import draw_text
 
-    old_width, _ = text_size("Trade", load_channel_assets("8bitnews-us").font(FONT_PX))
-    # Visible glyph ink can be narrower than the font's advance width.
-    assert right - left == pytest.approx(2 * old_width, abs=2)
-    assert bottom - top >= 16
+    small = Image.new("RGBA", (270, 480), (0, 0, 0, 0))
+    draw_text(small, (0, 0), "Trade", load_channel_assets("8bitnews-us").font(FONT_PX), fill)
+    left, top, right, bottom = small.getbbox()
+    assert xs.max() + 1 - xs.min() == 2 * (right - left)
+    assert ys.max() + 1 - ys.min() == 2 * (bottom - top)
 
 
 def test_large_cover_title_rejects_word_splitting_and_font_fallback(nes_desk_dir):
@@ -137,18 +142,19 @@ def test_fit_cover_title_still_rejects_text_needing_more_lines_on_night_report(n
 def test_cover_frame_scene_vs_custom_produce_different_images(nes_desk_dir, tmp_path):
     template = load_template(nes_desk_dir)
     assets = load_channel_assets("8bitnews-us")
-    timeline = builtin_timeline()
 
     scene_script = dict(BUILTIN_SCRIPT, cover={"frame": "S1", "visual": "x" * 20, "text": "Scene Cover"})
     scene_out = tmp_path / "scene_cover.png"
-    _render_cover(scene_script, timeline, template, assets, None, scene_out)
+    record = _render_cover(scene_script, template, assets, None, scene_out, "bottom")
+    assert record == {"frame": "S1", "layout": "bottom", "picture": "template"}  # no picture file: the fallback
 
     assets_dir = tmp_path / "assets"
     assets_dir.mkdir()
     Image.new("RGB", (400, 700), (10, 20, 30)).save(assets_dir / "cover.png")
     custom_script = dict(BUILTIN_SCRIPT, cover={"frame": "custom", "visual": "x" * 20, "text": "Custom Cover"})
     custom_out = tmp_path / "custom_cover.png"
-    _render_cover(custom_script, timeline, template, assets, assets_dir, custom_out)
+    record = _render_cover(custom_script, template, assets, assets_dir, custom_out, "bottom")
+    assert record == {"frame": "custom", "layout": "bottom", "picture": "custom"}
 
     for path in (scene_out, custom_out):
         with Image.open(path) as img:
@@ -159,10 +165,9 @@ def test_cover_frame_scene_vs_custom_produce_different_images(nes_desk_dir, tmp_
 def test_cover_frame_unknown_scene_id_raises_readable_error(nes_desk_dir, tmp_path):
     template = load_template(nes_desk_dir)
     assets = load_channel_assets("8bitnews-us")
-    timeline = builtin_timeline()
     bad_script = dict(BUILTIN_SCRIPT, cover={"frame": "S99", "visual": "x" * 20, "text": "Nope"})
     with pytest.raises(BuildError) as exc_info:
-        _render_cover(bad_script, timeline, template, assets, None, tmp_path / "out.png")
+        _render_cover(bad_script, template, assets, None, tmp_path / "out.png", "bottom")
     assert "S99" in str(exc_info.value)
 
 
@@ -312,36 +317,65 @@ def test_build_clears_stale_frames_and_keyframes_on_rebuild_into_same_out_dir(
     assert (out_dir / "keyframes" / "S9_mid.png").is_file()
 
 
-# --- cover title, cover plates, measured duration, build scratch, notes ---
+# --- the cover: the story picture, the title on its plate at the bottom or the top, the AI line ---
 
 
-def _title_mask(text, template, assets):
+def _title_mask(text, template, assets, layout="bottom"):
     """Logical-size boolean mask of the cover title's fill pixels, drawn
     with the same layout the build uses."""
     import numpy as np
 
-    from studio.build import cover_title_layout
+    from studio.build import cover_plate_layout
     from studio.constants import LOGICAL_H, LOGICAL_W
     from studio.text_render import draw_text
 
-    font = assets.font(cover_font_px(template.data["cover"]["layout"]))
+    _box, lines, font = cover_plate_layout(text, template, assets, layout)
     canvas = Image.new("RGBA", (LOGICAL_W, LOGICAL_H), (0, 0, 0, 0))
-    for line, xy in cover_title_layout(text, template.data["cover"]["layout"]["text_rect"], font):
+    for line, xy in lines:
         draw_text(canvas, xy, line, font, (255, 255, 255))
     return np.array(canvas)[:, :, 3] > 0
 
 
-def _assert_title_drawn(cover_path, text, template, assets):
+def _assert_title_drawn(cover_path, text, template, assets, layout="bottom"):
     import numpy as np
 
     from studio.constants import SCALE
     from studio.palette import hex_to_rgb
 
-    mask = _title_mask(text, template, assets)
+    mask = _title_mask(text, template, assets, layout)
     assert mask.sum() > 50
     big = np.repeat(np.repeat(mask, SCALE, axis=0), SCALE, axis=1)
     pixels = np.array(Image.open(cover_path).convert("RGB"))[big]
     assert (pixels == hex_to_rgb(template.data["subtitles"]["style"]["color"])).all()
+
+
+def _logical_cover(path):
+    import numpy as np
+
+    from studio.constants import SCALE
+
+    return np.array(Image.open(path).convert("RGB"))[::SCALE, ::SCALE]
+
+
+def _picture_area(text, template, assets, layout):
+    """Where the cover shows its picture: everywhere but the title plate and the AI strip."""
+    import numpy as np
+
+    from studio.build import cover_plate_layout
+    from studio.constants import LOGICAL_H, LOGICAL_W
+    from studio.engine import ai_label_box
+
+    plate = cover_plate_layout(text, template, assets, layout)[0]
+    strip = ai_label_box(template, assets.labels.cover, assets.font(FONT_PX))
+    area = np.ones((LOGICAL_H, LOGICAL_W), bool)
+    for box in (plate, strip):
+        area[box["y"]:box["y"] + box["h"], box["x"]:box["x"] + box["w"]] = False
+    return area
+
+
+def test_the_build_records_its_cover(built_package):
+    # short.json: cover.frame S1, no picture files (stub build), the default layout
+    assert built_package["package"]["cover"] == {"frame": "S1", "layout": "bottom", "picture": "template"}
 
 
 def test_scene_cover_of_the_build_carries_the_cover_title(built_package):
@@ -349,41 +383,280 @@ def test_scene_cover_of_the_build_carries_the_cover_title(built_package):
     script = json.loads((out_dir / "script.json").read_text())
     assert script["cover"]["frame"].startswith("S")
     template = load_template(out_dir / "template")
-    _assert_title_drawn(out_dir / "cover.png", script["cover"]["text"], template, load_channel_assets("8bitnews-us"))
+    _assert_title_drawn(out_dir / "cover.png", script["cover"]["text"], template, load_channel_assets("8bitnews-us"),
+                        built_package["package"]["cover"]["layout"])
 
 
-def test_scene_cover_is_the_scene_frame_plus_title_only(built_package):
-    """Outside the title's own pixels (and their 1px outline) the S* cover is
-    exactly the upscaled render_cover_frame output: no re-quantization of the
-    anchor, nothing else drawn on top."""
+def test_a_cover_without_a_picture_is_the_template_background_the_plate_and_the_ai_line(built_package):
+    """The stub build has no picture files: the cover falls back to the
+    template's cover background with the same plate and AI line, and nothing
+    else is drawn -- no anchor, no studio, no scene plates, no subtitles."""
     import numpy as np
 
-    from studio.constants import SCALE
-    from studio.engine import render_cover_frame
-    from studio.timeline import load_timeline
+    from studio.build import cover_plate_layout
+    from studio.palette import hex_to_rgb
+    from studio.quantize import quantize
 
     out_dir = built_package["out_dir"]
     script = json.loads((out_dir / "script.json").read_text())
     template = load_template(out_dir / "template")
     assets = load_channel_assets("8bitnews-us", built_package["package"]["anchor"]["id"])
-    timeline = load_timeline(out_dir / "timeline.json")
-    st = next(s for s in timeline.scenes if s.scene_id == script["cover"]["frame"])
-    base = np.array(render_cover_frame(script, timeline, template, assets, (st.start_s + st.end_s) / 2))
-    cover = np.array(Image.open(out_dir / "cover.png").convert("RGB"))[::SCALE, ::SCALE]
+    background = template.load_asset_image(template.data["cover"]["layout"]["background"]).convert("RGB")
+    want = np.array(quantize(background, template.palette(serious=bool(script.get("serious_mode")))))
+    cover = _logical_cover(out_dir / "cover.png")
+    area = _picture_area(script["cover"]["text"], template, assets, "bottom")
+    assert (cover[area] == want[area]).all()
 
-    mask = _title_mask(script["cover"]["text"], template, assets)
-    near_title = mask.copy()
-    for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-        near_title |= np.roll(mask, (dy, dx), axis=(0, 1))
-    assert (cover[~near_title] == base[~near_title]).all()
+    # one solid black plate: only black and the title's color inside it
+    plate = cover_plate_layout(script["cover"]["text"], template, assets, "bottom")[0]
+    inside = cover[plate["y"]:plate["y"] + plate["h"], plate["x"]:plate["x"] + plate["w"]].reshape(-1, 3)
+    black = (inside == (0, 0, 0)).all(axis=1)
+    title = (inside == hex_to_rgb(template.data["subtitles"]["style"]["color"])).all(axis=1)
+    assert (black | title).all() and black.sum() > title.sum() > 0
 
-    # No scene_title plate: its rect is not filled with the plate's background.
-    from studio.palette import hex_to_rgb
 
-    plate = template.plate("scene_title")
-    r = plate["rect"]
-    area = cover[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]]
-    assert (area == hex_to_rgb(plate["bg_color"])).all(axis=2).mean() < 0.6
+def _stripes(path, size, colors):
+    """Three vertical stripes, left to right."""
+    img = Image.new("RGB", size, colors[0])
+    w, h = size
+    img.paste(colors[1], (w // 3, 0, 2 * w // 3, h))
+    img.paste(colors[2], (2 * w // 3, 0, w, h))
+    img.save(path)
+
+
+def test_the_cover_is_the_picture_of_the_scene_in_cover_frame_without_the_anchor(nes_desk_dir, tmp_path):
+    """cover.frame S1 (an anchor shot) shows S1's own screen picture --
+    landscape, so center-cropped to its middle stripe -- across the whole
+    frame; cover.frame S2 shows S2's. No studio, and no anchor over the face rect."""
+    template = load_template(nes_desk_dir)
+    assets = load_channel_assets("8bitnews-us")
+    images = tmp_path / "images"
+    images.mkdir()
+    green, yellow = (0, 160, 0), (230, 200, 40)
+    _stripes(images / "S1.png", (960, 540), [(200, 0, 0), green, (0, 0, 200)])
+    Image.new("RGB", (576, 1024), yellow).save(images / "S2.png")
+    face = assets.anchor.face_rect_in_frame(template.data["studio"]["anchor"])
+    area = _picture_area("Pixel News", template, assets, "bottom")
+    pixels = {}
+    for frame_id, color in (("S1", green), ("S2", yellow)):
+        out = tmp_path / f"{frame_id}.png"
+        script = dict(BUILTIN_SCRIPT, cover={"frame": frame_id, "visual": "x" * 20, "text": "Pixel News"})
+        assert _render_cover(script, template, assets, images, out, "bottom")["picture"] == frame_id
+        cover = _logical_cover(out)
+        assert (cover[area] == color).all()
+        assert (cover[face["y"]:face["y"] + face["h"], face["x"]:face["x"] + face["w"]] == color).all()
+        _assert_title_drawn(out, "Pixel News", template, assets)
+        pixels[frame_id] = cover
+    assert (pixels["S1"][area] != pixels["S2"][area]).all(axis=1).all()
+
+
+def _short_script(**cover):
+    """short.json (S1 anchor, S2 and S3 scene shots, S4 the last anchor shot) with its cover changed."""
+    from conftest import FIXTURES_DIR
+
+    script = json.loads((FIXTURES_DIR / "scripts" / "short.json").read_text())
+    script["cover"] = dict(script["cover"], **cover)
+    return script
+
+
+def _script_problem(message: str) -> bool:
+    """newsroom/tools/video_build.py hands this `studio build` error to Script (exit 4)."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[2] / "newsroom/tools/video_build.py"
+    spec = importlib.util.spec_from_file_location("video_build_for_cover_tests", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return any(p in message for p in module.SCRIPT_PROBLEMS)
+
+
+def test_an_anchor_cover_without_its_own_picture_shows_the_next_scene(nes_desk_dir, tmp_path):
+    """S1's visual doesn't name a screen picture, so its screen shows S2's
+    (engine._render_anchor_shot), and so does a cover of S1."""
+    template = load_template(nes_desk_dir)
+    assets = load_channel_assets("8bitnews-us")
+    images = tmp_path / "images"
+    images.mkdir()
+    yellow = (230, 200, 40)
+    Image.new("RGB", (576, 1024), yellow).save(images / "S2.png")
+    Image.new("RGB", (576, 1024), (0, 0, 200)).save(images / "S3.png")
+    out = tmp_path / "cover.png"
+    record = _render_cover(_short_script(frame="S1", text="Pixel News"), template, assets, images, out, "bottom")
+    assert record == {"frame": "S1", "layout": "bottom", "picture": "S2"}
+    assert (_logical_cover(out)[_picture_area("Pixel News", template, assets, "bottom")] == yellow).all()
+
+
+def test_the_last_anchor_scene_has_no_cover_picture(nes_desk_dir, tmp_path):
+    """S4's screen shows the channel logo: nothing to put on the cover, even
+    with a picture file of its own. Without any pictures, the template's."""
+    template = load_template(nes_desk_dir)
+    assets = load_channel_assets("8bitnews-us")
+    images = tmp_path / "images"
+    images.mkdir()
+    for scene_id in ("S1", "S2", "S3", "S4"):
+        Image.new("RGB", (576, 1024), (230, 200, 40)).save(images / f"{scene_id}.png")
+    script = _short_script(frame="S4", text="Pixel News")
+    with pytest.raises(BuildError, match="no picture for the cover") as e:
+        _render_cover(script, template, assets, images, tmp_path / "cover.png", "bottom")
+    assert "'S4'" in str(e.value) and "last anchor scene" in str(e.value) and _script_problem(str(e.value))
+    assert _render_cover(script, template, assets, None, tmp_path / "c.png", "bottom")["picture"] == "template"
+
+
+class _NoPictures:
+    """An image client that must not be called: the build fails before any picture is paid for."""
+
+    def generate_image(self, *args, **kwargs):
+        raise AssertionError("a picture was drawn")
+
+    def ask_json(self, *args, **kwargs):
+        raise AssertionError("a picture was checked")
+
+
+@pytest.mark.parametrize("pictures", ["openrouter", "assets"])
+def test_a_cover_without_a_picture_fails_the_build_before_tts(test_channels_dir, tmp_path, monkeypatch, pictures):
+    import studio.build as build_mod
+
+    monkeypatch.setattr(build_mod, "ADAPTERS", {})  # any TTS would fail differently
+    script_path = tmp_path / "script.json"
+    script_path.write_text(json.dumps(_short_script(frame="S4")))
+    options = {"images": "openrouter", "image_client": _NoPictures()} if pictures == "openrouter" else {"assets_dir": tmp_path}
+    with pytest.raises(BuildError, match="no picture for the cover") as e:
+        build_package(script_path=script_path, channel_id="8bitnews-us", out_dir=tmp_path / "out",
+                      channels_dir=test_channels_dir, tts_name="stub", **options)
+    assert _script_problem(str(e.value))
+
+
+def test_the_pictures_the_studio_will_draw_decide_the_cover_before_they_are_drawn():
+    """With --images: S1 (no screen picture of its own) will show S2, which
+    is drawn; a custom cover is drawn; S4 shows the logo."""
+    from studio.build import check_cover
+
+    assets = load_channel_assets("8bitnews-us")
+    for frame in ("S1", "S2", "custom"):
+        check_cover(_short_script(frame=frame), assets, None, "openrouter")
+    with pytest.raises(BuildError, match="no picture for the cover"):
+        check_cover(_short_script(frame="S4"), assets, None, "openrouter")
+    check_cover(_short_script(frame="S4"), assets, None, None)  # no pictures at all: the template's
+
+
+@pytest.mark.parametrize("channel,text", [("8bitnews-us", "165,000 jobs · AI text"), ("8bitnews-us", "ai TEXT: FDA probe"),
+                                          ("8bitnews-es", "Texto IA · Reserva de aceite")])
+def test_a_cover_text_with_the_ai_line_words_is_refused(channel, text):
+    from studio.build import check_cover
+
+    with pytest.raises(BuildError, match="cover text") as e:
+        check_cover(_short_script(text=text), load_channel_assets(channel), None, None)
+    assert _script_problem(str(e.value))
+    check_cover(_short_script(text="165,000 jobs in October"), load_channel_assets(channel), None, None)
+
+
+def test_a_cover_text_with_ai_text_fails_the_build_before_tts(test_channels_dir, tmp_path, monkeypatch):
+    import studio.build as build_mod
+
+    monkeypatch.setattr(build_mod, "ADAPTERS", {})
+    script_path = tmp_path / "script.json"
+    script_path.write_text(json.dumps(_short_script(text="AI text: FDA tumor probe")))
+    with pytest.raises(BuildError, match="cover text 'AI text: FDA tumor probe' contains 'AI text'"):
+        build_package(script_path=script_path, channel_id="8bitnews-us", out_dir=tmp_path / "out",
+                      channels_dir=test_channels_dir, tts_name="stub")
+
+
+@pytest.mark.parametrize("channel", ["8bitnews-us", "8bitnews-es"])
+@pytest.mark.parametrize("template_name", ["nes-desk", "night-report"])
+def test_both_cover_layouts_keep_a_three_line_plate_in_the_safe_zone_and_off_the_ai_line(channel, template_name):
+    from studio.build import cover_plate_layout
+    from studio.constants import LOGICAL_W
+    from studio.cover_title import cover_plate_box, cover_text_capacity
+    from studio.engine import ai_label_box
+    from studio.paths import TEMPLATES_DIR
+    from studio.safe_zones import common_safe_rect, rect_within, rects_intersect
+    from studio.text_render import text_size
+
+    template = load_template(TEMPLATES_DIR / template_name)
+    assets = load_channel_assets(channel)
+    safe = common_safe_rect(channel)
+    strip = ai_label_box(template, assets.labels.cover, assets.font(FONT_PX))
+    cfg = template.data["cover"]["layout"]
+    max_chars, _rows = cover_text_capacity(cfg["text_rect"], cover_font_px(cfg))
+    for layout in ("bottom", "top"):
+        plate, lines, font = cover_plate_layout("Trade restrictions hit prices", template, assets, layout)
+        assert len(lines) == 3
+        # the worst case: three lines as wide as a line gets
+        widest = cover_plate_box(3, text_size("W" * max_chars, font)[0], font.size, cfg["text_rect"]["w"], layout,
+                                 strip["y"], safe["y"])
+        for box in (plate, widest):
+            assert rect_within(box, safe), (layout, box, safe)
+            assert not rects_intersect(box, strip), (layout, box, strip)
+            assert abs(box["x"] + box["w"] / 2 - LOGICAL_W / 2) <= 1  # centered
+            if layout == "bottom":
+                assert 0 < strip["y"] - (box["y"] + box["h"]) <= 6  # just above the AI line
+            else:
+                assert 0 < box["y"] - safe["y"] <= 6  # just under the top of the safe zone
+
+
+def test_cover_layout_top_and_bottom_put_the_plate_in_different_places(nes_desk_dir, tmp_path):
+    from studio.build import cover_plate_layout
+    from studio.cli import build_parser
+
+    argv = ["build", "--script", "s.json", "--channel", "8bitnews-us", "--out", "o"]
+    assert build_parser().parse_args(argv).cover_layout == "bottom"
+    assert build_parser().parse_args(argv + ["--cover-layout", "top"]).cover_layout == "top"
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(argv + ["--cover-layout", "middle"])
+
+    template = load_template(nes_desk_dir)
+    assets = load_channel_assets("8bitnews-us")
+    script = dict(BUILTIN_SCRIPT, cover={"frame": "S2", "visual": "x" * 20, "text": "Pixel News"})
+    plates, covers = {}, {}
+    for layout in ("bottom", "top"):
+        out = tmp_path / f"{layout}.png"
+        assert _render_cover(script, template, assets, None, out, layout)["layout"] == layout
+        _assert_title_drawn(out, "Pixel News", template, assets, layout)
+        plates[layout] = cover_plate_layout("Pixel News", template, assets, layout)[0]
+        covers[layout] = _logical_cover(out)
+    top, bottom = plates["top"], plates["bottom"]
+    assert top["y"] + top["h"] < bottom["y"]
+    for box in (top, bottom):
+        rows, cols = slice(box["y"], box["y"] + box["h"]), slice(box["x"], box["x"] + box["w"])
+        assert (covers["top"][rows, cols] != covers["bottom"][rows, cols]).any()
+    with pytest.raises(BuildError, match="cover layout 'middle'"):
+        _render_cover(script, template, assets, None, tmp_path / "x.png", "middle")
+
+
+def test_a_build_with_the_cover_title_at_the_top_passes_its_checks(short_script_path, test_channels_dir, tmp_path):
+    from studio.cli import main
+
+    out = tmp_path / "out"
+    assert main(["build", "--script", str(short_script_path), "--channel", "8bitnews-us",
+                 "--channels-dir", str(test_channels_dir), "--tts", "stub", "--out", str(out), "--cover-layout", "top"]) == 0
+    package = json.loads((out / "package.json").read_text())
+    assert package["cover"] == {"frame": "S1", "layout": "top", "picture": "template"}
+    assert package["validate"]["passed"]
+    script = json.loads((out / "script.json").read_text())
+    _assert_title_drawn(out / "cover.png", script["cover"]["text"], load_template(out / "template"),
+                        load_channel_assets("8bitnews-us"), "top")
+
+
+@pytest.mark.parametrize("channel,line", [("8bitnews-us", "AI illustration · AI text"),
+                                          ("8bitnews-es", "Ilustración IA · Texto IA")])
+@pytest.mark.parametrize("frame_id", ["S1", "S2", "custom"])
+def test_every_cover_carries_the_cover_ai_line(nes_desk_dir, tmp_path, channel, line, frame_id):
+    """Whatever the picture, a real person in it or not: the picture and the title are generated."""
+    import numpy as np
+
+    from studio.engine import draw_ai_label
+
+    template = load_template(nes_desk_dir)
+    assets = load_channel_assets(channel)
+    out = tmp_path / "cover.png"
+    _render_cover(dict(BUILTIN_SCRIPT, cover={"frame": frame_id, "visual": "x" * 20, "text": "Pixel News"}),
+                  template, assets, None, out, "bottom")
+    canvas = Image.new("RGBA", (270, 480), (0, 0, 0, 0))
+    draw_ai_label(canvas, template, line, assets.font(FONT_PX))
+    want = np.asarray(canvas)
+    drawn = want[:, :, 3] == 255
+    assert (_logical_cover(out)[drawn] == want[drawn][:, :3]).all()
 
 
 def test_custom_cover_carries_the_cover_title(nes_desk_dir, tmp_path):
@@ -391,26 +664,25 @@ def test_custom_cover_carries_the_cover_title(nes_desk_dir, tmp_path):
     assets = load_channel_assets("8bitnews-us")
     script = dict(BUILTIN_SCRIPT, cover={"frame": "custom", "visual": "x" * 20, "text": "Custom Cover Title"})
     out = tmp_path / "custom.png"
-    _render_cover(script, builtin_timeline(), template, assets, None, out)
+    _render_cover(script, template, assets, None, out, "bottom")
     _assert_title_drawn(out, "Custom Cover Title", template, assets)
 
 
 def test_scene_cover_title_text_changes_the_title_area(nes_desk_dir, tmp_path):
     import numpy as np
 
-    from studio.constants import SCALE
+    from studio.build import cover_plate_layout
 
     template = load_template(nes_desk_dir)
     assets = load_channel_assets("8bitnews-us")
-    r = template.data["cover"]["layout"]["text_rect"]
     crops = []
     for text in ("First Title", "Second Title"):
         out = tmp_path / f"{text}.png"
         _render_cover(dict(BUILTIN_SCRIPT, cover={"frame": "S2", "visual": "x" * 20, "text": text}),
-                      builtin_timeline(), template, assets, None, out)
-        img = np.array(Image.open(out).convert("RGB"))
-        crops.append(img[r["y"] * SCALE:(r["y"] + r["h"]) * SCALE, r["x"] * SCALE:(r["x"] + r["w"]) * SCALE])
-    assert not np.array_equal(crops[0], crops[1])
+                      template, assets, None, out, "bottom")
+        r = cover_plate_layout(text, template, assets, "bottom")[0]
+        crops.append(_logical_cover(out)[r["y"]:r["y"] + r["h"], r["x"]:r["x"] + r["w"]])
+    assert crops[0].shape != crops[1].shape or not np.array_equal(crops[0], crops[1])
 
 
 def test_scene_cover_title_that_does_not_fit_fails_the_build(nes_desk_dir, tmp_path):
@@ -418,23 +690,7 @@ def test_scene_cover_title_that_does_not_fit_fails_the_build(nes_desk_dir, tmp_p
     template.data["cover"]["layout"]["text_rect"] = {"x": 10, "y": 350, "w": 60, "h": 12}
     script = dict(BUILTIN_SCRIPT, cover={"frame": "S1", "visual": "x" * 20, "text": "Far Too Long For This Rect"})
     with pytest.raises(BuildError):
-        _render_cover(script, builtin_timeline(), template, load_channel_assets("8bitnews-us"), None, tmp_path / "c.png")
-
-
-def test_every_cover_says_ai_illustration(short_script_path, nes_desk_dir):
-    from studio.engine import cover_plates
-    from studio.timeline import uniform_timeline
-
-    script = json.loads(short_script_path.read_text())
-    template = load_template(nes_desk_dir)
-    timeline = uniform_timeline(script)
-
-    def plates(scene_id):
-        st = next(s for s in timeline.scenes if s.scene_id == scene_id)
-        return cover_plates(script, st, template, (st.start_s + st.end_s) / 2)
-
-    # the picture and the anchor are drawn by the image model, real person or not
-    assert plates("S1") == plates("S2") == plates("S3") == {"ai_illustration"}
+        _render_cover(script, template, load_channel_assets("8bitnews-us"), None, tmp_path / "c.png", "bottom")
 
 
 def test_build_duration_is_the_measured_video_length(built_package):

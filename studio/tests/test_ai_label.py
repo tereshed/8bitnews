@@ -1,11 +1,12 @@
 """The one AI line (format.md 'Текст в кадре'): "AI voice" on every frame,
-joined by "AI illustration" while a real person is in frame."""
+joined by "AI illustration" while a real person is in frame; on the cover,
+"AI illustration · AI text"."""
 from studio.builtin_script import BUILTIN_SCRIPT, builtin_timeline
 from studio.channel_assets import AiLabels, load_ai_labels
 from studio.engine import active_plates, ai_label_text
 from studio.template_pkg import load_template
 
-LABELS = AiLabels(voice="AI voice", illustration="AI illustration")
+LABELS = AiLabels(voice="AI voice", illustration="AI illustration", text="AI text")
 
 
 def test_every_frame_says_ai_voice(nes_desk_dir):
@@ -18,18 +19,38 @@ def test_every_frame_says_ai_voice(nes_desk_dir):
 def test_the_line_names_the_illustration_only_when_it_applies():
     assert ai_label_text(set(), LABELS) == "AI voice"
     assert ai_label_text({"ai_illustration"}, LABELS) == "AI voice · AI illustration"
-    # a still cover has no voice to label
-    assert ai_label_text(set(), LABELS, cover=True) is None
-    assert ai_label_text({"ai_illustration"}, LABELS, cover=True) == "AI illustration"
+    # a still cover has no voice to label; its picture and its title are generated
+    assert LABELS.cover == "AI illustration · AI text"
 
 
 def test_each_channel_labels_in_its_own_language():
     """format.md of each channel: a disclosure the audience can read."""
-    assert load_ai_labels("8bitnews-us").widest == "AI voice · AI illustration"
-    assert load_ai_labels("8bitnews-es").widest == "Voz IA · Ilustración IA"
-    es = load_ai_labels("8bitnews-es")
+    us, es = load_ai_labels("8bitnews-us"), load_ai_labels("8bitnews-es")
+    assert us.cover == "AI illustration · AI text"
+    assert es.cover == "Ilustración IA · Texto IA"
     assert ai_label_text(set(), es) == "Voz IA"
-    assert ai_label_text({"ai_illustration"}, es, cover=True) == "Ilustración IA"
+    assert ai_label_text({"ai_illustration"}, es) == "Voz IA · Ilustración IA"
+    # the longest line each channel draws, which `studio template validate` fits in the safe zone
+    assert us.widest == "AI voice · AI illustration"
+    assert es.widest == "Ilustración IA · Texto IA"  # the cover's line is the Spanish channel's longest
+
+
+def test_a_labels_file_without_the_ai_text_is_an_error(tmp_path, monkeypatch):
+    """Like the other words: a missing disclosure must not reach a cover unnoticed."""
+    import json
+
+    import pytest
+
+    import studio.channel_assets as channel_assets
+
+    (tmp_path / "labels.json").write_text(json.dumps({"ai_voice": "AI voice", "ai_illustration": "AI illustration"}))
+    monkeypatch.setattr(channel_assets, "channel_dir", lambda channel_id: tmp_path)
+    channel_assets.load_ai_labels.cache_clear()
+    try:
+        with pytest.raises(KeyError, match="ai_text"):
+            channel_assets.load_ai_labels("no-ai-text")
+    finally:
+        channel_assets.load_ai_labels.cache_clear()
 
 
 def test_ai_illustration_shows_whenever_a_real_person_is_in_frame(nes_desk_dir):

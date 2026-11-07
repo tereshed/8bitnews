@@ -20,7 +20,7 @@ from .audio import decode, fit, measure, silences, voice_over_rest_db
 from .channel_assets import load_channel_assets
 from .config import audio_settings, check_settings, max_file_size_bytes, max_keyframe_cell_diff
 from .constants import FONT_PX, FPS, LOGICAL_H, LOGICAL_W, OUTPUT_H, OUTPUT_W, SCALE
-from .engine import _compose_anchor_sprite, active_plates, ai_label_text, cover_plates, draw_ai_label, scene_transition_duration
+from .engine import _compose_anchor_sprite, active_plates, ai_label_text, draw_ai_label, scene_transition_duration
 from .errors import TemplateValidationError
 from .palette import hex_to_rgb
 from .srt import parse_srt
@@ -368,64 +368,50 @@ def _image(package_dir: Path, rel: str) -> np.ndarray:
 def _check_ai_label(package_dir: Path, package: dict, channel_profile: dict) -> dict:
     """format.md, stated independently of the engine, in the channel's words
     (`labels.json`): every frame has the voice label, joined by the illustration
-    label while a real person is in frame; every S* cover has the illustration
-    label (its picture and the anchor are generated), and so does a cover the
-    image model drew (build._render_custom_cover)."""
+    label while a real person is in frame; the cover, whatever its picture, has
+    the cover's line (`AiLabels.cover`: its picture and its title are generated)."""
     ctx = _Context(package_dir, package)
     labels = ctx.assets.labels
     problems = []
-    frames = [(kf["path"], kf["scene_id"], kf["t_s"], False) for kf in _keyframes(package_dir, package)]
-    cover_frame = ctx.script["cover"]["frame"]
-    if cover_frame != "custom":
-        st = ctx.timing(cover_frame)
-        frames.append((package["files"]["cover"]["path"], cover_frame, (st.start_s + st.end_s) / 2, True))
+    frames = [(kf["path"], kf["scene_id"], kf["t_s"]) for kf in _keyframes(package_dir, package)]
     checked = 0
-    if cover_frame == "custom" and any(s["id"] == "cover" for s in package.get("images", {}).get("scenes", [])):
-        checked += 1
-        rel = package["files"]["cover"]["path"]
-        why = _label_problem(_image(package_dir, rel), ctx, labels.illustration)
-        if why:
-            problems.append(f"{rel} (a cover drawn by the image model): no {labels.illustration!r} line: {why}")
-    for rel, scene_id, t, is_cover in frames:
+    for rel, scene_id, t in frames:
         st = ctx.timing(scene_id)
-        mid_transition = not is_cover and ctx.in_transition(scene_id, t)
-        if is_cover:
-            want = labels.illustration
-            shown = ai_label_text(cover_plates(ctx.script, st, ctx.template, t), labels, cover=True)
-        else:
-            person = ctx.real_person_in_frame(scene_id)
-            if mid_transition:
-                # the AI line holds still over a transition, and both scenes are in frame
-                prev = ctx.timeline.scenes[ctx.timeline.scenes.index(st) - 1]
-                person = person or ctx.real_person_in_frame(prev.scene_id)
-            want = labels.line(person)
-            shown = ai_label_text(active_plates(ctx.script, st, ctx.template, t), labels)
+        mid_transition = ctx.in_transition(scene_id, t)
+        person = ctx.real_person_in_frame(scene_id)
+        if mid_transition:
+            # the AI line holds still over a transition, and both scenes are in frame
+            prev = ctx.timeline.scenes[ctx.timeline.scenes.index(st) - 1]
+            person = person or ctx.real_person_in_frame(prev.scene_id)
+        want = labels.line(person)
+        shown = ai_label_text(active_plates(ctx.script, st, ctx.template, t), labels)
         if shown != want and not mid_transition:  # active_plates is one scene's; render_frame adds the other's
             problems.append(f"{rel} ({scene_id}, {t:.2f}s): the engine draws the AI line {shown!r}, not {want!r}")
         checked += 1
         why = _label_problem(_image(package_dir, rel), ctx, want)
         if why:
             problems.append(f"{rel} ({scene_id}, {t:.2f}s): AI line missing: {why}")
+    rel = package["files"]["cover"]["path"]
+    checked += 1
+    why = _label_problem(_image(package_dir, rel), ctx, labels.cover)
+    if why:
+        problems.append(f"{rel} (the cover): no {labels.cover!r} line: {why}")
     return _result("ai_label", problems, f"AI line in place on {checked} images")
 
 
 @register("face_clear")
 def _check_face_clear(package_dir: Path, package: dict, channel_profile: dict) -> dict:
-    """On anchor keyframes (and an anchor cover) the anchor's face is exactly
-    the sprite for that moment: nothing drawn over it."""
+    """On anchor keyframes the anchor's face is exactly the sprite for that
+    moment: nothing drawn over it. The cover has no anchor (build._render_cover)."""
     ctx = _Context(package_dir, package)
     anchor = ctx.assets.anchor
     cfg = ctx.template.data["studio"]["anchor"]
     face = anchor.face_rect_in_frame(cfg)
     pose = "serious" if ctx.script.get("serious_mode") else "normal"
     frames = [(kf["path"], kf["scene_id"], kf["t_s"]) for kf in _keyframes(package_dir, package)]
-    cover_frame = ctx.script["cover"]["frame"]
-    if cover_frame != "custom":
-        st = ctx.timing(cover_frame)
-        frames.append((package["files"]["cover"]["path"], cover_frame, (st.start_s + st.end_s) / 2))
     problems, checked = [], 0
     for rel, scene_id, t in frames:
-        if ctx.scenes[scene_id]["shot"] != "anchor" or (rel != package["files"]["cover"]["path"] and ctx.in_transition(scene_id, t)):
+        if ctx.scenes[scene_id]["shot"] != "anchor" or ctx.in_transition(scene_id, t):
             continue
         checked += 1
         st = ctx.timing(scene_id)

@@ -1,5 +1,6 @@
 {
-  "$comment": "The words of the AI line in the channel's language (format.md, 'Текст в кадре'), drawn on every frame and checked by studio validate.",
+  "$comment": "The words of the AI line in the channel's language (format.md, 'Текст в кадре'), drawn on every frame and checked by studio validate; the cover's line is \"<ai_illustration> · <ai_text>\".",
   "ai_voice": "AI voice",
-  "ai_illustration": "AI illustration"
+  "ai_illustration": "AI illustration",
+  "ai_text": "AI text"
 }

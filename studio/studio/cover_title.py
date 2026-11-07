@@ -1,16 +1,23 @@
-"""Where a cover title goes inside `cover.layout.text_rect`: shared by
+"""How a cover title wraps (`cover.layout.text_rect` w/h: how many lines of
+how many characters) and where its black plate goes on the cover: shared by
 `studio build` (drawing it, failing on a title that doesn't fit) and
 `studio template validate` (rejecting a rect too small for a schema-valid
-30-character title)."""
+30-character title, or a plate that would leave the safe zone or cover the
+AI line)."""
 from __future__ import annotations
 
-from .constants import FONT_PX
+from .constants import FONT_PX, LOGICAL_W
 from .errors import BuildError
 from .subtitles import wrap_words
 from .text_render import text_size
 
 COVER_PAD = 2
 COVER_TEXT_MAX_CHARS = 30  # script.schema.json cover.text maxLength
+# Where the title plate sits on the cover (owner, 07.11.2026): low in the safe
+# zone just above the AI line, or at its top. `studio pick` alternates them.
+COVER_LAYOUTS = ("bottom", "top")
+COVER_PLATE_PAD_X, COVER_PLATE_PAD_Y = 6, 4  # the subtitle plate's padding at the same 16px font
+COVER_PLATE_GAP = 4  # between the plate and the AI strip ("bottom") or the safe zone's top ("top")
 
 
 def cover_font_px(layout: dict) -> int:
@@ -70,11 +77,29 @@ def fit_cover_title(text: str, text_rect: dict, font) -> list[str]:
     return lines
 
 
-def cover_title_layout(text: str, text_rect: dict, font) -> list[tuple[str, tuple[int, int]]]:
-    """Each cover title line with its top-left origin in logical 270x480
-    coordinates, centered in the rect: the same geometry `fit_cover_title`
-    checks against."""
+def cover_plate_box(n_lines: int, text_w: int, font_px: int, max_w: int, layout: str, ai_strip_top: int,
+                    safe_top: int) -> dict:
+    """The black plate behind a cover title of `n_lines` lines, the widest
+    `text_w` px: as wide as that line plus padding but no wider than `max_w`
+    (the text rect's width, which a line never exceeds), centered in the frame.
+    "bottom": its lower edge COVER_PLATE_GAP above the AI strip; "top": its
+    top COVER_PLATE_GAP below the top of the common safe zone."""
+    if layout not in COVER_LAYOUTS:
+        raise BuildError(f"cover layout {layout!r}: expected one of {', '.join(COVER_LAYOUTS)}")
+    w = min(text_w + 2 * COVER_PLATE_PAD_X, max_w)
+    h = n_lines * (font_px + 2) - 2 + 2 * COVER_PLATE_PAD_Y
+    y = ai_strip_top - COVER_PLATE_GAP - h if layout == "bottom" else safe_top + COVER_PLATE_GAP
+    return {"x": (LOGICAL_W - w) // 2, "y": y, "w": w, "h": h}
+
+
+def cover_title_layout(text: str, text_rect: dict, font, layout: str, ai_strip_top: int,
+                       safe_top: int) -> tuple[dict, list[tuple[str, tuple[int, int]]]]:
+    """The plate (`cover_plate_box`) and each title line with its top-left
+    origin in logical 270x480 coordinates, centered on the plate: the lines
+    `fit_cover_title` wraps and checks."""
     lines = fit_cover_title(text, text_rect, font)
-    y0 = text_rect["y"] + COVER_PAD
-    return [(line, (text_rect["x"] + (text_rect["w"] - text_size(line, font)[0]) // 2, y0 + i * (font.size + 2)))
-            for i, line in enumerate(lines)]
+    widths = [text_size(line, font)[0] for line in lines]
+    box = cover_plate_box(len(lines), max(widths, default=0), font.size, text_rect["w"], layout, ai_strip_top, safe_top)
+    y0 = box["y"] + COVER_PLATE_PAD_Y
+    return box, [(line, (box["x"] + (box["w"] - w) // 2, y0 + i * (font.size + 2)))
+                 for i, (line, w) in enumerate(zip(lines, widths))]

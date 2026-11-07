@@ -163,14 +163,28 @@ def test_worst_case_title_lines_agrees_with_brute_force():
         assert worst_case_title_lines(max_chars, 14) == brute(max_chars, 14)
 
 
-def test_validate_rejects_cover_rect_over_the_face(nes_desk_dir, tmp_path):
+def test_validate_places_the_cover_title_by_its_plate_not_by_the_rect_position(nes_desk_dir, tmp_path):
+    """The cover has no anchor, and its plate goes at the bottom or the top
+    whatever text_rect's x/y say: only its w/h (lines and characters) count."""
     d = _edited_template(nes_desk_dir, tmp_path, lambda d: d["cover"]["layout"]["text_rect"].update(y=170))
-    assert "cover.layout.text_rect" in _problems(d) and "overlaps the face of anchor" in _problems(d)
+    validate_template(d)  # over the anchor's face: fine now
+    d = _edited_template(nes_desk_dir, tmp_path / "ai", lambda d: d["cover"]["layout"]["text_rect"].update(y=340))
+    validate_template(d)  # over the AI line: the plate isn't drawn there
 
 
-def test_validate_rejects_cover_rect_over_the_ai_line(nes_desk_dir, tmp_path):
-    d = _edited_template(nes_desk_dir, tmp_path, lambda d: d["cover"]["layout"]["text_rect"].update(y=340))
-    assert "overlaps the AI line" in _problems(d)
+def test_validate_rejects_a_cover_plate_wider_than_the_safe_zone(nes_desk_dir, tmp_path):
+    # 16 characters a line at 16px: a 268px plate from x=1, wider than the safe zone (x=20..250)
+    d = _edited_template(nes_desk_dir, tmp_path, lambda d: d["cover"]["layout"]["text_rect"].update(x=0, w=270))
+    problems = _problems(d)
+    assert "cover: the bottom title plate" in problems and "cover: the top title plate" in problems
+    assert "is outside the common safe zone" in problems
+
+
+def test_validate_rejects_a_cover_plate_over_the_ai_line(nes_desk_dir, tmp_path):
+    # the AI line up at y=60: the top plate (y=40, 3 lines) would cover it, the bottom one leaves the safe zone
+    problems = _problems(_edited_template(nes_desk_dir, tmp_path, lambda d: d["plates"]["ai_label"].update(y=60)))
+    assert "cover: the top title plate" in problems and "overlaps the AI line" in problems
+    assert "cover: the bottom title plate" in problems
 
 
 # --- pauses between scenes hold the previous scene, not a black frame ---

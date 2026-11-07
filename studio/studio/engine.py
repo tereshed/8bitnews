@@ -236,7 +236,8 @@ def _render_anchor_shot(
     draw_layers(front=False)
     screen = template.data["studio"]["screen"]
     # The anchor scene's own picture when it has one (its `visual` says what the screen shows: the hook's screen
-    # is what Legal reviewed on it and on an S1 cover), else the next scene shot's, else the channel logo.
+    # is what Legal reviewed on it), else the next scene shot's, else the channel logo. A cover of this scene
+    # shows the same picture (build._cover_picture_id).
     own = _scene_image_path(assets_dir, scene["id"]) is not None and _next_scene_shot(script, scene["id"]) is not None
     screen_scene = scene if own else _next_scene_shot(script, scene["id"])
     if screen_scene is not None:
@@ -336,15 +337,11 @@ def _draw_plate(frame: Image.Image, plate_cfg: dict, lines: list[str], font, y: 
     return box
 
 
-def ai_label_text(plates: set[str], labels: AiLabels, cover: bool = False) -> str | None:
+def ai_label_text(plates: set[str], labels: AiLabels) -> str:
     """The one AI line (format.md 'Текст в кадре'), in the channel's words: the
     voice label on every frame, joined by the illustration label while a real
-    person is in frame. A still cover has no voice: only the illustration label
-    (`cover_plates` gives every S* cover one)."""
-    illustration = "ai_illustration" in plates
-    if cover:
-        return labels.illustration if illustration else None
-    return labels.line(illustration)
+    person is in frame. The cover has its own line (`AiLabels.cover`)."""
+    return labels.line("ai_illustration" in plates)
 
 
 def ai_label_origin(template: TemplatePackage, text: str, font) -> tuple[int, int]:
@@ -440,42 +437,9 @@ def content_plate_boxes(scene: dict, plates: set[str], template: TemplatePackage
 
 
 def _draw_content_plates(frame: Image.Image, scene: dict, plates: set[str], template: TemplatePackage, font) -> None:
-    """Source and title plates -- shared by the timed frame render
-    (`_render_core`) and the untimed cover render (`render_cover_frame`)."""
+    """Source and title plates of the timed frame render (`_render_core`)."""
     for name, (box, lines) in content_plate_boxes(scene, plates, template, font).items():
         _draw_plate(frame, template.plate(name), lines, font, box["y"])
-
-
-def cover_plates(script: dict, scene_timing: SceneTiming, template: TemplatePackage, t_abs: float) -> set[str]:
-    """Plates on a `cover.frame: S*` cover: ai_illustration, always. A cover
-    is seen in the feed out of context, and what it shows -- a scene picture,
-    the anchor and the screen behind them -- is drawn by the image model (QA,
-    29.10). The cover's own title replaces scene_title and source_plate, and
-    a still cover has no voice to label."""
-    return {"ai_illustration"}
-
-
-def render_cover_frame(
-    script: dict,
-    timeline: Timeline,
-    template: TemplatePackage,
-    assets: ChannelAssets,
-    t_abs: float,
-    assets_dir: Path | None = None,
-) -> Image.Image:
-    """A still frame for `cover.frame: S*`: the same scene pixels as the
-    timed render at `t_abs` with `cover_plates` only and no subtitles; the
-    caller draws `cover.text` on top."""
-    scene_timing = timeline.scene_at(t_abs)
-    scene = _scene_data(script, scene_timing.scene_id)
-    serious = bool(script.get("serious_mode"))
-    palette = frame_palette(template, serious, assets.channel_id)
-    font = assets.font(FONT_PX)
-    frame = _render_scene_pixels(script, scene, scene_timing, template, assets, t_abs, assets_dir, palette, font)
-    plates = cover_plates(script, scene_timing, template, t_abs)
-    _draw_content_plates(frame, scene, plates, template, font)
-    draw_ai_label(frame, template, ai_label_text(plates, assets.labels, cover=True), font)
-    return frame.convert("RGB")
 
 
 def _select_transition(template: TemplatePackage, scene_index: int) -> dict | None:
