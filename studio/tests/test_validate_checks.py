@@ -372,13 +372,30 @@ def test_ai_label_fails_when_the_strip_is_gone_but_the_letters_stay(built_packag
     assert "S2_mid.png (S2" in check["note"] and "AI line missing" in check["note"]
 
 
-def test_ai_label_fails_when_the_cover_loses_ai_illustration(built_package, test_channels_dir, corrupt_copy):
+def test_ai_label_fails_when_the_cover_loses_its_ai_line(built_package, test_channels_dir, corrupt_copy):
     def corrupt(copy_dir, package):
         _paint(copy_dir, "cover.png", _ai_line_band(copy_dir), "#0058f8")
 
     check = _check(built_package, test_channels_dir, corrupt_copy, "ai_label", corrupt)
     assert check["ok"] is False
-    assert "cover.png" in check["note"] and "'AI illustration' line" in check["note"]
+    assert "cover.png (the cover)" in check["note"] and "'AI illustration · AI text' line" in check["note"]
+
+
+def test_ai_label_fails_on_a_cover_with_the_old_illustration_only_line(built_package, test_channels_dir, corrupt_copy):
+    """The cover's line names the generated title too (AI Act art. 50(4)): "AI illustration" alone is not enough."""
+    from studio.channel_assets import load_channel_assets
+    from studio.engine import draw_ai_label
+    from studio.template_pkg import load_template
+
+    def corrupt(copy_dir, package):
+        _paint(copy_dir, "cover.png", _ai_line_band(copy_dir), "#503000")
+        template = load_template(copy_dir / "template")
+        font = load_channel_assets("8bitnews-us").font(8)
+        _logical_edit(copy_dir, "cover.png", lambda img: draw_ai_label(img, template, "AI illustration", font))
+
+    check = _check(built_package, test_channels_dir, corrupt_copy, "ai_label", corrupt)
+    assert check["ok"] is False
+    assert "cover.png (the cover)" in check["note"]
 
 
 def test_face_clear_fails_when_the_face_is_covered(built_package, test_channels_dir, corrupt_copy):
@@ -392,6 +409,22 @@ def test_face_clear_fails_when_the_face_is_covered(built_package, test_channels_
     check = _check(built_package, test_channels_dir, corrupt_copy, "face_clear", corrupt)
     assert check["ok"] is False
     assert "S1_mid.png (S1" in check["note"] and "face pixels differ" in check["note"]
+
+
+def test_face_clear_ignores_the_cover(built_package, test_channels_dir, corrupt_copy):
+    """The cover has no anchor now (cover.frame S1 is an anchor shot): whatever covers its face rect is the picture."""
+    from studio.channel_assets import load_channel_assets
+
+    def corrupt(copy_dir, package):
+        anchor = load_channel_assets("8bitnews-us", package["anchor"]["id"]).anchor
+        face = anchor.face_rect_in_frame(_template(copy_dir)["studio"]["anchor"])
+        _paint(copy_dir, "cover.png", face, "#000000")
+
+    assert json.loads((built_package["out_dir"] / "script.json").read_text())["cover"]["frame"] == "S1"
+    check = _check(built_package, test_channels_dir, corrupt_copy, "face_clear", corrupt)
+    assert check["ok"] is True
+    anchor_keyframes = sum(len(s["keyframes"]) for s in built_package["package"]["scenes"] if s["id"] in ("S1", "S4"))
+    assert check["value"] == 0 and f"on {anchor_keyframes} image(s)" in check["note"]
 
 
 def test_video_matches_keyframes_fails_on_a_swapped_keyframe(built_package, test_channels_dir, corrupt_copy):

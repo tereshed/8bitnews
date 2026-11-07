@@ -8,6 +8,7 @@ from pathlib import Path
 from . import repo
 from .build import build_package
 from .checks import run_checks
+from .cover_title import COVER_LAYOUTS
 from .errors import BuildError, TemplateValidationError
 from .music import synth_test_track
 from .preview import render_preview
@@ -51,6 +52,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
             music_track=args.music_track,
             anchor_id=args.anchor,
             images=args.images,
+            cover_layout=args.cover_layout,
         )
     except (BuildError, RepoRootNotSet, FileNotFoundError) as e:
         print(f"build failed: {e}", file=sys.stderr)
@@ -188,6 +190,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_build.add_argument("--images", default=None, choices=["openrouter"],
                          help="draw the scene pictures with the image provider (env STUDIO_OPENROUTER_API_KEY) "
                               "instead of reading them from --assets")
+    p_build.add_argument("--cover-layout", default="bottom", choices=COVER_LAYOUTS,
+                         help="where the cover title's plate goes (studio pick alternates them); default: bottom")
     p_build.set_defaults(func=_cmd_build)
 
     music = sub.add_parser("music", help="music helpers")
@@ -220,8 +224,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_abuild.add_argument("--vision-model", default=None)
     p_abuild.set_defaults(func=_cmd_anchor_build)
 
-    p_pick = sub.add_parser("pick", help="the template, anchor and music track for a script, avoiding what the "
-                            "channel's last videos used (hub releases_recent)")
+    p_pick = sub.add_parser("pick", help="the template, anchor, music track and cover layout for a script, avoiding "
+                            "what the channel's last videos used (hub releases_recent)")
     p_pick.add_argument("--script", required=True)
     p_pick.add_argument("--channel", required=True)
     p_pick.add_argument("--channels-dir", default=None)

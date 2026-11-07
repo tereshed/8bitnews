@@ -14,7 +14,14 @@ from PIL import Image
 
 from .channel_assets import anchor_ids, load_ai_labels, load_anchor, load_channel_assets
 from .constants import FONT_PX, LOGICAL_H, LOGICAL_W, MAX_SUBTITLE_CHARS_PER_LINE, MAX_SUBTITLE_LINES
-from .cover_title import COVER_TEXT_MAX_CHARS, cover_font_px, cover_text_capacity, worst_case_title_lines
+from .cover_title import (
+    COVER_LAYOUTS,
+    COVER_TEXT_MAX_CHARS,
+    cover_font_px,
+    cover_plate_box,
+    cover_text_capacity,
+    worst_case_title_lines,
+)
 from .errors import TemplateValidationError
 from .palette import channel_palette_set, image_colors_in_palette
 from .paths import TEMPLATE_SCHEMA_PATH
@@ -334,14 +341,6 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
 
     cover_rect = data.get("cover", {}).get("layout", {}).get("text_rect")
     if cover_rect is not None:
-        if not rect_within(cover_rect, safe_rect):
-            problems.append(f"cover.layout.text_rect {cover_rect} is outside the common safe zone {safe_rect}")
-        # The title is drawn over S* covers too: anchor frames keep the face,
-        # and every cover keeps the AI line, so it must clear both.
-        if covered := covered_faces(cover_rect):
-            problems.append(f"cover.layout.text_rect {cover_rect} overlaps the face of anchor {covered}")
-        if rects_intersect(cover_rect, ai_rect):
-            problems.append(f"cover.layout.text_rect {cover_rect} overlaps the AI line {ai_rect} (plates.ai_label)")
         font_px = cover_font_px(data["cover"]["layout"])
         max_chars, max_rows = cover_text_capacity(cover_rect, font_px)
         needed = worst_case_title_lines(max_chars)
@@ -351,6 +350,19 @@ def validate_template(template_dir: Path, channel_id: str = "8bitnews-us") -> No
                 f"{COVER_TEXT_MAX_CHARS}-character title can need {needed} at {font_px}px "
                 f"(h >= {font_px + (needed - 1) * (font_px + 2) + 4})"
             )
+        # The title's plate (build._render_cover) for the longest title a build
+        # accepts, in both layouts: inside the safe zone and clear of the AI
+        # line. The cover has no anchor, so faces don't matter.
+        lines = min(needed, max_rows)
+        widest = text_size("W" * min(max_chars, COVER_TEXT_MAX_CHARS), assets.font(font_px))[0]
+        for layout in COVER_LAYOUTS if lines else ():
+            plate = cover_plate_box(lines, widest, font_px, cover_rect["w"], layout, ai_rect["y"], safe_rect["y"])
+            if not rect_within(plate, safe_rect):
+                problems.append(f"cover: the {layout} title plate {plate} ({lines} line(s) of {max_chars} characters, "
+                                f"cover.layout.text_rect w={cover_rect['w']}) is outside the common safe zone {safe_rect}")
+            if rects_intersect(plate, ai_rect):
+                problems.append(f"cover: the {layout} title plate {plate} ({lines} line(s)) overlaps the AI line "
+                                f"{ai_rect} (plates.ai_label)")
 
     for color in data.get("palette", {}).get("colors", []):
         if color.lower() not in palette_set:

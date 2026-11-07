@@ -101,12 +101,12 @@ safe zone (TikTok, YouTube, Instagram, checked 29.10 — the platforms
 publish them for ads only), their intersection `ads_common_rect`, and
 `common_safe_rect`, the working area for organic posts, which have no ad
 call-to-action in the bottom band. Templates in this repo place every
-plate, the AI line, the subtitles and the cover title inside
+plate, the AI line, the subtitles and the cover title's plate inside
 `common_safe_rect`, centered in the frame (owner, 29.10): on TikTok the
 right end of a long line can reach under the button column. `studio
 template validate` checks them against the file — and, separately, that
-none of them, and no layer drawn in front of the anchor (`front`),
-overlap the face of any active anchor (each `channels/8bitnews-us/anchors/<id>/manifest.json`
+none of them but the cover's (the cover has no anchor), and no layer drawn
+in front of the anchor (`front`), overlap the face of any active anchor (each `channels/8bitnews-us/anchors/<id>/manifest.json`
 `face_rect`, mapped into frame coordinates by `studio.anchor.x/y/scale`
 via `AnchorSprites.face_rect_in_frame`).
 
@@ -259,9 +259,9 @@ under `STUDIO_IMAGE_CACHE`, so running again pays nothing):
    A replied refusal or an unreadable answer is never cached, so running
    the command again asks again.
 
-`studio template validate` checks plates, subtitles and the cover title
-against the face of *every* active anchor, and that every anchor fits in the
-frame at the template's `studio.anchor` place.
+`studio template validate` checks plates and subtitles against the face of
+*every* active anchor, and that every anchor fits in the frame at the
+template's `studio.anchor` place (the cover has no anchor).
 
 ## Scene pictures (E2b-2)
 
@@ -319,9 +319,9 @@ darkest color stands in, and `package.json` `notes` says which scene and
 why, for QA and Legal. Extra people alone are not worth a card: the first
 attempt with nothing else wrong is kept, and the notes say so. Every attempt is kept in the package
 (`images/attempts/`), with its prompt, check and cost in `package.json`
-`images.scenes[].attempts`. A cover the image model drew carries the "AI
-illustration" line (it shows the story, maybe its people by role), and
-`ai_label` checks it. A scene picture is asked to keep its top fifth plain
+`images.scenes[].attempts`. Every cover carries the "AI illustration · AI
+text" line (its picture shows the story, maybe its people by role, and its
+title is generated), and `ai_label` checks it. A scene picture is asked to keep its top fifth plain
 background (`images.json` `top_room`): the source and title plates go
 there.
 
@@ -330,7 +330,7 @@ scene shots costs about $0.41, more with redraws; `package.json`
 `images.cost_usd` has the exact figure. Replies are cached by request
 (`STUDIO_IMAGE_CACHE`): rebuilding the same script pays nothing.
 
-## Picking template, anchor and track (`studio pick`)
+## Picking template, anchor, track and cover layout (`studio pick`)
 
 `studio pick --script s.json --channel 8bitnews-us --recent recent.json` prints what the
 video is made with (`studio/pick.py`), chosen by code against the channel's last videos
@@ -343,12 +343,15 @@ video is made with (`studio/pick.py`), chosen by code against the channel's last
 - **anchor** — an active anchor not used by the last 2 videos;
 - **track** — approved, licensed for every enabled platform, the script's mood, energy
   within 1 of the nearest, not one of the last 5 videos' tracks; also its `music_key` in
-  the store.
+  the store;
+- **cover_layout** — where the cover title's plate goes, `bottom` or `top` (owner,
+  07.11.2026): the opposite of the newest recent video that recorded one (`cover.layout`
+  or `pick.cover_layout`), by the script's hash when none did.
 
 Among what is left, the one used least recently wins (never used first), ties by a hash
 of the script, so the same script and history always give the same pick.
 `newsroom/tools/video_build.py` runs it and passes the result to `studio build`
-(`--template`, `--anchor`, `--music-track`).
+(`--template`, `--anchor`, `--music-track`, `--cover-layout`).
 
 ## Running things
 
@@ -377,7 +380,8 @@ next pass can regenerate or replace them deliberately).
 
 `studio build --script <script.json> --channel <id> [--channels-dir <dir>]
 [--template <dir-or-id>] [--assets <dir>] [--tts kokoro|stub]
-[--music-file <file>] [--music-track <id>] --out <dir>` turns a
+[--music-file <file>] [--music-track <id>] [--cover-layout bottom|top]
+--out <dir>` turns a
 `newsroom/contracts/script.schema.json` document into a self-contained
 `newsroom/contracts/video_package.schema.json` package: `video.mp4`,
 `video_no_music.mp4` (a video with music longer than 60 s), `subtitles.srt`,
@@ -424,32 +428,35 @@ sentence punctuation (or a comma from the 3rd word on) inside the maximal
 group that still fits, and holding a cue up to the next one's start if the
 gap is under 0.3s. The same cues go on screen and into `subtitles.srt`.
 
-**Cover.** Both kinds carry `cover.text` (format.md: a cover is a frame
-with a title of up to 30 characters), word-wrapped inside
-`cover.layout.text_rect` in the subtitle colors
-(`cover_title.cover_title_layout`). `cover.layout.font_scale` controls the
+**Cover** (`build._render_cover`, owner 07.11.2026: a cover shows what
+happened, not the studio). The story picture fills the whole 270×480 frame:
+for `cover.frame: S*` that scene's own picture, whatever its shot (an anchor
+scene's is its landscape screen picture, center-cropped), for `custom`
+`<assets>/cover.png`, fitted and snapped like any scene picture
+(`engine.scene_palette`); with no picture file (sample builds, tests) the
+template's `cover.layout.background`. No anchor, no studio, no scene plates,
+no subtitles. `cover.text` (format.md: up to 30 characters) is word-wrapped
+by `cover.layout.text_rect`'s w/h, its x/y no longer matter
+(`cover_title.fit_cover_title`). `cover.layout.font_scale` controls the
 title size independently of scene text (default 1 for older templates).
 Both shipped templates use 2: 16 logical pixels, 64 pixels at 1080×1920,
 with room for three 14-character lines. Prefer 2–4 short words, up to 24
 characters, and check readability at 160px wide; shorten text rather than
-shrinking the font. `cover_title.fit_cover_title` raises a
-readable `BuildError` if the title needs more lines than the rect has room
-for, checked before TTS; each line is centered in the rect. `studio
-template validate` requires the rect to hold a 30-character title whose
-words fit on a line, and to clear the anchor's face and the AI line.
-At the larger size, a word longer than a line fails before TTS instead of
-being split or causing the font to shrink.
-- `cover.frame: S*` — that scene's middle frame (`engine.render_cover_frame`)
-  with `engine.cover_plates` only: the AI line says "AI illustration" on
-  every cover (QA, 29.10: a cover is seen in the feed out of context, and its
-  picture and the anchor are generated; a still cover has no voice to label),
-  no scene title or source plate (the cover title replaces them), no subtitles. The title is drawn at 270×480
-  before the ×4 upscale and the frame is not re-quantized, so the anchor
-  keeps its colors.
-- `cover.frame: custom` — `<assets>/cover.png` fitted to 270×480 (its own
-  colors, like a scene picture), or `cover.layout.background` without one,
-  then the title; a cover the image model drew gets the "AI illustration"
-  line.
+shrinking the font. `fit_cover_title` raises a readable `BuildError` if the
+title needs more lines than the rect has room for, checked before TTS; at
+the larger size a word longer than a line fails too, instead of being split
+or causing the font to shrink. The lines are centered in the subtitle colors
+with their outline on one solid black plate, as wide as the widest line plus
+padding and centered (`cover_title.cover_plate_box`): `--cover-layout
+bottom` puts its lower edge 4 px above the AI strip, `top` its top 4 px
+under the top of the channel's `common_safe_rect`. The AI line is always
+there, "AI illustration · AI text" («Ilustración IA · Texto IA»,
+`labels.json` `ai_text`): the picture and the title are generated (AI Act
+art. 50(4)), so `cover.text` doesn't carry "AI text" itself. The cover is
+drawn at 270×480 and upscaled, not re-quantized. `package.json` `cover`
+records `{frame, layout, picture: <scene id> | custom | template}`. `studio
+template validate` places both plates for the longest title a build accepts
+and requires them inside `common_safe_rect` and clear of the AI line.
 
 **Build scratch.** `frames/` (every logical frame) and the `_*` work files
 are deleted at the end of the build; `--keep-work` keeps `frames/` for
@@ -488,8 +495,8 @@ check fails. Each check is a function registered under a fixed `id` with
 | `package_schema` | `package.json` against `video_package.schema.json`; `sha256`/`bytes` of every file record (`files.*` including `files.template` = `template/template.json`, scenes' keyframes) against the file, no path outside the package; every keyframe the package lists has its `timeline.json` record (scene, `t_s = frame/30`) |
 | `template_valid` | the package's `template/` copy passes `studio template validate` and is the template `package.template` names |
 | `keyframes_grid` | keyframes and cover: 1080×1920, every 4×4 cell one color (no palette: scene pictures keep their colors) |
-| `ai_label` | on every keyframe, by pixels: the AI line's strip and glyph pixels equal the line drawn with its format.md text — «AI voice», «AI voice · AI illustration» whenever a real person is in frame (scene or the screen behind the anchor); «AI illustration» on every `S*` cover and on a cover the image model drew — stated independently of `engine.active_plates`, which must agree |
-| `face_clear` | on anchor keyframes and an anchor cover, the face rect equals the anchor sprite for that moment (pose, blink, mouth) |
+| `ai_label` | on every keyframe, by pixels: the AI line's strip and glyph pixels equal the line drawn with its format.md text — «AI voice», «AI voice · AI illustration» whenever a real person is in frame (scene or the screen behind the anchor); «AI illustration · AI text» on every cover — stated independently of `engine.active_plates`, which must agree |
+| `face_clear` | on anchor keyframes, the face rect equals the anchor sprite for that moment (pose, blink, mouth); the cover has no anchor |
 | `video_matches_keyframes` | each keyframe PNG against the video frame with the same number, per 4×4 cell: no cell's mean difference above `max_keyframe_cell_diff` (`studio/config.json`) |
 | `no_black_frames` | ffmpeg `blackdetect` (whole picture black, `pic_th=1.0`): no black frame anywhere; an unreadable video fails |
 | `disclosures` | `ai_voice`, `ai_visuals` true and `ai_label` true for every enabled platform |

@@ -1,7 +1,7 @@
-"""What a video is made with: the template, the anchor and the music track,
-picked by code, not by a model (docs/architecture.md §5, «Шаблоны»,
-«Ведущие: ротация», «Музыка»), so neighbouring videos of a channel don't
-look and sound alike.
+"""What a video is made with: the template, the anchor, the music track and
+where the cover's title goes, picked by code, not by a model
+(docs/architecture.md §5, «Шаблоны», «Ведущие: ротация», «Музыка»), so
+neighbouring videos of a channel don't look and sound alike.
 
 The input is the script, the channel profile and the channel's last videos
 (their `package.json`, newest first: hub `releases_recent` → `video_package`).
@@ -17,6 +17,11 @@ A value the script already fixes (an experiment arm's `script.template`)
 wins over the pick. `exclude` ({"anchor": [...], "template": [...],
 "music_track": [...]}) leaves out choices QA or Legal objected to, unless
 that would leave nothing.
+
+The cover layout (the title plate at the "bottom" or the "top", owner
+07.11.2026) strictly alternates: the opposite of the newest recent package
+that recorded one (the studio's `cover.layout`, or `pick.cover_layout`);
+when none did, the script's hash decides.
 """
 from __future__ import annotations
 
@@ -25,6 +30,7 @@ import json
 from dataclasses import dataclass
 
 from .channel_assets import anchor_ids
+from .cover_title import COVER_LAYOUTS
 from .errors import BuildError
 from .music import licensed_for, load_catalog
 from .paths import TEMPLATES_DIR
@@ -39,10 +45,11 @@ class Pick:
     music_track: str | None
     reasons: dict
     music_key: str | None = None  # the track's audio key in the store (music/catalog.yaml audio.key)
+    cover_layout: str = "bottom"  # where the cover title's plate goes (`studio build --cover-layout`)
 
     def to_dict(self) -> dict:
         return {"template": self.template, "anchor": self.anchor, "music_track": self.music_track,
-                "music_key": self.music_key, "reasons": self.reasons}
+                "music_key": self.music_key, "cover_layout": self.cover_layout, "reasons": self.reasons}
 
 
 def _used(recent: list, field: str) -> list[str | None]:
@@ -63,6 +70,30 @@ def _used(recent: list, field: str) -> list[str | None]:
             value = music.get("track_id") if isinstance(music, dict) and music.get("enabled") else None
         out.append(value if isinstance(value, str) else None)
     return out
+
+
+def _recorded_cover_layout(pkg) -> str | None:
+    """The cover layout a recent package recorded: `cover.layout` (what
+    `studio build` drew), else `pick.cover_layout` (newsroom/tools/video_build.py
+    stores the pick); None for an older package or anything else."""
+    if not isinstance(pkg, dict):
+        return None
+    for section, field in (("cover", "layout"), ("pick", "cover_layout")):
+        record = pkg.get(section)
+        value = record.get(field) if isinstance(record, dict) else None
+        if value in COVER_LAYOUTS:
+            return value
+    return None
+
+
+def _cover_layout(recent: list, key: str) -> tuple[str, str]:
+    """(layout, why): the opposite of the newest recorded one, else by the script's hash."""
+    for i, pkg in enumerate(recent):
+        last = _recorded_cover_layout(pkg)
+        if last is not None:
+            return next(c for c in COVER_LAYOUTS if c != last), f"the opposite of {last!r}, {i + 1} video(s) ago"
+    choice = min(COVER_LAYOUTS, key=lambda c: hashlib.sha256(f"{c}\n{key}".encode()).hexdigest())
+    return choice, f"no recorded cover layout in the last {len(recent)} video(s): the script's hash"
 
 
 def _choose(candidates: list[str], used: list[str | None], recent_n: int, key: str,
@@ -148,7 +179,8 @@ def pick(script: dict, channel_profile: dict, recent: list, catalog: list[dict] 
         reasons["music_track"] = f"mood {music.get('mood')}, energy within 1 of the nearest: {why}"
     else:
         reasons["music_track"] = "the script has no music"
-    return Pick(template, anchor, track, reasons, key_)
+    cover_layout, reasons["cover_layout"] = _cover_layout(recent, key)
+    return Pick(template, anchor, track, reasons, key_, cover_layout)
 
 
 def _serious_only(template_id: str) -> bool:

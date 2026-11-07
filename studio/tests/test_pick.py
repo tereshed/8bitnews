@@ -1,5 +1,5 @@
 """studio.pick: template, anchor and track by code, rotating against the
-channel's last videos."""
+channel's last videos; the cover layout alternating with the last one."""
 import json
 
 import pytest
@@ -26,8 +26,10 @@ def _script(**kw):
 
 
 def _record(p):
+    """A recent video as hub has it: the studio's package plus the pick (newsroom/tools/video_build.py)."""
     return {"template": p.template, "anchor": {"id": p.anchor},
-            "music": {"enabled": p.music_track is not None, "track_id": p.music_track}}
+            "music": {"enabled": p.music_track is not None, "track_id": p.music_track},
+            "cover": {"frame": "S1", "layout": p.cover_layout, "picture": "S1"}, "pick": p.to_dict()}
 
 
 def _run(profile, n, **kw):
@@ -103,3 +105,48 @@ def test_excluded_choices_are_left_out_unless_nothing_remains(profile):
 def test_broken_history_entries_are_ignored(profile):
     recent = [None, "oops", {"anchor": None, "music": "x"}, {"anchor": {"id": 5}}]
     assert pick(_script(), profile, recent).anchor
+
+
+# --- the cover layout: the title plate at the bottom or the top, by turns ---
+
+
+def test_the_cover_layout_alternates_from_video_to_video(profile):
+    layouts = [p.cover_layout for p in _run(profile, 8)]
+    assert all(a != b for a, b in zip(layouts, layouts[1:])), layouts
+
+
+@pytest.mark.parametrize("record", [lambda layout: {"cover": {"layout": layout}},
+                                    lambda layout: {"pick": {"cover_layout": layout}}])
+def test_the_cover_layout_is_the_opposite_of_the_newest_recorded_one(profile, record):
+    s = _script()
+    assert pick(s, profile, [record("bottom")]).cover_layout == "top"
+    assert pick(s, profile, [record("top")]).cover_layout == "bottom"
+    # videos from before the cover layout (and broken entries) are skipped: the newest one that recorded it counts
+    older = [None, {"template": "nes-desk"}, {"pick": {"template": "nes-desk"}, "cover": {"layout": "middle"}}]
+    p = pick(s, profile, older + [record("top"), record("top")])
+    assert p.cover_layout == "bottom" and "4 video(s) ago" in p.reasons["cover_layout"]
+    assert p.to_dict()["cover_layout"] == "bottom"
+
+
+def test_without_a_recorded_cover_layout_the_script_hash_decides(profile):
+    layouts = set()
+    for i in range(20):
+        s = _script()
+        s["cover"] = dict(s["cover"], text=f"Story {i}")
+        p = pick(s, profile, [{"template": "nes-desk", "anchor": {"id": "x"}}])
+        assert "hash" in p.reasons["cover_layout"]
+        assert p.cover_layout == pick(json.loads(json.dumps(s)), profile, []).cover_layout  # the same script, the same one
+        layouts.add(p.cover_layout)
+    assert layouts == {"bottom", "top"}  # different stories spread over both
+
+
+def test_studio_pick_prints_the_cover_layout(tmp_path, capsys):
+    from studio.cli import main
+
+    script = tmp_path / "script.json"
+    script.write_text(json.dumps(_script()))
+    recent = tmp_path / "recent.json"  # hub releases_recent's answer
+    recent.write_text(json.dumps({"releases": [{"video_package": {"cover": {"layout": "bottom"}}}]}))
+    assert main(["pick", "--script", str(script), "--channel", CHANNEL, "--recent", str(recent)]) == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["cover_layout"] == "top" and "'bottom'" in printed["reasons"]["cover_layout"]

@@ -18,7 +18,7 @@ import wave
 from pathlib import Path
 
 import jsonschema
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 from . import constants, repo
 from .audio import (
@@ -44,23 +44,25 @@ from .constants import (
     MAX_SUBTITLE_LINES,
 )
 from .engine import (
+    _scene_image_path,
     active_plates,
+    ai_label_box,
     draw_ai_label,
     plate_lines,
     plate_max_lines,
-    render_cover_frame,
     render_frame,
     scene_palette,
     scene_transition_duration,
     transition_sound,
 )
-from .cover_title import cover_font_px, cover_title_layout, fit_cover_title
+from .cover_title import COVER_LAYOUTS, cover_font_px, cover_title_layout, fit_cover_title
 from .errors import BuildError
 from .music import choose_music
-from .palette import hex_to_rgb, quantize_image
+from .palette import hex_to_rgb
 from .paths import TEMPLATES_DIR
 from .pronunciation import build_synthesis_text, hinted_tokens, regroup_words, unused_pronunciations
 from .quantize import quantize
+from .safe_zones import common_safe_rect
 from .srt import write_srt
 from .subtitles import wrap_words
 from .template_pkg import TemplatePackage, load_template
@@ -166,69 +168,80 @@ def check_plate_text(script: dict, template: TemplatePackage) -> None:
         raise BuildError("scene text does not fit its plate:\n" + "\n".join(f"  - {p}" for p in problems))
 
 
-def _draw_cover_title(frame: Image.Image, text: str, template: TemplatePackage, assets: ChannelAssets) -> None:
-    """Draws `cover.text` into `cover.layout.text_rect` in the subtitle
-    colors; `frame` is a logical-size RGBA image, drawn on in place."""
+def cover_plate_layout(text: str, template: TemplatePackage, assets: ChannelAssets,
+                       layout: str) -> tuple[dict, list[tuple[str, tuple[int, int]]], ImageFont.FreeTypeFont]:
+    """(plate box, title lines with their origins, font) of `cover.text`: wrapped
+    by `cover.layout.text_rect` w/h, the plate just above the AI strip
+    ("bottom") or just under the top of the channel's common safe zone ("top")."""
+    cover_cfg = template.data["cover"]["layout"]
+    font = assets.font(cover_font_px(cover_cfg))
+    ai_strip_top = ai_label_box(template, assets.labels.cover, assets.font(FONT_PX))["y"]
+    box, lines = cover_title_layout(text, cover_cfg["text_rect"], font, layout, ai_strip_top,
+                                    common_safe_rect(assets.channel_id)["y"])
+    return box, lines, font
+
+
+def _draw_cover_title(frame: Image.Image, text: str, template: TemplatePackage, assets: ChannelAssets,
+                      layout: str) -> dict:
+    """Draws `cover.text` on one solid black plate (`cover_plate_layout`), each
+    line centered, in the subtitle colors with their outline; `frame` is a
+    logical-size RGBA image, drawn on in place. Returns the plate's box."""
     sub_style = template.data["subtitles"]["style"]
     fg = hex_to_rgb(sub_style["color"])
     outline = hex_to_rgb(sub_style["outline_color"])
-    layout = template.data["cover"]["layout"]
-    font = assets.font(cover_font_px(layout))
-    for line, xy in cover_title_layout(text, layout["text_rect"], font):
+    box, lines, font = cover_plate_layout(text, template, assets, layout)
+    ImageDraw.Draw(frame).rectangle([box["x"], box["y"], box["x"] + box["w"] - 1, box["y"] + box["h"] - 1],
+                                    fill=(0, 0, 0, 255))
+    for line, xy in lines:
         draw_text(frame, xy, line, font, fg, outline=outline)
+    return box
 
 
-def _render_custom_cover(
-    script: dict, template: TemplatePackage, assets: ChannelAssets, assets_dir: Path | None, cover_cfg: dict,
-    out_path: Path, generated: bool = False,
-) -> None:
-    """`cover.png` from `assets_dir` (a picture: its own colors, or the scene
-    palette when the template or serious mode sets one), else the template's
-    own cover background (its own colors), with the title. A cover the image
-    model drew carries the "AI illustration" line: it shows the story,
-    possibly its real people by role (format.md)."""
+def _cover_picture(script: dict, template: TemplatePackage, assets: ChannelAssets,
+                   assets_dir: Path | None) -> tuple[Image.Image, str]:
+    """The picture across the whole cover and where it comes from: `cover.frame`
+    S* -> that scene's own picture, whatever its shot (an anchor scene's is the
+    landscape screen picture, center-cropped here); `custom` -> `<assets>/cover.png`.
+    Fitted to 270x480 and snapped like a scene picture (`scene_palette`). With no
+    picture file (sample builds, tests), the template's cover background."""
+    frame_id = script["cover"]["frame"]
     serious = bool(script.get("serious_mode"))
-    custom_path = Path(assets_dir) / "cover.png" if assets_dir else None
-    if custom_path is not None and custom_path.is_file():
-        palette = scene_palette(template, serious, assets.channel_id)
-        bg = quantize(Image.open(custom_path), palette, target_w=LOGICAL_W, target_h=LOGICAL_H).convert("RGBA")
+    if frame_id == "custom":
+        path = Path(assets_dir) / "cover.png" if assets_dir else None
+        path = path if path is not None and path.is_file() else None
+    elif any(scene["id"] == frame_id for scene in script["scenes"]):
+        path = _scene_image_path(assets_dir, frame_id)
     else:
-        palette = template.palette(serious=serious)
-        bg_asset = template.load_asset_image(template.data["cover"]["layout"]["background"])
-        bg = quantize(bg_asset.convert("RGB"), palette, target_w=LOGICAL_W, target_h=LOGICAL_H).convert("RGBA")
-
-    frame = Image.new("RGBA", (LOGICAL_W, LOGICAL_H), (0, 0, 0, 255))
-    frame.alpha_composite(bg)
-    if generated:
-        draw_ai_label(frame, template, assets.labels.illustration, assets.font(FONT_PX))
-    _draw_cover_title(frame, cover_cfg["text"], template, assets)
-
-    quantized = quantize_image(frame, palette) if palette is not None else frame
-    upscale_nearest(quantized.convert("RGB")).save(out_path)
+        raise BuildError(f"cover.frame {frame_id!r} does not match any scene id in the script")
+    if path is not None:
+        palette = scene_palette(template, serious, assets.channel_id)
+        return quantize(Image.open(path), palette, target_w=LOGICAL_W, target_h=LOGICAL_H).convert("RGBA"), frame_id
+    background = template.load_asset_image(template.data["cover"]["layout"]["background"]).convert("RGB")
+    palette = template.palette(serious=serious)
+    return quantize(background, palette, target_w=LOGICAL_W, target_h=LOGICAL_H).convert("RGBA"), "template"
 
 
 def _render_cover(
     script: dict,
-    timeline: Timeline,
     template: TemplatePackage,
     assets: ChannelAssets,
     assets_dir: Path | None,
     out_path: Path,
-    generated: bool = False,
-) -> None:
-    cover_cfg = script["cover"]
-    if cover_cfg["frame"] == "custom":
-        _render_custom_cover(script, template, assets, assets_dir, cover_cfg, out_path, generated)
-        return
-    scene_timing = next((s for s in timeline.scenes if s.scene_id == cover_cfg["frame"]), None)
-    if scene_timing is None:
-        raise BuildError(f"cover.frame {cover_cfg['frame']!r} does not match any scene id in the script")
-    mid_t = (scene_timing.start_s + scene_timing.end_s) / 2
-    # The title goes onto the rendered frame as is: re-quantizing it would
-    # recolor the anchor sprite (see engine._render_anchor_shot).
-    frame = render_cover_frame(script, timeline, template, assets, mid_t, assets_dir).convert("RGBA")
-    _draw_cover_title(frame, cover_cfg["text"], template, assets)
+    layout: str,
+) -> dict:
+    """`cover.png` (format.md 'Обложка', owner 07.11.2026): the story picture
+    (`_cover_picture`) across the whole frame -- no anchor, no studio -- with the
+    title on its plate at the bottom or the top (`layout`, alternated by `studio
+    pick`) and the cover's AI line (`AiLabels.cover`: the picture and the title
+    are generated). Drawn at 270x480 and upscaled, not re-quantized: the title
+    keeps the subtitle colors. Returns package.json's `cover` record."""
+    picture, source = _cover_picture(script, template, assets, assets_dir)
+    frame = Image.new("RGBA", (LOGICAL_W, LOGICAL_H), (0, 0, 0, 255))
+    frame.alpha_composite(picture)
+    _draw_cover_title(frame, script["cover"]["text"], template, assets, layout)
+    draw_ai_label(frame, template, assets.labels.cover, assets.font(FONT_PX))
     upscale_nearest(frame.convert("RGB")).save(out_path)
+    return {"frame": script["cover"]["frame"], "layout": layout, "picture": source}
 
 
 def _keyframe_targets(template: TemplatePackage, timeline: Timeline, n_frames: int) -> dict[int, list[tuple[str, str]]]:
@@ -256,6 +269,7 @@ def _assemble_package(
     timeline: Timeline,
     out_dir: Path,
     files: dict,
+    cover: dict,
     voice: dict,
     synth_narrations: dict[str, str],
     loudness: Loudness,
@@ -309,6 +323,7 @@ def _assemble_package(
         "anchor": anchor,
         "duration_s": duration_s,
         "files": files,
+        "cover": cover,
         "render": {
             "width": OUTPUT_W,
             "height": OUTPUT_H,
@@ -377,6 +392,7 @@ def build_package(
     anchor_id: str | None = None,
     images: str | None = None,
     image_client=None,
+    cover_layout: str = "bottom",
 ) -> Path:
     """`keep_work` keeps frames/ (every rendered logical frame) after the
     build for debugging; by default it is deleted once nothing needs it.
@@ -385,6 +401,8 @@ def build_package(
     `images="openrouter"`: draw the scene pictures with the image provider
     (studio.scene_images) instead of reading them from `assets_dir`;
     `image_client` replaces the OpenRouter client (tests).
+    `cover_layout`: where the cover title's plate goes, "bottom" or "top"
+    (`studio pick` alternates them).
     `music_file`/`music_track`: see `studio.music.choose_music`;
     `audio_overrides` replaces mix levels from config.json (tests)."""
     script_path = Path(script_path)
@@ -412,8 +430,10 @@ def build_package(
     # Fail before TTS and rendering, not after them, if plate text, the cover
     # title or the music can't work out.
     check_plate_text(script, template)
-    cover_layout = template.data["cover"]["layout"]
-    fit_cover_title(script["cover"]["text"], cover_layout["text_rect"], assets.font(cover_font_px(cover_layout)))
+    cover_cfg = template.data["cover"]["layout"]
+    fit_cover_title(script["cover"]["text"], cover_cfg["text_rect"], assets.font(cover_font_px(cover_cfg)))
+    if cover_layout not in COVER_LAYOUTS:
+        raise BuildError(f"cover layout {cover_layout!r}: expected one of {', '.join(COVER_LAYOUTS)}")
     music_choice = choose_music(script, channel_profile, music_file, music_track, music_catalog, music_dir)
     audio_cfg = audio_settings(audio_overrides)
 
@@ -535,8 +555,7 @@ def build_package(
     write_srt(all_cues, srt_path)
 
     cover_path = out_dir / "cover.png"
-    cover_generated = images_report is not None and any(s["id"] == "cover" for s in images_report.scenes)
-    _render_cover(script, timeline, template, assets, assets_dir, cover_path, cover_generated)
+    cover = _render_cover(script, template, assets, assets_dir, cover_path, cover_layout)
 
     timeline_path = out_dir / "timeline.json"
     timeline_dict = timeline_to_dict(timeline)
@@ -597,6 +616,7 @@ def build_package(
         timeline=timeline,
         out_dir=out_dir,
         files=files,
+        cover=cover,
         voice={"provider": tts_name_resolved, "voice_id": voice_id, **adapter.describe()},
         synth_narrations=synth_narrations,
         loudness=loudness,

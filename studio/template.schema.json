@@ -115,7 +115,7 @@
       "properties": {
         "ai_label": {
           "type": "object",
-          "description": "One line centered in the frame, on a narrow strip of bg_color: 'AI voice', joined by 'AI illustration' while a real person is in frame.",
+          "description": "One line centered in the frame, on a narrow strip of bg_color: 'AI voice', joined by 'AI illustration' while a real person is in frame; on the cover, 'AI illustration · AI text'.",
           "required": ["y", "text_color", "bg_color"],
           "properties": {
             "y": { "type": "integer", "minimum": 0 },
