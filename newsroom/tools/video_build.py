@@ -5,8 +5,8 @@
 
 1. Сценарий и `story_brief` — из артефактов PolyMaths (`pm_artifact.py`), или файлами (`--script`, `--story-brief`).
 2. Последние ролики канала — из hub (`releases_recent`): по ним студия выбирает шаблон, ведущего и трек так, чтобы
-   соседние ролики не повторялись (`studio pick`); `--exclude anchor=m1` и т. п. убирает варианты, на которые были
-   замечания.
+   соседние ролики не повторялись, и место заголовка на обложке — по очереди внизу и вверху (`studio pick`);
+   `--exclude anchor=m1` и т. п. убирает варианты, на которые были замечания.
 3. Трек — из хранилища через hub (`media_download_url`).
 4. Студия собирается из `studio/` (Docker) и строит ролик: голос ведущего, картинки сцен от генератора с проверкой
    кадра (`--images openrouter`), музыка, субтитры, обложка, ключевые кадры; затем `studio validate`.
@@ -285,11 +285,14 @@ def build(args, excludes: dict, keys: dict, out: pathlib.Path, work: pathlib.Pat
             raise Failure(EXIT_ERROR, f"studio pick failed: {err[-500:]}")
         pick = json.loads((work / "pick.json").read_text())
         shutil.copy2(work / "pick.json", out / "pick.json")
-        step("pick", **{k: pick[k] for k in ("template", "anchor", "music_track")}, reasons=pick["reasons"])
+        cover_layout = pick.get("cover_layout") or "bottom"  # a pick.json without the field (older studio): bottom
+        step("pick", **{k: pick[k] for k in ("template", "anchor", "music_track")}, cover_layout=cover_layout,
+             reasons=pick["reasons"])
 
         inputs = {"/work/script.json": work / "script.json"}
         build_cmd = ["python", "-m", "studio", "build", "--script", "/work/script.json", "--channel", channel_id,
-                     "--template", pick["template"], "--anchor", pick["anchor"], "--images", "openrouter", "--out", "/work/out"]
+                     "--template", pick["template"], "--anchor", pick["anchor"], "--cover-layout", cover_layout,
+                     "--images", "openrouter", "--out", "/work/out"]
         if pick["music_track"]:
             key = pick["music_key"]
             retry("download the track", lambda: hub.download(key, work / "music" / key))
