@@ -40,5 +40,12 @@ jobs:
           tests/test_build.py::test_cover_title_is_twice_scene_text_size
           tests/test_build.py::test_large_cover_title_rejects_word_splitting_and_font_fallback
           tests/test_build.py::test_cover_rect_too_short_for_large_font_has_no_lines
+      - name: Install ffmpeg for the tests that encode real video
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+      - name: Studio scene rebuilds and package checks
+        env:
+          STUDIO_REPO_ROOT: ${{ github.workspace }}
+        working-directory: studio
+        run: python -m pytest -q tests/test_scene_images.py tests/test_validate_checks.py
       - name: Newsroom schedules, progress and deterministic reports
         run: python -m pytest -q newsroom/tests
