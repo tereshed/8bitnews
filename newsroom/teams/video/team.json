@@ -29,7 +29,16 @@
           "model": "claude-haiku-5-5",
           "env": {
             "DEVTEAM_AGENT_REASONING_EFFORT": "medium"
-          }
+          },
+          "builtin_tools": [
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "Skill"
+          ]
         }
       },
       "code_backend": "claude-code",

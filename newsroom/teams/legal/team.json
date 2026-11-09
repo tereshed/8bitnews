@@ -27,7 +27,18 @@
           "model": "claude-opus-5-5",
           "env": {
             "DEVTEAM_AGENT_REASONING_EFFORT": "high"
-          }
+          },
+          "builtin_tools": [
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "Skill",
+            "WebFetch",
+            "WebSearch"
+          ]
         }
       }
     },
@@ -48,7 +59,19 @@
           "model": "claude-opus-5-5",
           "env": {
             "DEVTEAM_AGENT_REASONING_EFFORT": "high"
-          }
+          },
+          "builtin_tools": [
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "Skill",
+            "WebFetch",
+            "WebSearch",
+            "ToolSearch"
+          ]
         }
       }
     },
@@ -69,7 +92,18 @@
           "model": "claude-opus-5-5",
           "env": {
             "DEVTEAM_AGENT_REASONING_EFFORT": "high"
-          }
+          },
+          "builtin_tools": [
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "Skill",
+            "WebFetch",
+            "WebSearch"
+          ]
         }
       }
     }
