@@ -5,9 +5,9 @@
 
 Порядок:
 0. **Проверка по изменениям.** `mode: script`, в постановке есть обе строки `previous_script` и `previous_legal_review`, а
-   артефактов `legal_review`, law_report и platform_report ещё нет → запусти одного legal_lead; в input — всё из постановки
-   и строка `delta: true`. Нет хотя бы одной из строк — иди к п. 1.
-   - legal_lead сдал `legal_review`, его summary начинается с `ПОЛНАЯ ПРОВЕРКА:` → это не итог: иди к п. 1, input без `delta`;
+   артефактов `legal_review`, law_report и platform_report ещё нет → запусти одного legal_lead; в input — всё из постановки.
+   Нет хотя бы одной из строк — иди к п. 1.
+   - legal_lead сдал `legal_review`, его summary начинается с `ПОЛНАЯ ПРОВЕРКА:` → это не итог: иди к п. 1;
    - сдал с другим summary → п. 3.
 1. Нет ни law_report, ни platform_report → запусти legal_counsel и platform_reviewer ПАРАЛЛЕЛЬНО одним шагом,
    "await_wave": true. В input каждому — всё из постановки: mode, story_brief, research_dossier, script, video_package
