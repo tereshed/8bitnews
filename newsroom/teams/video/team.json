@@ -26,16 +26,16 @@
         "dind_cpu_millicores": 4000,
         "dind_memory_mb": 6144,
         "code_backend_settings": {
-          "model": "claude-opus-5-5",
+          "model": "claude-haiku-5-5",
           "env": {
-            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+            "DEVTEAM_AGENT_REASONING_EFFORT": "medium"
           }
         }
       },
       "code_backend": "claude-code",
       "provider_kind": "anthropic_oauth",
-      "model": "claude-opus-5-5",
-      "reasoning_effort": "high"
+      "model": "claude-haiku-5-5",
+      "reasoning_effort": "medium"
     }
   ],
   "deactivate": [],

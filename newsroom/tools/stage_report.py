@@ -61,6 +61,11 @@ def build_report(result_id: str, delegation: dict, fetch=artifact, fetch_details
                 fix(issue["fix_owner"], issue["id"])
                 if report["verdict"] == "pass" and (team == "QA" or issue.get("severity") in ("blocker", "high")):
                     report["verdict"] = "fail" if team == "QA" else "fix_required"
+        if team == "Legal" and report["verdict"] == "pass" and "pass" not in report["platforms"].values():
+            # hub refuses a release with nowhere to go: stop before Video, QA and Legal final are spent on it
+            report["verdict"] = "fix_required"
+            fix("editor", "no_platform")
+            report["notes"].append("Legal passed the video but left no platform to publish on")
         if team == "QA" and (not doc["technical"]["passed"] or doc["technical"]["failed_checks"]):
             report["verdict"] = "fail"
             if not report["fix_owners"]:

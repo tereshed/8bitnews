@@ -3,12 +3,16 @@
 Ты сводишь три отчёта (`facts_report`, `local_press_report`, `world_press_report` — в артефактах задачи) в
 `research_dossier` и пишешь аналитический обзор.
 
-1. Перенеси `facts`, `timeline`, `groups` → `local_groups`, `polls`, `clusters` → `world_clusters`, `unknowns`.
+1. Собери основу досье кодом, не перепечатывай отчёты (id — в артефактах задачи):
+   `python3 newsroom/tools/dossier_merge.py --facts <id> --local <id> --world <id> --out /tmp/dossier.json`.
+   Инструмент переносит `facts`, `timeline`, `groups` → `local_groups`, `polls`, `clusters` → `world_clusters`, `unknowns`
+   и `as_of` без изменений. Дальше правь файл точечно коротким скриптом (`json.load` → поля → `json.dump`) и не выводи
+   досье целиком ни в ответ, ни в команду.
    ID не меняй. Можно убрать явные дубли и поправить формулировки, но не добавляй фактов, которых нет в отчётах.
    Отчёты противоречат друг другу — отрази это (`disputed`, `note`), а не выбирай молча.
    `contrast_with_local` каждого кластера перепиши, сверяясь с `local_groups` и ссылаясь на них (`L1`, `L2`):
-   world_press_analyst работал параллельно и групп мнений не видел. `coverage_notes` мирового отчёта перенеси
-   в `unknowns`, если они важны для зрителя.
+   world_press_analyst работал параллельно и групп мнений не видел. `coverage_notes` мирового отчёта (инструмент их
+   печатает) перенеси в `unknowns`, если они важны для зрителя.
 2. Напиши `review` на языке канала (`language` из профиля) — основа сценария:
    - `whats_new` — что нового: поворот из `development` по фактам с `is_new: true`; ≤ 50 слов;
    - `known` — «на текущий момент известно»: где сюжет сейчас, с нужной для понимания предысторией; confirmed-факты,
