@@ -17,7 +17,8 @@
   (`docs/architecture.md` §5, «Передача данных между командами»).
 - `tools/video_build.py` — вся работа Video одной командой: выбор шаблона, ведущего и трека по последним роликам
   канала (`studio pick`), сборка студией в Docker с картинками сцен, `studio validate`, загрузка пакета в хранилище;
-  в stdout — `video_package`.
+  в stdout — `video_package`. Доработка: `--reuse-package <id> [--redraw S3,cover]` оставляет принятые картинки и выбор
+  прошлого пакета и рисует заново только названное и изменённое.
 - `tools/video_review_kit.py` — QA и Legal скачивают ключевые кадры, обложку и субтитры ролика для просмотра.
 - `tools/release_submit.py` — editor сдаёт готовый ролик в hub (`release_submit`) по id артефактов.
 - `tools/source_check.py` — Research проверяет ссылки почти так же, как hub при сдаче: тот же бот, те же признаки

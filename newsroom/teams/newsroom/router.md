@@ -34,9 +34,10 @@ tester, merger, reviewer) в команде нет — не вызывай их.
    - `kill` → DONE outcome=needs_human с причиной.
 8. `stage_report` Video:
    - `built` → делегируй **QA**. Ждём: `validation_report`;
-   - `fail`, в `fix` есть `script` (ролик не укладывается в формат из-за текста: длительность, плашки, обложка) →
-     **Script** с этими замечаниями (часть `notes` из `stage_report` — что именно не влезло), потом **Legal**
-     `mode: script`, потом снова **Video**;
+   - `fail`, в `fix` есть `script` (ролик не укладывается в формат из-за текста: длительность, плашки, обложка; или
+     картинка сцены не прошла проверку и после перерисовки: `picture_fallback_redrawn`, менять её `visual`) →
+     **Script** с этими замечаниями (часть `notes` из summary `stage_report` — что именно не влезло или что нашла
+     проверка), потом **Legal** `mode: script`, потом снова **Video**;
    - `fail`, в `fix` только `video` → снова **Video** (пересборка), в постановке — замечания.
 9. `stage_report` QA:
    - `pass` → делегируй **Legal**, `mode: final`. Ждём: `legal_review` по готовому ролику;
@@ -65,7 +66,8 @@ tester, merger, reviewer) в команде нет — не вызывай их.
 - в description: `channel_id`; `mode: script` или `mode: final` для Legal; по строке на каждый входной артефакт
   с готовой командой (из корня репозитория) `python3 newsroom/tools/pm_artifact.py <id> > /tmp/<kind>.json`:
   - `story_brief` — свой артефакт, всем командам;
-  - `research_dossier` у Script и Legal; `script` у Legal, Video и QA; `video_package` у QA и у Legal `mode: final`;
+  - `research_dossier` у Script и Legal; `script` у Legal, Video и QA; `video_package` у QA, у Legal `mode: final` и
+    у Video при доработке (последний: `--reuse-package` возьмёт из него принятые картинки);
     `validation_report` и последний `legal_review` по сценарию (его `final_checks`) у Legal `mode: final`; при
     доработке — прошлые артефакты и замечания: полные id из summary `stage_report` (часть `ids:`);
   - `video_package` у QA и у Legal `mode: final` — другой командой: `python3 newsroom/tools/video_review_kit.py <id> --out /tmp/review`

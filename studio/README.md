@@ -315,8 +315,9 @@ the answer counts as found. A picture that fails, one that doesn't decode,
 one under 256 px on its short side, and a refusal are drawn again (a refusal
 and an undecodable reply are never cached), the broken rule stated harder,
 at most twice. If no attempt passes, the channel logo on the template's
-darkest color stands in, and `package.json` `notes` says which scene and
-why, for QA and Legal. Extra people alone are not worth a card: the first
+darkest color stands in, `package.json` `notes` says which scene and
+why, and the package fails `picture_fallback` (below), so it goes back to Video
+before QA is paid for. Extra people alone are not worth a card: the first
 attempt with nothing else wrong is kept, and the notes say so. Every attempt is kept in the package
 (`images/attempts/`), with its prompt, check and cost in `package.json`
 `images.scenes[].attempts`. Every cover carries the "AI illustration · AI
@@ -329,6 +330,27 @@ there.
 scene shots costs about $0.41, more with redraws; `package.json`
 `images.cost_usd` has the exact figure. Replies are cached by request
 (`STUDIO_IMAGE_CACHE`): rebuilding the same script pays nothing.
+
+**Rebuilds.** `studio build --images openrouter --reuse-from <dir> [--reuse-package-id <id>] [--redraw S3,S7,cover]`:
+`<dir>` holds an earlier package's `package.json` and `images/`
+(`newsroom/tools/video_build.py --reuse-package` unpacks them from its
+`media.package_archive`). A picture is taken from it, with no generator call and
+at $0, when it was accepted (not a neutral card; its recorded check passed or it
+was kept with only `extra_people`), the file still decodes and is the accepted
+attempt, `--redraw` doesn't name it, and the prompt it would be drawn from is word
+for word the earlier one: that prompt holds the channel's style, the template's
+look, serious mode, the shot's frame and the visual cleaned of everyone in the
+script, so anything that feeds the picture changing means a redraw, and scene ids
+may shift. The report records `images.scenes[].reused_from` (package, its scene id
+there, sha256) with empty `attempts`, and a line in `notes` lists what was reused and
+what was drawn again and why. A remark on the cover or an anchor shot without a
+picture of its own redraws the picture it shows. A redraw starts past the
+generator variants the prompt already used, or the cache would hand back the
+rejected picture. An unreadable `<dir>` means every picture is drawn, with a note.
+
+**A neutral card fails the package**: `picture_fallback` (fix owner Video), or
+`picture_fallback_redrawn` (fix owner Script: its `visual` has to change) when
+`--redraw` named that picture; the note lists every card and what its attempts found.
 
 ## Picking template, anchor, track and cover layout (`studio pick`)
 
@@ -355,6 +377,13 @@ Among what is left, the one used least recently wins (never used first), ties by
 of the script, so the same script and history always give the same pick.
 `newsroom/tools/video_build.py` runs it and passes the result to `studio build`
 (`--template`, `--anchor`, `--music-track`, `--cover-layout`).
+
+`--keep keep.json` (a rebuild: the earlier package's `template`, `anchor`, `music_track`,
+`cover_layout` and `package_archive`) keeps each of them unless `--exclude` names that
+kind or it no longer holds: not among the candidates above any more (a retired anchor, a
+template or track that no longer fits the script or the channel's enabled platforms), or
+taken by a video that reached or may still reach the feed since, the earlier package
+itself aside. That kind alone is then picked as above, and `notes` says why.
 
 ## Running things
 
@@ -384,6 +413,7 @@ next pass can regenerate or replace them deliberately).
 `studio build --script <script.json> --channel <id> [--channels-dir <dir>]
 [--template <dir-or-id>] [--assets <dir>] [--tts kokoro|stub]
 [--music-file <file>] [--music-track <id>] [--cover-layout bottom|top]
+[--images openrouter [--reuse-from <dir>] [--redraw <names>]] [--note <text>]
 --out <dir>` turns a
 `newsroom/contracts/script.schema.json` document into a self-contained
 `newsroom/contracts/video_package.schema.json` package: `video.mp4`,
@@ -510,6 +540,8 @@ check fails. Each check is a function registered under a fixed `id` with
 | `video_matches_keyframes` | each keyframe PNG against the video frame with the same number, per 4×4 cell: no cell's mean difference above `max_keyframe_cell_diff` (`studio/config.json`) |
 | `no_black_frames` | ffmpeg `blackdetect` (whole picture black, `pic_th=1.0`): no black frame anywhere; an unreadable video fails |
 | `disclosures` | `ai_voice`, `ai_visuals` true and `ai_label` true for every enabled platform |
+| `picture_fallback` | no neutral card stands in for a picture (`images.scenes[].fallback`), except on a picture `--redraw` named; the note lists each card and what its attempts found |
+| `picture_fallback_redrawn` | no neutral card on a picture `--redraw` named: drawing it again didn't help (fix owner Script: `newsroom/tools/stage_report.py`) |
 | `loudness` | integrated loudness (EBU R128, ffmpeg `ebur128`) of `video.mp4` and `video_no_music.mp4`, measured on the encoded files: −14 ± 1 LUFS (channel policy, `studio/constants.py`, not a setting) |
 | `true_peak` | true peak of both files ≤ −1 dBTP (`constants.MAX_TRUE_PEAK_DBTP`) |
 | `silence` | ffmpeg `silencedetect`: no stretch below −50 dB longer than 1.5 s in either file (`constants.SILENCE_THRESHOLD_DB`, `MAX_SILENCE_S`) |
