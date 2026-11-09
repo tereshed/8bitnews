@@ -193,6 +193,14 @@ func (h *handler) handleYouTubePublicationForget(w http.ResponseWriter, r *http.
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *handler) handleReleaseHoldLift(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.ReleaseHold(r.Context(), r.PathValue("release_id")); err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *handler) handleReleaseHold(w http.ResponseWriter, r *http.Request) {
 	req, err := decodeJSON[struct {
 		Reason string `json:"reason"`

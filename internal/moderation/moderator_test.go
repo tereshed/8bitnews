@@ -106,15 +106,17 @@ func (f *fakeTelegram) byMethod(method string) []call {
 
 // fakeStore keeps one release in memory.
 type fakeStore struct {
-	mu          sync.Mutex
-	failChannel bool
-	channelData string
-	release     store.Release
-	checks      []store.PublicationCheck
-	overdue     []string
-	carded      int64
-	note        string
-	events      []map[string]any
+	mu            sync.Mutex
+	failChannel   bool
+	channelData   string
+	release       store.Release
+	checks        []store.PublicationCheck
+	overdue       []string
+	stalled       []store.StalledUpload
+	uploadAlerted []string
+	carded        int64
+	note          string
+	events        []map[string]any
 }
 
 func (s *fakeStore) ClaimReleaseForCard(context.Context, time.Duration) (store.Release, bool, error) {

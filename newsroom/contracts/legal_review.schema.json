@@ -107,7 +107,7 @@
         "type": "string",
         "minLength": 1
       },
-      "description": "Instructions for the moderator and the publisher at release (no paid promotion, platform AI flags, cover frame): not issues, they block nothing"
+      "description": "Instructions for the publisher at release, carried out with no one to ask (no paid promotion, platform AI flags, cover frame): not issues. A note starting with `СТОП:` names a checkable fact that holds the release"
     },
     "final_checks": {
       "type": "array",

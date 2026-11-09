@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/subtle"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -22,11 +23,12 @@ const maxRequestBodyBytes = 5 << 20 // 5 MiB
 // (a video's sources at /s/, a channel's videos at /c/; nil: none) and the
 // admin page at /admin, which has its own login (nil: none). apiKeys
 // is the set of accepted bearer tokens (task E1 §4); empty means no key
-// will ever be accepted. When requireMetricsAuth is true, /metrics is
+// will ever be accepted. publisherKey alone opens the publishing routes;
+// empty leaves them shut. When requireMetricsAuth is true, /metrics is
 // mounted here behind the same bearer-key auth as every other route; when
 // false, the caller is serving /metrics unauthenticated on a separate
 // address instead (HUB_METRICS_ADDR), so it is not mounted here at all.
-func NewRouter(svc *service.Service, mcpHandler, pages, admin http.Handler, metrics *observability.Metrics, logger *slog.Logger, apiKeys map[string]bool, requireMetricsAuth bool) http.Handler {
+func NewRouter(svc *service.Service, mcpHandler, pages, admin http.Handler, metrics *observability.Metrics, logger *slog.Logger, apiKeys map[string]bool, publisherKey string, requireMetricsAuth bool) http.Handler {
 	h := &handler{svc: svc, log: logger}
 
 	mux := http.NewServeMux()
@@ -44,11 +46,15 @@ func NewRouter(svc *service.Service, mcpHandler, pages, admin http.Handler, metr
 	mux.HandleFunc("POST /api/v1/media/download-url", h.handleMediaDownloadURL)
 	mux.HandleFunc("POST /api/v1/releases", h.handleReleaseSubmit)
 	mux.HandleFunc("GET /api/v1/releases/{release_id}", h.handleReleaseGet)
-	mux.HandleFunc("GET /api/v1/publishing/queue", h.handlePublishQueue)
-	mux.HandleFunc("POST /api/v1/releases/{release_id}/slot", h.handleReleaseSlot)
-	mux.HandleFunc("PUT /api/v1/releases/{release_id}/youtube", h.handleYouTubePublicationSet)
-	mux.HandleFunc("DELETE /api/v1/releases/{release_id}/youtube", h.handleYouTubePublicationForget)
-	mux.HandleFunc("POST /api/v1/releases/{release_id}/hold", h.handleReleaseHold)
+	// The publishing routes take the publisher's key only: the pipeline's agents
+	// read web pages and hold the other one.
+	publisher := func(next http.HandlerFunc) http.HandlerFunc { return requirePublisher(publisherKey, next) }
+	mux.HandleFunc("GET /api/v1/publishing/queue", publisher(h.handlePublishQueue))
+	mux.HandleFunc("POST /api/v1/publishing/releases/{release_id}/slot", publisher(h.handleReleaseSlot))
+	mux.HandleFunc("PUT /api/v1/publishing/releases/{release_id}/youtube", publisher(h.handleYouTubePublicationSet))
+	mux.HandleFunc("DELETE /api/v1/publishing/releases/{release_id}/youtube", publisher(h.handleYouTubePublicationForget))
+	mux.HandleFunc("POST /api/v1/publishing/releases/{release_id}/hold", publisher(h.handleReleaseHold))
+	mux.HandleFunc("DELETE /api/v1/publishing/releases/{release_id}/hold", publisher(h.handleReleaseHoldLift))
 	mux.Handle("/mcp", mcpHandler)
 
 	authed := requireAPIKey(apiKeys, mux, "/healthz")
@@ -105,4 +111,16 @@ func requireAPIKey(apiKeys map[string]bool, next http.Handler, exempt ...string)
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// requirePublisher lets through only the publisher's key.
+func requirePublisher(key string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if key == "" || subtle.ConstantTimeCompare([]byte(got), []byte(key)) != 1 {
+			writeErrorMessage(w, http.StatusForbidden, "this route takes the publisher's key")
+			return
+		}
+		next(w, r)
+	}
 }

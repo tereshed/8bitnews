@@ -13,7 +13,7 @@ import (
 
 func TestTheAdminPageHasItsOwnLogin(t *testing.T) {
 	admin := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("admin")) })
-	router := api.NewRouter(nil, http.NotFoundHandler(), nil, admin, observability.NewMetrics(), slog.Default(), map[string]bool{"k": true}, true)
+	router := api.NewRouter(nil, http.NotFoundHandler(), nil, admin, observability.NewMetrics(), slog.Default(), map[string]bool{"k": true}, "", true)
 	for path, want := range map[string]int{
 		"/admin":                      http.StatusOK,
 		"/admin/r/x":                  http.StatusOK,
@@ -41,7 +41,7 @@ func TestTheAdminPageHasItsOwnLogin(t *testing.T) {
 
 func TestThePublicPagesNeedNoKey(t *testing.T) {
 	pages := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("page " + r.URL.Path)) })
-	router := api.NewRouter(nil, http.NotFoundHandler(), pages, nil, observability.NewMetrics(), slog.Default(), map[string]bool{"k": true}, true)
+	router := api.NewRouter(nil, http.NotFoundHandler(), pages, nil, observability.NewMetrics(), slog.Default(), map[string]bool{"k": true}, "", true)
 	for path, want := range map[string]int{
 		"/s/f874ebb1a0":                 http.StatusOK,
 		"/c/8bitnews-us":                http.StatusOK,
@@ -69,5 +69,39 @@ func TestThePublicPagesNeedNoKey(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if body := rec.Body.String(); !strings.Contains(body, `route="GET /s/"`) || strings.Contains(body, "f874ebb1a0") {
 		t.Errorf("metrics:\n%s", body)
+	}
+}
+
+// The pipeline's agents read web pages and hold the ordinary key: it must not
+// open the routes that decide what goes out. The handlers are never reached in
+// the refused cases, so a nil service is enough.
+func TestThePublishingRoutesTakeOnlyThePublishersKey(t *testing.T) {
+	routes := []struct{ method, path string }{
+		{http.MethodGet, "/api/v1/publishing/queue"},
+		{http.MethodPost, "/api/v1/publishing/releases/x/slot"},
+		{http.MethodPut, "/api/v1/publishing/releases/x/youtube"},
+		{http.MethodDelete, "/api/v1/publishing/releases/x/youtube"},
+		{http.MethodPost, "/api/v1/publishing/releases/x/hold"},
+		{http.MethodDelete, "/api/v1/publishing/releases/x/hold"},
+	}
+	for _, publisherKey := range []string{"publisher", ""} {
+		keys := map[string]bool{"k": true}
+		if publisherKey != "" {
+			keys[publisherKey] = true
+		}
+		router := api.NewRouter(nil, http.NotFoundHandler(), nil, nil, observability.NewMetrics(), slog.Default(), keys, publisherKey, true)
+		for _, r := range routes {
+			for key, want := range map[string]int{"k": http.StatusForbidden, "": http.StatusUnauthorized, "nope": http.StatusUnauthorized} {
+				req := httptest.NewRequest(r.method, r.path, nil)
+				if key != "" {
+					req.Header.Set("Authorization", "Bearer "+key)
+				}
+				rec := httptest.NewRecorder()
+				router.ServeHTTP(rec, req)
+				if rec.Code != want {
+					t.Errorf("publisher key %q: %s %s with key %q: %d, want %d", publisherKey, r.method, r.path, key, rec.Code, want)
+				}
+			}
+		}
 	}
 }

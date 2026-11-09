@@ -18,6 +18,10 @@ const (
 	publicationCheckEvery = 2 * time.Minute
 	// YouTube flips a scheduled video within minutes; past this the group is told.
 	publicationOverdueAfter = 30 * time.Minute
+	// News goes stale: a card this old stays with a person, whatever the channel says.
+	autoApproveMaxAge = 48 * time.Hour
+	// The uploader takes minutes; past this nobody is uploading, and the group is told.
+	uploadStallAfter = 6 * time.Hour
 )
 
 // SetVideoCheck makes hub look at the platform to learn when a video is up.
@@ -41,7 +45,7 @@ func (m *Moderator) AutoApprove(ctx context.Context) {
 			m.log.Error("moderation: reading the channel of a release", "release_id", r.ID, "error", err)
 			continue
 		}
-		if publish.ApprovalRequired(ch) {
+		if publish.ApprovalRequired(ch) || time.Since(r.CreatedAt) > autoApproveMaxAge {
 			continue
 		}
 		approved, changed, err := m.store.DecideRelease(ctx, r.ID, "approved", store.AutoApprover)
@@ -65,7 +69,7 @@ func (m *Moderator) AutoApprove(ctx context.Context) {
 }
 
 const autoApprovedReply = "🤖 Одобрено автоматически: на этом канале подтверждение выключено. Ролик встанет в ближайший слот. " +
-	"Остановить — «🚫 Закрыть страницу источников»."
+	"Чтобы он не вышел — «🚫 Закрыть страницу источников»; если он уже в расписании, его ещё надо снять в Studio."
 
 // CheckPublications moves a release to "published" once its video is up, and
 // tells the group once if a video hasn't gone up after its slot.
@@ -82,6 +86,10 @@ func (m *Moderator) CheckPublications(ctx context.Context) {
 		visible, known := m.videoVisible(ctx, c.URL)
 		switch {
 		case !known:
+		case c.Status != "approved" || c.Held:
+			if visible && !c.OverdueAlerted {
+				m.alert(ctx, c, "⚠️ Ролик вышел, хотя релиз закрыт или задержан. Его надо снять: "+c.URL, "out_while_closed")
+			}
 		case visible:
 			m.markLive(ctx, c)
 		case c.PublishAt != nil && !c.OverdueAlerted && time.Since(*c.PublishAt) > publicationOverdueAfter:
@@ -115,8 +123,12 @@ func (m *Moderator) markLive(ctx context.Context, c store.PublicationCheck) {
 }
 
 func (m *Moderator) alertOverdue(ctx context.Context, c store.PublicationCheck) {
-	text := fmt.Sprintf("⚠️ Ролик не вышел: слот был %s UTC, а YouTube его не показывает. %s",
-		c.PublishAt.UTC().Format("02.01 15:04"), c.URL)
+	m.alert(ctx, c, fmt.Sprintf("⚠️ Ролик не вышел: слот был %s UTC, а YouTube его не показывает. %s",
+		c.PublishAt.UTC().Format("02.01 15:04"), c.URL), "overdue")
+}
+
+// alert tells the group about a video, once.
+func (m *Moderator) alert(ctx context.Context, c store.PublicationCheck, text, action string) {
 	var cardID int64
 	if c.CardMessageID != nil {
 		cardID = *c.CardMessageID
@@ -128,5 +140,30 @@ func (m *Moderator) alertOverdue(ctx context.Context, c store.PublicationCheck) 
 	if err := m.store.MarkPublicationOverdue(ctx, c.ReleaseID, store.PlatformYouTube); err != nil {
 		m.log.Error("moderation: marking a video overdue failed", "release_id", c.ReleaseID, "error", err)
 	}
-	m.event(ctx, map[string]any{"release_id": c.ReleaseID, "action": "overdue", "url": c.URL})
+	m.event(ctx, map[string]any{"release_id": c.ReleaseID, "action": action, "url": c.URL})
+}
+
+// CheckStalledUploads tells the group, once per video, that a video has been
+// waiting for its upload for too long: whoever uploads isn't working.
+func (m *Moderator) CheckStalledUploads(ctx context.Context) {
+	stalled, err := m.store.StalledUploads(ctx, time.Now().Add(-uploadStallAfter))
+	if err != nil {
+		m.log.Error("moderation: listing stalled uploads", "error", err)
+		return
+	}
+	for _, u := range stalled {
+		var cardID int64
+		if u.CardMessageID != nil {
+			cardID = *u.CardMessageID
+		}
+		text := fmt.Sprintf("⚠️ Ролик ждёт загрузки с %s UTC. Похоже, загрузчик не работает.", u.ApprovedAt.UTC().Format("02.01 15:04"))
+		if _, err := m.tg.SendMessage(ctx, m.chatID, text, cardID, nil); err != nil {
+			m.log.Error("moderation: telling the group about a stalled upload failed", "release_id", u.ReleaseID, "error", err)
+			continue
+		}
+		if err := m.store.MarkUploadAlerted(ctx, u.ReleaseID); err != nil {
+			m.log.Error("moderation: marking a stalled upload failed", "release_id", u.ReleaseID, "error", err)
+		}
+		m.event(ctx, map[string]any{"release_id": u.ReleaseID, "action": "upload_stalled"})
+	}
 }

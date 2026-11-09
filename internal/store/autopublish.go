@@ -70,11 +70,13 @@ func collectReleases(rows pgx.Rows) ([]Release, error) {
 }
 
 // ToUnschedule is a video standing in YouTube's schedule whose release has
-// since been closed: it goes out at its slot unless someone takes it down.
+// since been closed or held: it goes out at its slot unless someone takes it
+// down.
 type ToUnschedule struct {
 	ReleaseID string
 	ChannelID string
 	Status    string
+	Hold      string
 	URL       string
 	PublishAt time.Time
 }
@@ -82,11 +84,11 @@ type ToUnschedule struct {
 // ReleasesToUnschedule returns the videos that must come off the schedule.
 func (s *Store) ReleasesToUnschedule(ctx context.Context) ([]ToUnschedule, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT r.id, r.channel_id, r.status, p.url, sl.publish_at
+		SELECT r.id, r.channel_id, r.status, r.publish_hold, p.url, sl.publish_at
 		FROM releases r
 		JOIN release_publications p ON p.release_id = r.id AND p.platform = $1
 		JOIN release_slots sl ON sl.release_id = r.id
-		WHERE r.status IN ('rejected', 'changes_requested', 'failed') AND sl.publish_at > now()
+		WHERE (r.status IN ('rejected', 'changes_requested', 'failed') OR r.publish_hold <> '') AND sl.publish_at > now()
 		ORDER BY sl.publish_at ASC
 	`, PlatformYouTube)
 	if err != nil {
@@ -96,7 +98,7 @@ func (s *Store) ReleasesToUnschedule(ctx context.Context) ([]ToUnschedule, error
 	var out []ToUnschedule
 	for rows.Next() {
 		var u ToUnschedule
-		if err := rows.Scan(&u.ReleaseID, &u.ChannelID, &u.Status, &u.URL, &u.PublishAt); err != nil {
+		if err := rows.Scan(&u.ReleaseID, &u.ChannelID, &u.Status, &u.Hold, &u.URL, &u.PublishAt); err != nil {
 			return nil, fmt.Errorf("scanning a video to take off the schedule: %w", err)
 		}
 		out = append(out, u)
@@ -116,6 +118,15 @@ func (s *Store) ReserveSlot(ctx context.Context, releaseID, channelID string, no
 	}
 	if err != nil && !errors.Is(mapNotFound(err), ErrNotFound) {
 		return time.Time{}, fmt.Errorf("reading the slot of release %s: %w", releaseID, err)
+	}
+	// A closed release with nothing on the platform gives its time back.
+	if _, err := s.pool.Exec(ctx, `
+		DELETE FROM release_slots sl USING releases r
+		WHERE sl.release_id = r.id AND sl.channel_id = $1
+		  AND r.status IN ('rejected', 'changes_requested', 'failed')
+		  AND NOT EXISTS (SELECT 1 FROM release_publications p WHERE p.release_id = r.id)
+	`, channelID); err != nil {
+		return time.Time{}, fmt.Errorf("freeing the slots of channel %s: %w", channelID, err)
 	}
 	for attempt := 0; attempt < slotAttempts; attempt++ {
 		taken, err := s.takenSlots(ctx, channelID, notBefore)
@@ -204,22 +215,28 @@ func (s *Store) SetPublishHold(ctx context.Context, releaseID, reason string) er
 // PublicationCheck is a video whose going up hub still has to see.
 type PublicationCheck struct {
 	ReleaseID      string
+	Status         string
+	Held           bool
 	URL            string
 	CardMessageID  *int64
 	PublishAt      *time.Time // nil: uploaded without a slot recorded
 	OverdueAlerted bool
 }
 
-// PublicationsToCheck returns the approved releases with a YouTube link that
-// hub hasn't yet seen go up and whose slot, if any, has come.
+// PublicationsToCheck returns the videos to look at on the platform: those of
+// approved releases hub hasn't yet seen go up, once their slot has come, and
+// for a day after its slot, those of closed releases, which must not go up.
 func (s *Store) PublicationsToCheck(ctx context.Context) ([]PublicationCheck, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT r.id, p.url, r.moderation_message_id, sl.publish_at, p.overdue_alerted_at IS NOT NULL
+		SELECT r.id, r.status, r.publish_hold <> '', p.url, r.moderation_message_id, sl.publish_at, p.overdue_alerted_at IS NOT NULL
 		FROM release_publications p
 		JOIN releases r ON r.id = p.release_id
 		LEFT JOIN release_slots sl ON sl.release_id = r.id
-		WHERE p.platform = $1 AND r.status = 'approved' AND p.live_at IS NULL
+		WHERE p.platform = $1 AND p.live_at IS NULL
 		  AND (sl.publish_at IS NULL OR sl.publish_at <= now())
+		  AND (r.status = 'approved'
+		       OR (r.status IN ('rejected', 'changes_requested', 'failed') AND p.overdue_alerted_at IS NULL
+		           AND sl.publish_at > now() - interval '1 day'))
 		ORDER BY r.created_at ASC
 	`, PlatformYouTube)
 	if err != nil {
@@ -229,12 +246,88 @@ func (s *Store) PublicationsToCheck(ctx context.Context) ([]PublicationCheck, er
 	var out []PublicationCheck
 	for rows.Next() {
 		var c PublicationCheck
-		if err := rows.Scan(&c.ReleaseID, &c.URL, &c.CardMessageID, &c.PublishAt, &c.OverdueAlerted); err != nil {
+		if err := rows.Scan(&c.ReleaseID, &c.Status, &c.Held, &c.URL, &c.CardMessageID, &c.PublishAt, &c.OverdueAlerted); err != nil {
 			return nil, fmt.Errorf("scanning a publication to check: %w", err)
 		}
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+// StalledUpload is an automatic approval nobody has uploaded in time.
+type StalledUpload struct {
+	ReleaseID     string
+	CardMessageID *int64
+	ApprovedAt    time.Time
+}
+
+// StalledUploads returns what has stood in the publish queue since before
+// `before`, and that the group hasn't been told about.
+func (s *Store) StalledUploads(ctx context.Context, before time.Time) ([]StalledUpload, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, moderation_message_id, moderated_at FROM releases
+		WHERE status = 'approved' AND moderated_by = $1 AND publish_hold = '' AND upload_alerted_at IS NULL
+		  AND moderated_at < $3 AND $2 = ANY (allowed_platforms)
+		  AND NOT EXISTS (SELECT 1 FROM release_publications p WHERE p.release_id = releases.id AND p.platform = $2)
+		ORDER BY created_at ASC
+	`, AutoApprover, PlatformYouTube, before)
+	if err != nil {
+		return nil, fmt.Errorf("listing stalled uploads: %w", err)
+	}
+	defer rows.Close()
+	var out []StalledUpload
+	for rows.Next() {
+		var u StalledUpload
+		if err := rows.Scan(&u.ReleaseID, &u.CardMessageID, &u.ApprovedAt); err != nil {
+			return nil, fmt.Errorf("scanning a stalled upload: %w", err)
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// MarkUploadAlerted records that the group has been told an upload stalled.
+func (s *Store) MarkUploadAlerted(ctx context.Context, releaseID string) error {
+	if _, err := s.pool.Exec(ctx, `UPDATE releases SET upload_alerted_at = now() WHERE id = $1`, releaseID); err != nil {
+		return fmt.Errorf("marking the upload of release %s stalled: %w", releaseID, err)
+	}
+	return nil
+}
+
+// SlotOf returns the time a release holds, or nil.
+func (s *Store) SlotOf(ctx context.Context, releaseID string) (*time.Time, error) {
+	var at time.Time
+	err := s.pool.QueryRow(ctx, `SELECT publish_at FROM release_slots WHERE release_id = $1`, releaseID).Scan(&at)
+	if errors.Is(mapNotFound(err), ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading the slot of release %s: %w", releaseID, err)
+	}
+	return &at, nil
+}
+
+// PublishHold returns why a release is held back, or "".
+func (s *Store) PublishHold(ctx context.Context, releaseID string) (string, error) {
+	var reason string
+	err := s.pool.QueryRow(ctx, `SELECT publish_hold FROM releases WHERE id = $1`, releaseID).Scan(&reason)
+	if err != nil {
+		return "", fmt.Errorf("reading the hold of release %s: %w", releaseID, mapNotFound(err))
+	}
+	return reason, nil
+}
+
+// PublicationOwner returns the release a link on a platform is recorded for, or "".
+func (s *Store) PublicationOwner(ctx context.Context, platform, url string) (string, error) {
+	var id string
+	err := s.pool.QueryRow(ctx, `SELECT release_id FROM release_publications WHERE platform = $1 AND url = $2 LIMIT 1`, platform, url).Scan(&id)
+	if errors.Is(mapNotFound(err), ErrNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("looking up the %s link %s: %w", platform, url, err)
+	}
+	return id, nil
 }
 
 // MarkPublicationOverdue records that the group has been told a video didn't

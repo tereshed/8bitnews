@@ -26,13 +26,27 @@ FROM releases r
 WHERE r.id = p.release_id AND r.status = 'published';
 -- +goose StatementEnd
 
+-- A release a moderator took back with «↩️» before this migration stays back.
 -- +goose StatementBegin
-ALTER TABLE releases ADD COLUMN publish_hold text NOT NULL DEFAULT '';
+UPDATE release_publications p SET live_at = now()
+WHERE p.live_at IS NULL AND EXISTS (
+    SELECT 1 FROM events e
+    WHERE e.kind = 'moderation' AND e.data ->> 'action' = 'unpublished'
+      AND e.data ->> 'release_id' = p.release_id::text
+);
+-- +goose StatementEnd
+
+-- +goose StatementBegin
+ALTER TABLE releases
+    ADD COLUMN publish_hold      text NOT NULL DEFAULT '',
+    ADD COLUMN upload_alerted_at timestamptz;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-ALTER TABLE releases DROP COLUMN IF EXISTS publish_hold;
+ALTER TABLE releases
+    DROP COLUMN IF EXISTS upload_alerted_at,
+    DROP COLUMN IF EXISTS publish_hold;
 -- +goose StatementEnd
 
 -- +goose StatementBegin

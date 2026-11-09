@@ -20,6 +20,10 @@ const slotLead = 45 * time.Minute
 // setByAPI signs a link recorded through the API, in release_publications.
 const setByAPI = "api"
 
+// queueMaxAge is how long after its submission a video may go out by itself.
+// News goes stale: a video the slots can't reach by then isn't given one.
+const queueMaxAge = 72 * time.Hour
+
 var youtubeVideoID = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
 
 // PublishQueueItem is one upload to make: the package a moderator used to get
@@ -39,14 +43,18 @@ type PublishQueueItem struct {
 	Warnings     []string  `json:"warnings"`
 	Notes        []string  `json:"notes"`
 	PublishNotes []string  `json:"publish_notes"`
+	// PublishAt: an earlier attempt booked this time, and may have got as far
+	// as YouTube without recording it. Look in Studio before uploading again.
+	PublishAt *time.Time `json:"publish_at,omitempty"`
 }
 
 // UnscheduleItem is a video to take off YouTube's schedule: its release has
-// been closed, and it would go out at its slot.
+// been closed or held, and it would go out at its slot.
 type UnscheduleItem struct {
 	ReleaseID string    `json:"release_id"`
 	ChannelID string    `json:"channel_id"`
 	Status    string    `json:"status"`
+	Hold      string    `json:"hold,omitempty"`
 	URL       string    `json:"url"`
 	PublishAt time.Time `json:"publish_at"`
 }
@@ -77,7 +85,7 @@ func (s *Service) PublishQueue(ctx context.Context) (PublishQueueResponse, error
 	}
 	for _, u := range closed {
 		resp.Unschedule = append(resp.Unschedule, UnscheduleItem{
-			ReleaseID: u.ReleaseID, ChannelID: u.ChannelID, Status: u.Status, URL: u.URL, PublishAt: u.PublishAt,
+			ReleaseID: u.ReleaseID, ChannelID: u.ChannelID, Status: u.Status, Hold: u.Hold, URL: u.URL, PublishAt: u.PublishAt,
 		})
 	}
 	return resp, nil
@@ -126,6 +134,9 @@ func (s *Service) publishQueueItem(ctx context.Context, r store.Release) (Publis
 		return item, fmt.Errorf("decoding the legal review of release %s: %w", r.ID, err)
 	}
 	item.PublishNotes = legal.PublishNotes
+	if item.PublishAt, err = s.store.SlotOf(ctx, r.ID); err != nil {
+		return item, err
+	}
 	return item, nil
 }
 
@@ -136,7 +147,7 @@ type ReleaseSlotResponse struct {
 	TimeZone  string    `json:"time_zone"`
 }
 
-func (s *Service) approvedRelease(ctx context.Context, rawID string, also ...string) (store.Release, error) {
+func (s *Service) releaseForPublishing(ctx context.Context, rawID string) (store.Release, error) {
 	id, err := parseID("release_id", rawID)
 	if err != nil {
 		return store.Release{}, err
@@ -145,26 +156,26 @@ func (s *Service) approvedRelease(ctx context.Context, rawID string, also ...str
 	if errors.Is(err, store.ErrNotFound) {
 		return r, notFoundf("release %q not found", id)
 	}
-	if err != nil {
-		return r, err
-	}
-	if r.Status == "approved" {
-		return r, nil
-	}
-	for _, status := range also {
-		if r.Status == status {
-			return r, nil
-		}
-	}
-	return r, conflictf("release %s is %s, not approved", id, r.Status)
+	return r, err
 }
 
 // ReserveReleaseSlot books the release's time on its channel's schedule. The
 // same release asking again keeps its time, unless that is too close by now.
+// It refuses a release that is held, and one too old by the time a slot is free.
 func (s *Service) ReserveReleaseSlot(ctx context.Context, releaseID string) (ReleaseSlotResponse, error) {
-	r, err := s.approvedRelease(ctx, releaseID)
+	r, err := s.releaseForPublishing(ctx, releaseID)
 	if err != nil {
 		return ReleaseSlotResponse{}, err
+	}
+	if r.Status != "approved" {
+		return ReleaseSlotResponse{}, conflictf("release %s is %s, not approved", r.ID, r.Status)
+	}
+	hold, err := s.store.PublishHold(ctx, r.ID)
+	if err != nil {
+		return ReleaseSlotResponse{}, err
+	}
+	if hold != "" {
+		return ReleaseSlotResponse{}, conflictf("release %s is held: %s", r.ID, hold)
 	}
 	ch, err := s.store.GetChannel(ctx, r.ChannelID)
 	if err != nil {
@@ -176,7 +187,14 @@ func (s *Service) ReserveReleaseSlot(ctx context.Context, releaseID string) (Rel
 	}
 	notBefore := time.Now().Add(slotLead)
 	at, err := s.store.ReserveSlot(ctx, r.ID, r.ChannelID, notBefore, func(taken map[int64]bool) (time.Time, error) {
-		return publish.NextSlot(notBefore, ch.Timezone, slots, taken)
+		at, err := publish.NextSlot(notBefore, ch.Timezone, slots, taken)
+		if err != nil {
+			return at, err
+		}
+		if at.After(r.CreatedAt.Add(queueMaxAge)) {
+			return at, conflictf("release %s is too old: the next free slot is %s, past %s of its submission", r.ID, at.UTC().Format(time.RFC3339), queueMaxAge)
+		}
+		return at, nil
 	})
 	if err != nil {
 		return ReleaseSlotResponse{}, err
@@ -200,16 +218,40 @@ type YouTubePublicationRequest struct {
 }
 
 // SetYouTubePublication records where a release's video is. Hub then watches
-// it and moves the release to "published" when it is up.
+// it: it moves the release to "published" when the video is up. A release
+// closed while its upload was under way is recorded too, or nobody would know
+// a video stands in the schedule for it.
 func (s *Service) SetYouTubePublication(ctx context.Context, releaseID string, req YouTubePublicationRequest) error {
 	if !youtubeVideoID.MatchString(req.VideoID) {
 		return invalidf("video_id %q is not a YouTube video id", req.VideoID)
 	}
-	r, err := s.approvedRelease(ctx, releaseID, "published")
+	r, err := s.releaseForPublishing(ctx, releaseID)
 	if err != nil {
 		return err
 	}
+	switch r.Status {
+	case "submitted", "pending_approval":
+		return conflictf("release %s is %s: nothing decided yet", r.ID, r.Status)
+	}
+	allowed := false
+	for _, p := range r.AllowedPlatforms {
+		allowed = allowed || p == store.PlatformYouTube
+	}
+	if !allowed {
+		return conflictf("Legal didn't let release %s onto YouTube", r.ID)
+	}
+	url := "https://www.youtube.com/shorts/" + req.VideoID
+	owner, err := s.store.PublicationOwner(ctx, store.PlatformYouTube, url)
+	if err != nil {
+		return err
+	}
+	if owner != "" && owner != r.ID {
+		return conflictf("video %s is recorded for release %s", req.VideoID, owner)
+	}
 	if req.PublishAt != nil {
+		if req.PublishAt.Before(time.Now()) {
+			return invalidf("publish_at %s has passed", req.PublishAt.UTC().Format(time.RFC3339))
+		}
 		err := s.store.SetSlot(ctx, r.ID, r.ChannelID, *req.PublishAt)
 		if errors.Is(err, store.ErrSlotTaken) {
 			return conflictf("another release of channel %s holds %s", r.ChannelID, req.PublishAt.UTC().Format(time.RFC3339))
@@ -218,7 +260,7 @@ func (s *Service) SetYouTubePublication(ctx context.Context, releaseID string, r
 			return err
 		}
 	}
-	return s.store.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, "https://www.youtube.com/shorts/"+req.VideoID, setByAPI)
+	return s.store.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, url, setByAPI)
 }
 
 // ForgetYouTubePublication drops a release's link and slot: the video is off
@@ -238,13 +280,27 @@ func (s *Service) ForgetYouTubePublication(ctx context.Context, releaseID string
 }
 
 // HoldRelease keeps a release out of the publish queue for a reason: what
-// Legal said to stop on has happened. An empty reason lets it back in.
+// Legal said to stop on has happened. A video already scheduled goes to the
+// list of those to take off the schedule.
 func (s *Service) HoldRelease(ctx context.Context, releaseID, reason string) error {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return invalidf("a hold needs a reason")
+	}
+	return s.setHold(ctx, releaseID, reason)
+}
+
+// ReleaseHold lets a held release back into the queue.
+func (s *Service) ReleaseHold(ctx context.Context, releaseID string) error {
+	return s.setHold(ctx, releaseID, "")
+}
+
+func (s *Service) setHold(ctx context.Context, releaseID, reason string) error {
 	id, err := parseID("release_id", releaseID)
 	if err != nil {
 		return err
 	}
-	err = s.store.SetPublishHold(ctx, id, strings.TrimSpace(reason))
+	err = s.store.SetPublishHold(ctx, id, reason)
 	if errors.Is(err, store.ErrNotFound) {
 		return notFoundf("release %q not found", id)
 	}

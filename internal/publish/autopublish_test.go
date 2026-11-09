@@ -35,7 +35,7 @@ func TestNextSlot(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := func(y int, m time.Month, d, h, min int) time.Time { return time.Date(y, m, d, h, min, 0, 0, ny) }
-	slots := []string{"18:00", "12:00"} // the order in the profile doesn't matter
+	slots := []string{"18:00", "12:00"} // the main slot first
 
 	cases := []struct {
 		name      string
@@ -43,15 +43,15 @@ func TestNextSlot(t *testing.T) {
 		taken     []time.Time
 		want      time.Time
 	}{
-		{"the first of the day", at(2026, 11, 9, 8, 0), nil, at(2026, 11, 9, 12, 0)},
-		{"exactly at a slot counts", at(2026, 11, 9, 12, 0), nil, at(2026, 11, 9, 12, 0)},
-		{"later the same day", at(2026, 11, 9, 12, 1), nil, at(2026, 11, 9, 18, 0)},
-		{"tomorrow", at(2026, 11, 9, 18, 1), nil, at(2026, 11, 10, 12, 0)},
-		{"skips a taken slot", at(2026, 11, 9, 8, 0), []time.Time{at(2026, 11, 9, 12, 0)}, at(2026, 11, 9, 18, 0)},
-		{"a full day moves on", at(2026, 11, 9, 8, 0), []time.Time{at(2026, 11, 9, 12, 0), at(2026, 11, 9, 18, 0)}, at(2026, 11, 10, 12, 0)},
-		{"across the end of a month", at(2026, 11, 30, 19, 0), nil, at(2026, 12, 1, 12, 0)},
-		// Clocks went back on 1 Nov 2026: 12:00 local stays 12:00 local.
-		{"over the clock change", at(2026, 10, 31, 19, 0), nil, at(2026, 11, 1, 12, 0)},
+		{"the main slot, even with an earlier one free", at(2026, 11, 9, 8, 0), nil, at(2026, 11, 9, 18, 0)},
+		{"exactly at a slot counts", at(2026, 11, 9, 18, 0), nil, at(2026, 11, 9, 18, 0)},
+		{"the second slot once the main one is taken", at(2026, 11, 9, 8, 0), []time.Time{at(2026, 11, 9, 18, 0)}, at(2026, 11, 9, 12, 0)},
+		{"never one already gone", at(2026, 11, 9, 13, 0), []time.Time{at(2026, 11, 9, 18, 0)}, at(2026, 11, 10, 18, 0)},
+		{"tomorrow", at(2026, 11, 9, 18, 1), nil, at(2026, 11, 10, 18, 0)},
+		{"a full day moves on", at(2026, 11, 9, 8, 0), []time.Time{at(2026, 11, 9, 12, 0), at(2026, 11, 9, 18, 0)}, at(2026, 11, 10, 18, 0)},
+		{"across the end of a month", at(2026, 11, 30, 19, 0), nil, at(2026, 12, 1, 18, 0)},
+		// Clocks went back on 1 Nov 2026: 18:00 local stays 18:00 local.
+		{"over the clock change", at(2026, 10, 31, 19, 0), nil, at(2026, 11, 1, 18, 0)},
 	}
 	for _, c := range cases {
 		taken := map[int64]bool{}

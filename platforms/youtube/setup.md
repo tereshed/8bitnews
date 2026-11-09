@@ -49,8 +49,8 @@ purpose: Инструкция владельцу: как настроить ка
   > 8BitNews explains developing news stories in about a minute: what's new, what's known, how opinions split
   > at home and abroad, and what is still unknown. Every video is built from multiple sources, listed in its
   > description. Scripts are written with AI, narration is a synthetic AI voice and visuals are AI-generated pixel
-  > art; real people are shown as stylized illustrations. AI agents check each video against its sources before it
-  > goes out; no person reviews it first.
+  > art; real people are shown as stylized illustrations. AI agents check each script against a dossier of sources and
+  > review the finished video; no person reviews it before it is published.
   > Independent: no funding from parties, campaigns or governments. Corrections: {corrections email}
 
 **Настройки → Параметры загрузки по умолчанию**

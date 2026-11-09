@@ -31,6 +31,20 @@ func (s *fakeStore) MarkPublicationOverdue(_ context.Context, id, _ string) erro
 	return nil
 }
 
+func (s *fakeStore) StalledUploads(context.Context, time.Time) ([]store.StalledUpload, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.stalled, nil
+}
+
+func (s *fakeStore) MarkUploadAlerted(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.uploadAlerted = append(s.uploadAlerted, id)
+	s.stalled = nil
+	return nil
+}
+
 const autoChannel = `{"moderation":{"approval_required":false}}`
 
 func cardID(id int64) *int64 { return &id }
@@ -39,6 +53,7 @@ func TestAutoApproveApprovesOnAChannelWithoutModeration(t *testing.T) {
 	m, tg, st, _ := newBot(t, "pending_approval")
 	st.channelData = autoChannel
 	st.release.Moderation.MessageID = cardID(77)
+	st.release.CreatedAt = time.Now()
 
 	m.AutoApprove(context.Background())
 
@@ -68,6 +83,7 @@ func TestAutoApproveLeavesThePersonInPlace(t *testing.T) {
 		m, tg, st, _ := newBot(t, "pending_approval")
 		st.channelData = data
 		st.release.Moderation.MessageID = cardID(77)
+		st.release.CreatedAt = time.Now()
 		m.AutoApprove(context.Background())
 		if st.release.Status != "pending_approval" {
 			t.Errorf("%s: release = %s", name, st.release.Status)
@@ -83,6 +99,7 @@ func TestAutoApproveStopsWhenTheChannelCantBeRead(t *testing.T) {
 	st.channelData = autoChannel
 	st.failChannel = true
 	st.release.Moderation.MessageID = cardID(77)
+	st.release.CreatedAt = time.Now()
 	m.AutoApprove(context.Background())
 	if st.release.Status != "pending_approval" {
 		t.Errorf("approved with the channel unreadable: %s", st.release.Status)
@@ -92,7 +109,7 @@ func TestAutoApproveStopsWhenTheChannelCantBeRead(t *testing.T) {
 func TestCheckPublicationsMarksAVideoThatIsUp(t *testing.T) {
 	m, tg, st, _ := newBot(t, "approved")
 	slot := time.Now().Add(-time.Minute)
-	st.checks = []store.PublicationCheck{{ReleaseID: release, URL: "https://www.youtube.com/shorts/abcdefghijk", CardMessageID: cardID(77), PublishAt: &slot}}
+	st.checks = []store.PublicationCheck{{ReleaseID: release, Status: "approved", URL: "https://www.youtube.com/shorts/abcdefghijk", CardMessageID: cardID(77), PublishAt: &slot}}
 	m.SetVideoCheck(func(context.Context, string) (bool, bool) { return true, true })
 
 	m.CheckPublications(context.Background())
@@ -108,7 +125,7 @@ func TestCheckPublicationsMarksAVideoThatIsUp(t *testing.T) {
 
 func TestCheckPublicationsIsQuietAboutAVideoFromBeforeSlots(t *testing.T) {
 	m, tg, st, _ := newBot(t, "approved")
-	st.checks = []store.PublicationCheck{{ReleaseID: release, URL: "https://www.youtube.com/shorts/abcdefghijk", CardMessageID: cardID(77)}}
+	st.checks = []store.PublicationCheck{{ReleaseID: release, Status: "approved", URL: "https://www.youtube.com/shorts/abcdefghijk", CardMessageID: cardID(77)}}
 	m.SetVideoCheck(func(context.Context, string) (bool, bool) { return true, true })
 
 	m.CheckPublications(context.Background())
@@ -127,7 +144,7 @@ func TestCheckPublicationsAlertsOnceWhenAVideoMissesItsSlot(t *testing.T) {
 	hidden := func(context.Context, string) (bool, bool) { return false, true }
 	m.SetVideoCheck(hidden)
 
-	st.checks = []store.PublicationCheck{{ReleaseID: release, URL: "u", CardMessageID: cardID(77), PublishAt: &soon}}
+	st.checks = []store.PublicationCheck{{ReleaseID: release, Status: "approved", URL: "u", CardMessageID: cardID(77), PublishAt: &soon}}
 	m.CheckPublications(context.Background())
 	if sent := tg.byMethod("sendMessage"); len(sent) != 0 {
 		t.Errorf("alerted before giving YouTube time: %+v", sent)
@@ -153,10 +170,70 @@ func TestCheckPublicationsAlertsOnceWhenAVideoMissesItsSlot(t *testing.T) {
 func TestCheckPublicationsWaitsWhenYouTubeDoesntAnswer(t *testing.T) {
 	m, tg, st, _ := newBot(t, "approved")
 	long := time.Now().Add(-2 * publicationOverdueAfter)
-	st.checks = []store.PublicationCheck{{ReleaseID: release, URL: "u", CardMessageID: cardID(77), PublishAt: &long}}
+	st.checks = []store.PublicationCheck{{ReleaseID: release, Status: "approved", URL: "u", CardMessageID: cardID(77), PublishAt: &long}}
 	m.SetVideoCheck(func(context.Context, string) (bool, bool) { return false, false })
 	m.CheckPublications(context.Background())
 	if st.release.Status != "approved" || len(tg.byMethod("sendMessage")) != 0 {
 		t.Errorf("acted without an answer: %s, %+v", st.release.Status, tg.byMethod("sendMessage"))
+	}
+}
+
+func TestAutoApproveLeavesAnOldCardToAPerson(t *testing.T) {
+	m, tg, st, _ := newBot(t, "pending_approval")
+	st.channelData = autoChannel
+	st.release.Moderation.MessageID = cardID(77)
+	st.release.CreatedAt = time.Now().Add(-autoApproveMaxAge - time.Hour)
+	m.AutoApprove(context.Background())
+	if st.release.Status != "pending_approval" || len(tg.byMethod("sendMessage")) != 0 {
+		t.Errorf("a stale card was approved: %s", st.release.Status)
+	}
+}
+
+func TestCheckPublicationsAlertsWhenAClosedOrHeldVideoGoesOut(t *testing.T) {
+	slot := time.Now().Add(-time.Minute)
+	for name, row := range map[string]store.PublicationCheck{
+		"withdrawn": {ReleaseID: release, Status: "rejected", URL: "https://www.youtube.com/shorts/abcdefghijk", CardMessageID: cardID(77), PublishAt: &slot},
+		"held":      {ReleaseID: release, Status: "approved", Held: true, URL: "https://www.youtube.com/shorts/abcdefghijk", CardMessageID: cardID(77), PublishAt: &slot},
+	} {
+		m, tg, st, _ := newBot(t, row.Status)
+		st.checks = []store.PublicationCheck{row}
+		m.SetVideoCheck(func(context.Context, string) (bool, bool) { return false, true })
+		m.CheckPublications(context.Background())
+		if len(tg.byMethod("sendMessage")) != 0 {
+			t.Errorf("%s: alerted while it stays down", name)
+		}
+
+		m.SetVideoCheck(func(context.Context, string) (bool, bool) { return true, true })
+		m.CheckPublications(context.Background())
+		sent := tg.byMethod("sendMessage")
+		if len(sent) != 1 || !strings.Contains(sent[0].params["text"].(string), "снять") || len(st.overdue) != 1 {
+			t.Fatalf("%s: alert: %+v, marked %v", name, sent, st.overdue)
+		}
+		if st.release.Status != row.Status {
+			t.Errorf("%s: release moved to %s", name, st.release.Status)
+		}
+
+		st.checks[0].OverdueAlerted = true
+		m.CheckPublications(context.Background())
+		if sent := tg.byMethod("sendMessage"); len(sent) != 1 {
+			t.Errorf("%s: alerted twice: %d", name, len(sent))
+		}
+	}
+}
+
+func TestCheckStalledUploadsTellsTheGroupOnce(t *testing.T) {
+	m, tg, st, _ := newBot(t, "approved")
+	st.stalled = []store.StalledUpload{{ReleaseID: release, CardMessageID: cardID(77), ApprovedAt: time.Now().Add(-7 * time.Hour)}}
+	m.CheckStalledUploads(context.Background())
+	sent := tg.byMethod("sendMessage")
+	if len(sent) != 1 || !strings.Contains(sent[0].params["text"].(string), "загрузчик") {
+		t.Fatalf("alert: %+v", sent)
+	}
+	if len(st.uploadAlerted) != 1 {
+		t.Errorf("not recorded: %v", st.uploadAlerted)
+	}
+	m.CheckStalledUploads(context.Background())
+	if sent := tg.byMethod("sendMessage"); len(sent) != 1 {
+		t.Errorf("told twice: %d", len(sent))
 	}
 }

@@ -300,8 +300,9 @@ lr = schema("legal_review",
      "summary_ru": {"type": "string", "minLength": 20, "description": "For the human moderator, Russian, <= 80 words"},
      "checked_against": {"type": "array", "minItems": 1, "items": str1},
      "publish_notes": {"type": "array", "items": str1,
-                       "description": "Instructions for the moderator and the publisher at release (no paid promotion, "
-                                      "platform AI flags, cover frame): not issues, they block nothing"},
+                       "description": "Instructions for the publisher at release, carried out with no one to ask (no paid "
+                                      "promotion, platform AI flags, cover frame): not issues. A note starting with "
+                                      "`СТОП:` names a checkable fact that holds the release"},
      "final_checks": {"type": "array", "items": str1,
                       "description": "script mode: what only the rendered video can show and Legal final must verify "
                                      "(plates rendered, track, cover): not issues, they block nothing"},

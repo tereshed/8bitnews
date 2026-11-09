@@ -114,7 +114,7 @@ func runServe(_ []string) {
 	// for deployments that scrape it from a private network interface.
 	requireMetricsAuth := cfg.MetricsAddr == ""
 	pages := publish.NewPages(st, pub, logger)
-	router := api.NewRouter(svc, mcpHandler, pages, adminPage, metrics, logger, cfg.APIKeys, requireMetricsAuth)
+	router := api.NewRouter(svc, mcpHandler, pages, adminPage, metrics, logger, cfg.APIKeys, cfg.PublisherAPIKey, requireMetricsAuth)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

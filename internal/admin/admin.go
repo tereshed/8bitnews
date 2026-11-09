@@ -307,13 +307,15 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, id Identity) {
 	}
 	h.checkVideos(ctx, rows)
 
-	var decide, upload, confirm, live []row
+	var decide, auto, upload, confirm, live []row
 	for _, x := range rows {
 		switch x.Status {
 		case "submitted", "pending_approval":
 			decide = append(decide, x)
 		case "approved":
-			if x.YouTubeURL == "" {
+			if x.ModeratedBy == store.AutoApprover {
+				auto = append(auto, x)
+			} else if x.YouTubeURL == "" {
 				upload = append(upload, x) // a barred one says so there
 			} else {
 				confirm = append(confirm, x)
@@ -326,8 +328,9 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, id Identity) {
 	}
 	for _, s := range []section{
 		{Title: "Решить", Hint: "Посмотреть ролик и одобрить, вернуть или отклонить.", Rows: decide},
+		{Title: "Уходят сами", Hint: "Подтверждение на канале выключено: ролик встаёт в расписание и отмечается вышедшим без вас.", Rows: auto},
 		{Title: "Загрузить на YouTube", Hint: "Одобрены. После загрузки вставьте ссылку.", Rows: upload},
-		{Title: "Подтвердить выход", Hint: "Ссылка есть. Когда ролик вышел в Public, нажмите «Вышел»: он появится в списке канала.", Rows: confirm},
+		{Title: "Подтвердить выход", Hint: "Ссылка есть. Hub сам отметит выход, когда увидит ролик на YouTube; кнопка «Вышел» — чтобы не ждать.", Rows: confirm},
 		{Title: "Вышли", Rows: live},
 	} {
 		if len(s.Rows) > 0 {

@@ -2,10 +2,13 @@ package service_test
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/tereshed/8bitnews/internal/service"
 	"github.com/tereshed/8bitnews/internal/store"
 )
 
@@ -225,5 +228,282 @@ func TestReleasesToUnscheduleAreClosedReleasesBeforeTheirSlot(t *testing.T) {
 	}
 	if url, err := st.PublicationURL(ctx, r.ID, store.PlatformYouTube); err != nil || url != "" {
 		t.Errorf("the link stayed: %q, %v", url, err)
+	}
+}
+
+func TestHeldVideoInTheScheduleIsToBeTakenDown(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "held-a")
+	approve(t, st, r.ID, store.AutoApprover)
+	if err := st.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, "https://www.youtube.com/shorts/abcdefghijk", "api"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetSlot(ctx, r.ID, r.ChannelID, time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetPublishHold(ctx, r.ID, "the vote is out"); err != nil {
+		t.Fatal(err)
+	}
+	list, err := st.ReleasesToUnschedule(ctx)
+	if err != nil || len(list) != 1 || list[0].ReleaseID != r.ID || list[0].Hold != "the vote is out" {
+		t.Fatalf("to unschedule = %+v, %v", list, err)
+	}
+}
+
+func TestClosedReleasesGiveTheirSlotBackUnlessTheVideoStandsInTheSchedule(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Second)
+	slot := now.Add(2 * time.Hour)
+	first := func(taken map[int64]bool) (time.Time, error) {
+		if taken[slot.Unix()] {
+			return slot.Add(time.Hour), nil
+		}
+		return slot, nil
+	}
+	a := seedRelease(t, st, "giveback")
+	approve(t, st, a.ID, store.AutoApprover)
+	if got, err := st.ReserveSlot(ctx, a.ID, a.ChannelID, now, first); err != nil || !got.Equal(slot) {
+		t.Fatalf("reserving: %v, %v", got, err)
+	}
+	if _, _, err := st.WithdrawRelease(ctx, a.ID, "Kostya"); err != nil {
+		t.Fatal(err)
+	}
+	b := seedRelease(t, st, "giveback")
+	approve(t, st, b.ID, store.AutoApprover)
+	if got, err := st.ReserveSlot(ctx, b.ID, b.ChannelID, now, first); err != nil || !got.Equal(slot) {
+		t.Errorf("the withdrawn release's time wasn't given back: %v, %v", got, err)
+	}
+
+	// Its video is on YouTube for that time: this one keeps it.
+	if err := st.SetPublicationURL(ctx, b.ID, store.PlatformYouTube, "https://www.youtube.com/shorts/abcdefghijk", "api"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.WithdrawRelease(ctx, b.ID, "Kostya"); err != nil {
+		t.Fatal(err)
+	}
+	c := seedRelease(t, st, "giveback")
+	approve(t, st, c.ID, store.AutoApprover)
+	if got, err := st.ReserveSlot(ctx, c.ID, c.ChannelID, now, first); err != nil || !got.Equal(slot.Add(time.Hour)) {
+		t.Errorf("took the time of a video still scheduled: %v, %v", got, err)
+	}
+}
+
+func TestStalledUploadsAndClosedVideosAfterTheirSlot(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "stall-a")
+	approve(t, st, r.ID, store.AutoApprover)
+	stalled, err := st.StalledUploads(ctx, time.Now().Add(time.Minute))
+	if err != nil || len(stalled) != 1 || stalled[0].ReleaseID != r.ID {
+		t.Fatalf("stalled = %+v, %v", stalled, err)
+	}
+	if none, err := st.StalledUploads(ctx, time.Now().Add(-time.Hour)); err != nil || len(none) != 0 {
+		t.Errorf("a fresh approval counted as stalled: %+v, %v", none, err)
+	}
+	if err := st.MarkUploadAlerted(ctx, r.ID); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := st.StalledUploads(ctx, time.Now().Add(time.Minute)); err != nil || len(again) != 0 {
+		t.Errorf("told twice: %+v, %v", again, err)
+	}
+
+	// A closed release's video is watched after its slot, and once alerted, no more.
+	if err := st.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, "https://www.youtube.com/shorts/abcdefghijk", "api"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetSlot(ctx, r.ID, r.ChannelID, time.Now().Add(-time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.WithdrawRelease(ctx, r.ID, "Kostya"); err != nil {
+		t.Fatal(err)
+	}
+	checks, err := st.PublicationsToCheck(ctx)
+	if err != nil || len(checks) != 1 || checks[0].Status != "rejected" {
+		t.Fatalf("closed video not watched: %+v, %v", checks, err)
+	}
+	if err := st.MarkPublicationOverdue(ctx, r.ID, store.PlatformYouTube); err != nil {
+		t.Fatal(err)
+	}
+	if checks, err := st.PublicationsToCheck(ctx); err != nil || len(checks) != 0 {
+		t.Errorf("watched after the alert: %+v, %v", checks, err)
+	}
+}
+
+func publishingService(t *testing.T, st *store.Store, channelID string, slots string) *service.Service {
+	t.Helper()
+	ctx := context.Background()
+	if err := st.UpsertChannel(ctx, store.Channel{
+		ID: channelID, CountryCC: "zz", Name: "Test Channel", Language: "en-US", Timezone: "UTC",
+		Platforms: []byte(`{"youtube":{"enabled":true}}`), Format: []byte(`{}`), FormatMD: "# Test format",
+		Data: []byte(`{"schedule":{"publish_slots":` + slots + `}}`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return service.New(service.Deps{Store: st, Media: newTestMedia(t)})
+}
+
+func isKind(err error, kind service.Kind) bool {
+	var e *service.Error
+	return errors.As(err, &e) && e.Kind == kind
+}
+
+func TestSetYouTubePublicationRules(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	a := seedRelease(t, st, "pub-rules")
+	svc := publishingService(t, st, "pub-rules", `["18:00"]`)
+	soon := time.Now().Add(time.Hour).Truncate(time.Second)
+
+	if err := svc.SetYouTubePublication(ctx, a.ID, service.YouTubePublicationRequest{VideoID: "abcdefghijk"}); !isKind(err, service.KindConflict) {
+		t.Errorf("before any decision: %v", err)
+	}
+	approve(t, st, a.ID, store.AutoApprover)
+	if err := svc.SetYouTubePublication(ctx, a.ID, service.YouTubePublicationRequest{VideoID: "too-short"}); !isKind(err, service.KindInvalid) {
+		t.Errorf("a bad id: %v", err)
+	}
+	past := time.Now().Add(-time.Hour)
+	if err := svc.SetYouTubePublication(ctx, a.ID, service.YouTubePublicationRequest{VideoID: "abcdefghijk", PublishAt: &past}); !isKind(err, service.KindInvalid) {
+		t.Errorf("a time gone by: %v", err)
+	}
+	if err := svc.SetYouTubePublication(ctx, a.ID, service.YouTubePublicationRequest{VideoID: "abcdefghijk", PublishAt: &soon}); err != nil {
+		t.Fatalf("a good one: %v", err)
+	}
+
+	b := seedRelease(t, st, "pub-rules")
+	publishingService(t, st, "pub-rules", `["18:00"]`)
+	approve(t, st, b.ID, store.AutoApprover)
+	if err := svc.SetYouTubePublication(ctx, b.ID, service.YouTubePublicationRequest{VideoID: "abcdefghijk"}); !isKind(err, service.KindConflict) {
+		t.Errorf("one video on two releases: %v", err)
+	}
+	if err := svc.SetYouTubePublication(ctx, b.ID, service.YouTubePublicationRequest{VideoID: "bbbbbbbbbbb", PublishAt: &soon}); !isKind(err, service.KindConflict) {
+		t.Errorf("one time on two releases: %v", err)
+	}
+
+	// Closed while the upload was under way: recorded, so it can be taken down.
+	c := seedRelease(t, st, "pub-rules")
+	publishingService(t, st, "pub-rules", `["18:00"]`)
+	approve(t, st, c.ID, store.AutoApprover)
+	if _, _, err := st.WithdrawRelease(ctx, c.ID, "Kostya"); err != nil {
+		t.Fatal(err)
+	}
+	later := soon.Add(time.Hour)
+	if err := svc.SetYouTubePublication(ctx, c.ID, service.YouTubePublicationRequest{VideoID: "ccccccccccc", PublishAt: &later}); err != nil {
+		t.Fatalf("closed mid-upload: %v", err)
+	}
+	queue, err := svc.PublishQueue(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, u := range queue.Unschedule {
+		found = found || u.ReleaseID == c.ID
+	}
+	if !found {
+		t.Errorf("a video closed mid-upload isn't to be taken down: %+v", queue.Unschedule)
+	}
+}
+
+func TestSetYouTubePublicationRespectsLegal(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	seedChannel(t, st, "pub-barred")
+	story, err := st.CreateStory(ctx, "pub-barred", "A story", "n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dev, err := st.CreateDevelopment(ctx, story.ID, "A turn", time.Now(), json.RawMessage(`[]`), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := st.CreateRelease(ctx, store.NewReleaseParams{DevelopmentID: dev.ID, ChannelID: "pub-barred", ArmID: "default",
+		Media: []byte(`{"video":"releases/x/video.mp4"}`), AllowedPlatforms: []string{"tiktok"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	approve(t, st, r.ID, store.AutoApprover)
+	if queueHas(t, st, r.ID) {
+		t.Error("a release barred from YouTube is in the queue")
+	}
+	svc := publishingService(t, st, "pub-barred", `["18:00"]`)
+	if err := svc.SetYouTubePublication(ctx, r.ID, service.YouTubePublicationRequest{VideoID: "abcdefghijk"}); !isKind(err, service.KindConflict) {
+		t.Errorf("a link on a barred release: %v", err)
+	}
+}
+
+func TestReserveReleaseSlotRefusals(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "slot-rules")
+	svc := publishingService(t, st, "slot-rules", `["18:00", "12:00"]`)
+
+	if _, err := svc.ReserveReleaseSlot(ctx, r.ID); !isKind(err, service.KindConflict) {
+		t.Errorf("before approval: %v", err)
+	}
+	approve(t, st, r.ID, store.AutoApprover)
+	if err := svc.HoldRelease(ctx, r.ID, "  "); !isKind(err, service.KindInvalid) {
+		t.Errorf("a hold with no reason: %v", err)
+	}
+	if err := svc.HoldRelease(ctx, r.ID, "the vote is out"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ReserveReleaseSlot(ctx, r.ID); !isKind(err, service.KindConflict) {
+		t.Errorf("a held release: %v", err)
+	}
+	if err := svc.ReleaseHold(ctx, r.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.ReserveReleaseSlot(ctx, r.ID)
+	if err != nil {
+		t.Fatalf("a good one: %v", err)
+	}
+	if got.PublishAt.Before(time.Now().Add(40*time.Minute)) || got.Local == "" || got.TimeZone != "UTC" {
+		t.Errorf("slot = %+v", got)
+	}
+
+	// Older than the queue allows, with no slot in reach: no slot, and no booking.
+	old := seedRelease(t, st, "slot-rules")
+	publishingService(t, st, "slot-rules", `["18:00", "12:00"]`)
+	approve(t, st, old.ID, store.AutoApprover)
+	db, err := sql.Open("pgx", testDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err := db.ExecContext(ctx, `UPDATE releases SET created_at = now() - interval '10 days' WHERE id = $1`, old.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ReserveReleaseSlot(ctx, old.ID); !isKind(err, service.KindConflict) {
+		t.Errorf("a stale release: %v", err)
+	}
+	if at, err := st.SlotOf(ctx, old.ID); err != nil || at != nil {
+		t.Errorf("a stale release holds %v, %v", at, err)
+	}
+}
+
+func TestPublishingMigrationKeepsAModeratorsTakeBack(t *testing.T) {
+	// SetPublished is what settles the question from now on.
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "takeback")
+	approve(t, st, r.ID, "Kostya")
+	if err := st.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, "https://www.youtube.com/shorts/abcdefghijk", "x"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.SetPublished(ctx, r.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.SetPublished(ctx, r.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	checks, err := st.PublicationsToCheck(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range checks {
+		if c.ReleaseID == r.ID {
+			t.Errorf("hub would publish again what a moderator took back: %+v", c)
+		}
 	}
 }

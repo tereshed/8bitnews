@@ -3,7 +3,6 @@ package publish
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/tereshed/8bitnews/internal/store"
@@ -53,8 +52,10 @@ func PublishSlots(ch store.Channel) ([]string, error) {
 	return p.Schedule.PublishSlots, nil
 }
 
-// NextSlot is the earliest of the daily slots, in time zone tz, not before
-// notBefore and not in taken (Unix seconds).
+// NextSlot is the first free daily slot, in time zone tz, not before notBefore
+// and not in taken (Unix seconds). It goes day by day and, within a day, in the
+// order the profile lists them: the first is the channel's main slot, and a
+// later one is for the days with more than one video.
 func NextSlot(notBefore time.Time, tz string, slots []string, taken map[int64]bool) (time.Time, error) {
 	if tz == "" {
 		return time.Time{}, fmt.Errorf("the channel has no time zone")
@@ -72,7 +73,6 @@ func NextSlot(notBefore time.Time, tz string, slots []string, taken map[int64]bo
 			return time.Time{}, fmt.Errorf("publish slot %q: %w", s, err)
 		}
 	}
-	sort.Slice(parsed, func(i, j int) bool { return parsed[i].Before(parsed[j]) })
 	day := notBefore.In(loc)
 	for d := 0; d <= slotSearchDays; d++ {
 		for _, s := range parsed {
