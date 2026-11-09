@@ -9,8 +9,9 @@ timezone: America/New_York
 
 platforms:
   youtube:   { enabled: true, account: "@8BitNewsUS" }
-  tiktok:    { enabled: true, account: tbd }
-  instagram: { enabled: true, account: tbd }
+  # Владелец 09.11.2026: пока только YouTube. Аккаунтов TikTok и Instagram нет, Legal их правила не проверяет.
+  tiktok:    { enabled: false, account: tbd }
+  instagram: { enabled: false, account: tbd }
 
 schedule:
   # Запуски конвейера в PolyMaths (cron в timezone канала). Один запуск = один ролик.

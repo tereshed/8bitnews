@@ -33,8 +33,11 @@
 
 ## Команды
 
-Контентные исполнители используют Claude Code (`anthropic_oauth`, `claude-opus-5-5`, `high`). Уровень рассуждений также
-задан в `settings.code_backend_settings.env.DEVTEAM_AGENT_REASONING_EFFORT` для запуска в песочнице.
+Контентные исполнители используют Claude Code (`anthropic_oauth`). Профили (решение владельца 09.11.2026, экономия токенов):
+`producer` и `video_producer` запускают скрипты и работают на `claude-haiku-5-5`; те, кто собирает и пишет (`editor`,
+`fact_researcher`, `local_press_analyst`, `world_press_analyst`, `analyst`, `scriptwriter`), — `claude-opus-5-5`, `medium`;
+те, кто проверяет (`fact_checker`, `script_editor`, Legal, QA), — `claude-opus-5-5`, `high`. Уровень рассуждений также задан
+в `settings.code_backend_settings.env.DEVTEAM_AGENT_REASONING_EFFORT` для запуска в песочнице.
 
 Надёжность, очередь доработок, запуск расписаний и проверка готовности — [docs/automation.md](../docs/automation.md).
 
