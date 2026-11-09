@@ -33,6 +33,8 @@ editorial:
   # Снять после 29.11.2026: до выборов первые ролики идут без предвыборных тем (operator/legal.md#es-elections).
   topics_exclude:
     - "General election of 29 November 2026: candidates, party campaigns and programmes, electoral polls, voting procedure"
+    # Владелец 09.11.2026: ролики выходят без человека, а за обвинение отвечает оператор лично.
+    - "Stories whose point is an accusation against a named person or company that no court has decided: criminal charges, investigations, lawsuits, allegations of misconduct, even from officials or official documents"
 
 format:
   description: format.md
