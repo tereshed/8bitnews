@@ -25,15 +25,25 @@ class Session:
 
 def test_schedule_creation_uses_channel_timezone_and_is_repeatable():
     desired = automation.schedules(ROOT)
-    assert {s["timezone"] for s in desired} == {"Europe/Madrid", "America/New_York"}
+    assert {s["timezone"] for s in desired} == {"Europe/Madrid"}
     assert all(s["work_intent"] == "explanation" and s["team_id"] for s in desired)
     session = Session()
     automation.apply_schedules(session, desired)
     automation.apply_schedules(session, desired)
-    assert len(session.created) == len(desired) == 2
+    assert len(session.created) == len(desired) == 1
     session.existing[0] = dict(session.existing[0], cron_expression="0 8 * * *")
     with pytest.raises(ValueError, match="differs"):
         automation.apply_schedules(session, desired)
+
+
+def test_a_paused_channel_gets_no_schedule_and_its_switched_off_one_is_left_alone():
+    desired = automation.schedules(ROOT)
+    assert not [s for s in desired if "8bitnews-us" in s["name"]]
+    paused = {"name": "8bitnews/8bitnews-us/1", "is_active": False}
+    session = Session()
+    session.existing.append(paused)
+    automation.apply_schedules(session, desired)
+    assert paused in session.existing and paused not in session.created
 
 
 def test_active_without_artifacts_is_stalled_and_receipt_does_not_mean_published():
