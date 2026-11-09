@@ -162,7 +162,8 @@ func (s *Store) takenSlots(ctx context.Context, channelID string, from time.Time
 func (s *Store) SetSlot(ctx context.Context, releaseID, channelID string, at time.Time) error {
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO release_slots (release_id, channel_id, publish_at) VALUES ($1, $2, $3)
-		ON CONFLICT (release_id) DO UPDATE SET publish_at = EXCLUDED.publish_at, created_at = now()
+		ON CONFLICT (release_id) DO UPDATE SET publish_at = EXCLUDED.publish_at, created_at = now(),
+		    rechecked_at = CASE WHEN release_slots.publish_at = EXCLUDED.publish_at THEN release_slots.rechecked_at END
 	`, releaseID, channelID, at)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode {
@@ -174,32 +175,105 @@ func (s *Store) SetSlot(ctx context.Context, releaseID, channelID string, at tim
 	return nil
 }
 
-// ForgetPublication drops a release's link on a platform and its slot: the
-// video is off the schedule.
+// ForgetPublication drops a release's link on a platform, its slot and hub's
+// upload job: the video is off the schedule, and the next upload starts afresh.
 func (s *Store) ForgetPublication(ctx context.Context, releaseID, platform string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := forgetPublicationIn(ctx, tx, releaseID, platform); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func forgetPublicationIn(ctx context.Context, tx pgx.Tx, releaseID, platform string) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM release_publications WHERE release_id = $1 AND platform = $2`, releaseID, platform); err != nil {
 		return fmt.Errorf("forgetting the %s link of release %s: %w", platform, releaseID, err)
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM release_slots WHERE release_id = $1`, releaseID); err != nil {
 		return fmt.Errorf("freeing the slot of release %s: %w", releaseID, err)
 	}
-	return tx.Commit(ctx)
+	if _, err := tx.Exec(ctx, `DELETE FROM publish_jobs WHERE release_id = $1`, releaseID); err != nil {
+		return fmt.Errorf("forgetting the upload of release %s: %w", releaseID, err)
+	}
+	return nil
 }
+
+// ForgetIfOutOfPlay forgets a publication only if its release is still closed or
+// held, checked under the row's lock, so a hold lifted at this moment can't lose
+// the record of an upload that goes on. It reports false if the release is back
+// in play, and then changes nothing.
+func (s *Store) ForgetIfOutOfPlay(ctx context.Context, releaseID, platform string) (bool, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var status, hold string
+	err = tx.QueryRow(ctx, `SELECT status, publish_hold FROM releases WHERE id = $1 FOR UPDATE`, releaseID).Scan(&status, &hold)
+	if err != nil {
+		return false, fmt.Errorf("reading release %s: %w", releaseID, mapNotFound(err))
+	}
+	if status == "approved" && hold == "" {
+		return false, nil
+	}
+	if err := forgetPublicationIn(ctx, tx, releaseID, platform); err != nil {
+		return false, err
+	}
+	return true, tx.Commit(ctx)
+}
+
+// ForgetRefused forgets an upload YouTube refused, in one step with what follows
+// from it. Hub's own link goes, ownURL. If that leaves no link, the release is
+// held and its slot freed, since a hold that failed after a forget would have it
+// uploaded again. If a link someone else put there remains, its video is what
+// goes out: its slot stays, no hold, and it reports false.
+func (s *Store) ForgetRefused(ctx context.Context, releaseID, platform, ownURL, reason string) (bool, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `DELETE FROM release_publications WHERE release_id = $1 AND platform = $2 AND url = $3`, releaseID, platform, ownURL); err != nil {
+		return false, fmt.Errorf("forgetting the %s link of release %s: %w", platform, releaseID, err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM publish_jobs WHERE release_id = $1`, releaseID); err != nil {
+		return false, fmt.Errorf("forgetting the upload of release %s: %w", releaseID, err)
+	}
+	var another bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM release_publications WHERE release_id = $1 AND platform = $2)`, releaseID, platform).Scan(&another); err != nil {
+		return false, fmt.Errorf("reading the %s link of release %s: %w", platform, releaseID, err)
+	}
+	if another {
+		return false, tx.Commit(ctx)
+	}
+	if err := forgetPublicationIn(ctx, tx, releaseID, platform); err != nil {
+		return false, err
+	}
+	tag, err := tx.Exec(ctx, setHoldSQL, releaseID, reason)
+	if err != nil {
+		return false, fmt.Errorf("holding release %s: %w", releaseID, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return false, fmt.Errorf("holding release %s: %w", releaseID, ErrNotFound)
+	}
+	return true, tx.Commit(ctx)
+}
+
+const setHoldSQL = `
+	UPDATE releases
+	SET publish_hold = $2, updated_at = now(),
+	    hold_alerted_at = CASE WHEN publish_hold = $2 THEN hold_alerted_at END
+	WHERE id = $1
+`
 
 // SetPublishHold keeps a release out of the queue for a reason; an empty
 // reason lets it back in. A new reason is news to the group again.
 func (s *Store) SetPublishHold(ctx context.Context, releaseID, reason string) error {
-	tag, err := s.pool.Exec(ctx, `
-		UPDATE releases
-		SET publish_hold = $2, updated_at = now(),
-		    hold_alerted_at = CASE WHEN publish_hold = $2 THEN hold_alerted_at END
-		WHERE id = $1
-	`, releaseID, reason)
+	tag, err := s.pool.Exec(ctx, setHoldSQL, releaseID, reason)
 	if err != nil {
 		return fmt.Errorf("holding release %s: %w", releaseID, err)
 	}
@@ -258,6 +332,7 @@ func (s *Store) PublicationsToCheck(ctx context.Context) ([]PublicationCheck, er
 // held (Hold says why), or it has waited too long for its upload.
 type UploadAlert struct {
 	ReleaseID     string
+	ChannelID     string
 	CardMessageID *int64
 	ApprovedAt    time.Time
 	Hold          string
@@ -270,7 +345,7 @@ type UploadAlert struct {
 // held back, and those not held and with no link since before `before`.
 func (s *Store) UploadAlerts(ctx context.Context, before time.Time) ([]UploadAlert, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, moderation_message_id, moderated_at, publish_hold,
+		SELECT id, channel_id, moderation_message_id, moderated_at, publish_hold,
 		       EXISTS (SELECT 1 FROM release_publications p WHERE p.release_id = releases.id AND p.platform = $2)
 		       OR EXISTS (SELECT 1 FROM release_slots sl WHERE sl.release_id = releases.id)
 		FROM releases
@@ -287,7 +362,7 @@ func (s *Store) UploadAlerts(ctx context.Context, before time.Time) ([]UploadAle
 	var out []UploadAlert
 	for rows.Next() {
 		var u UploadAlert
-		if err := rows.Scan(&u.ReleaseID, &u.CardMessageID, &u.ApprovedAt, &u.Hold, &u.MayBeScheduled); err != nil {
+		if err := rows.Scan(&u.ReleaseID, &u.ChannelID, &u.CardMessageID, &u.ApprovedAt, &u.Hold, &u.MayBeScheduled); err != nil {
 			return nil, fmt.Errorf("scanning an upload alert: %w", err)
 		}
 		out = append(out, u)

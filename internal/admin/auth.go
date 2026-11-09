@@ -39,6 +39,8 @@ type claims struct {
 	Expiry int64  `json:"e"`
 	Nonce  string `json:"j,omitempty"`
 	Epoch  int    `json:"v,omitempty"`
+	// Channel: what a connect to YouTube is for (youtube_connect.go).
+	Channel string `json:"c,omitempty"`
 }
 
 // Auth issues and checks the signed tokens behind the admin page. There are

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -97,5 +98,35 @@ func TestCostsViewerKeyIsSeparateFromFeedbackWriteKey(t *testing.T) {
 	}
 	if cfg.Costs.APIKey != "viewer-key" || cfg.PolymathsWriteAPIKey != "writer-key" {
 		t.Fatal("viewer/write keys mixed")
+	}
+}
+
+func TestYouTubeConfigIsAllOrNone(t *testing.T) {
+	key := strings.Repeat("ab", 32)
+	for name, c := range map[string]struct {
+		id, secret, tokenKey, public string
+		ok, on                       bool
+	}{
+		"none":              {ok: true},
+		"all":               {id: "i", secret: "s", tokenKey: key, public: "https://hub.example.org", ok: true, on: true},
+		"no secret":         {id: "i", tokenKey: key, public: "https://hub.example.org"},
+		"no id":             {secret: "s", tokenKey: key, public: "https://hub.example.org"},
+		"no key":            {id: "i", secret: "s", public: "https://hub.example.org"},
+		"a short key":       {id: "i", secret: "s", tokenKey: "abcd", public: "https://hub.example.org"},
+		"not hex":           {id: "i", secret: "s", tokenKey: strings.Repeat("zz", 32), public: "https://hub.example.org"},
+		"no public address": {id: "i", secret: "s", tokenKey: key},
+	} {
+		t.Setenv("HUB_YOUTUBE_CLIENT_ID", c.id)
+		t.Setenv("HUB_YOUTUBE_CLIENT_SECRET", c.secret)
+		t.Setenv("HUB_YOUTUBE_TOKEN_KEY", c.tokenKey)
+		t.Setenv("HUB_PUBLIC_URL", c.public)
+		cfg, err := Load()
+		if (err == nil) != c.ok {
+			t.Errorf("%s: err = %v", name, err)
+			continue
+		}
+		if err == nil && cfg.YouTube.Enabled() != c.on {
+			t.Errorf("%s: enabled = %v", name, cfg.YouTube.Enabled())
+		}
 	}
 }

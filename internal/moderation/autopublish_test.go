@@ -282,7 +282,7 @@ func TestCheckUploadsTellsTheGroupOnce(t *testing.T) {
 }
 
 func TestAHoldReasonFitsATelegramMessageWhateverItsLength(t *testing.T) {
-	text := holdText(store.UploadAlert{Hold: strings.Repeat("🗳", 5000), MayBeScheduled: true})
+	text := holdText(store.UploadAlert{Hold: strings.Repeat("🗳", 5000), MayBeScheduled: true}, false)
 	if utf16Len(text) > messageLimit || !strings.Contains(text, "Studio") {
 		t.Errorf("%d units, limit %d", utf16Len(text), messageLimit)
 	}
@@ -302,5 +302,56 @@ func TestAnAutomaticCardHasNoPublishedButton(t *testing.T) {
 	text := fmt.Sprint(kb[0].params["reply_markup"])
 	if strings.Contains(text, "🟢") || !strings.Contains(text, "🚫") {
 		t.Errorf("keyboard: %s", text)
+	}
+}
+
+func TestWhatTheGroupIsToldDependsOnWhoTakesAVideoDown(t *testing.T) {
+	for _, c := range []struct {
+		name, text string
+		says, not  string
+	}{
+		{"withdrawn, browser", withdrawnReply("K", false), "снимите вручную", "hub попробует"},
+		{"withdrawn, hub", withdrawnReply("K", true), "hub попробует", "до слота"},
+		{"approved, browser", autoApprovedReply(false), "снять в Studio", "hub попробует"},
+		{"approved, hub", autoApprovedReply(true), "hub попробует", "Studio"},
+		{"held, browser", holdText(store.UploadAlert{Hold: "x", MayBeScheduled: true}, false), "снимите его в Studio", "hub попробует"},
+		{"held, hub", holdText(store.UploadAlert{Hold: "x", MayBeScheduled: true}, true), "hub попробует", "Studio"},
+		{"held, nothing up", holdText(store.UploadAlert{Hold: "x"}, true), "Сам он не выйдет", "снять"},
+	} {
+		if !strings.Contains(c.text, c.says) || strings.Contains(c.text, c.not) {
+			t.Errorf("%s: %q", c.name, c.text)
+		}
+	}
+}
+
+func TestAutoApprovalSaysWhoTakesAVideoDownOnThisChannel(t *testing.T) {
+	m, tg, st, _ := newBot(t, "pending_approval")
+	st.channelData = autoChannel
+	st.release.Moderation.MessageID = cardID(77)
+	st.release.CreatedAt = time.Now()
+	m.SetUploaderCheck(func(context.Context, string) bool { return true })
+	m.AutoApprove(context.Background())
+	if sent := tg.byMethod("sendMessage"); len(sent) != 1 || !strings.Contains(sent[0].params["text"].(string), "hub попробует") {
+		t.Errorf("sent %+v", sent)
+	}
+}
+
+func TestNotifyGoesOnTheCardWhenThereIsOne(t *testing.T) {
+	m, tg, _, _ := newBot(t, "approved")
+	if err := m.Notify(context.Background(), cardID(77), "uploaded"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Notify(context.Background(), nil, strings.Repeat("🗳", 5000)); err != nil {
+		t.Fatal(err)
+	}
+	sent := tg.byMethod("sendMessage")
+	if len(sent) != 2 || !strings.Contains(fmt.Sprint(sent[0].params["reply_parameters"]), "message_id:77") {
+		t.Fatalf("sent %+v", sent)
+	}
+	if _, onCard := sent[1].params["reply_parameters"]; onCard {
+		t.Errorf("no card, yet a reply: %+v", sent[1].params)
+	}
+	if utf16Len(sent[1].params["text"].(string)) > messageLimit {
+		t.Error("over Telegram's limit")
 	}
 }

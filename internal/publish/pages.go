@@ -58,6 +58,7 @@ func NewPages(st PageStore, cfg Config, log *slog.Logger) *Pages {
 	p.mux.HandleFunc("GET /s/{code}", p.sourcesPage)
 	p.mux.HandleFunc("GET /c/{channel_id}", p.channelPage)
 	p.mux.HandleFunc("GET /c/{channel_id}/costs", p.costsPage)
+	p.mux.HandleFunc("GET /privacy", p.privacyPage)
 	return p
 }
 
@@ -226,6 +227,7 @@ var sourcesTemplate = template.Must(template.New("sources").Parse(pageHead + `<t
 
 <h2>{{.T.Corrections}}</h2>
 <p>{{.T.NoCorrections}}{{if .Corrections}} {{.T.WriteTo}} {{.Corrections}}.{{end}}</p>
+<p><a href="/privacy">{{.T.Privacy}}</a></p>
 </main>
 </body>
 </html>
@@ -245,6 +247,7 @@ var indexTemplate = template.Must(template.New("index").Parse(pageHead + `<title
 </ul>
 {{if .Corrections}}<h2>{{.T.Corrections}}</h2>
 <p>{{.T.WriteTo}} {{.Corrections}}.</p>{{end}}
+<p><a href="/privacy">{{.T.Privacy}}</a></p>
 </main>
 </body>
 </html>

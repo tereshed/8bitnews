@@ -1,7 +1,8 @@
 // Package admin is the moderator's page in hub: every video of every channel
 // in one list, with what it needs next and the buttons to do it. It does what
 // the moderation card's buttons do, through the same bot, so the card and the
-// group stay up to date; uploads to the platforms are still by hand. Access is
+// group stay up to date, and it connects channels for hub's own uploads to
+// YouTube (youtube_connect.go). Access is
 // the group's administrators, by a login link from the bot (auth.go).
 package admin
 
@@ -49,6 +50,10 @@ type Store interface {
 	SetPublicationURL(ctx context.Context, releaseID, platform, url, by string) error
 	AdminSessionEpoch(ctx context.Context, userID int64) (int, error)
 	RaiseAdminSessionEpoch(ctx context.Context, userID int64) error
+	ListChannels(ctx context.Context) ([]store.Channel, error)
+	PlatformAccountOf(ctx context.Context, channelID, platform string) (store.PlatformAccount, error)
+	SetPlatformAccount(ctx context.Context, a store.PlatformAccount) error
+	DeletePlatformAccount(ctx context.Context, channelID, platform string) error
 }
 
 // Moderator is the bot: who may moderate, and decisions that reach the group.
@@ -80,6 +85,10 @@ type Deps struct {
 	// page loads images and video from.
 	MediaOrigin string
 	Log         *slog.Logger
+	// YouTube and Sealer connect channels so hub can upload to them itself.
+	// Nil: hub doesn't, and /admin/youtube says so.
+	YouTube Connector
+	Sealer  Sealer
 }
 
 // Handler serves /admin.
@@ -106,6 +115,9 @@ func New(d Deps) *Handler {
 	h.mux.HandleFunc("POST /admin/r/{id}/act", h.sameOrigin(h.gate(h.act)))
 	h.mux.HandleFunc("POST /admin/r/{id}/link", h.sameOrigin(h.gate(h.setLink)))
 	h.mux.HandleFunc("GET /admin/media/{id}/{kind}", h.gate(h.media))
+	h.mux.HandleFunc("GET /admin/youtube", h.gate(h.youtubeList))
+	h.mux.HandleFunc("GET "+YouTubeCallbackPath, h.gate(h.youtubeCallback))
+	h.mux.HandleFunc("POST /admin/youtube/{channel}/disconnect", h.sameOrigin(h.gate(h.youtubeDisconnect)))
 	return h
 }
 
@@ -265,6 +277,7 @@ type section struct {
 
 type listPage struct {
 	Who        string
+	YouTubeOn  bool
 	Flash      string
 	FlashBad   bool
 	Tabs       []tab
@@ -298,7 +311,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, id Identity) {
 		return
 	}
 	channel := r.URL.Query().Get("channel")
-	page := listPage{Who: id.Name, Tabs: h.tabs(releases, progress, channel)}
+	page := listPage{Who: id.Name, YouTubeOn: h.YouTube != nil, Tabs: h.tabs(releases, progress, channel)}
 	page.Flash, page.FlashBad = flashText(r.URL.Query().Get("msg"))
 
 	rows := make([]row, 0, len(releases))
@@ -382,7 +395,10 @@ func (h *Handler) rowOf(rel store.AdminRelease) row {
 	}
 	x.Barred = !contains(rel.AllowedPlatforms, store.PlatformYouTube)
 	x.Allowed = strings.Join(rel.AllowedPlatforms, ", ")
-	x.AutoPublishes = rel.Status == "approved" && rel.ModeratedBy == store.AutoApprover && rel.PublishHold == "" && !x.Barred
+	// Once its slot has passed a video that should have gone out is a person's to
+	// look at, in the sections with the buttons.
+	slotPassed := rel.SlotAt != nil && !rel.SlotAt.After(h.now())
+	x.AutoPublishes = rel.Status == "approved" && rel.ModeratedBy == store.AutoApprover && rel.PublishHold == "" && !x.Barred && !slotPassed
 	x.NeedsLink = (rel.Status == "approved" || rel.Status == "published") && rel.YouTubeURL == "" && !x.Barred && !x.AutoPublishes
 	if rel.Status == "approved" || rel.Status == "published" {
 		x.Sources = h.Publish.SourcesPageURL(rel.ID)
@@ -558,7 +574,7 @@ func (h *Handler) act(w http.ResponseWriter, r *http.Request, id Identity) {
 		redirect(w, r, back, "need_reason")
 		return
 	}
-	_, changed, err := h.Moderator.Act(r.Context(), relID, action, id.Name, id.UserID, note)
+	rel, changed, err := h.Moderator.Act(r.Context(), relID, action, id.Name, id.UserID, note)
 	if err != nil {
 		h.fail(w, err)
 		return
@@ -567,7 +583,11 @@ func (h *Handler) act(w http.ResponseWriter, r *http.Request, id Identity) {
 		redirect(w, r, back, "already")
 		return
 	}
-	redirect(w, r, back, action)
+	msg := action
+	if action == "withdraw" && h.connected(r.Context(), rel.ChannelID) {
+		msg = "withdraw_connected"
+	}
+	redirect(w, r, back, msg)
 }
 
 func (h *Handler) setLink(w http.ResponseWriter, r *http.Request, id Identity) {
@@ -703,6 +723,22 @@ func flashText(code string) (string, bool) {
 		return "Записано: ролик не вышел. Страница источников остаётся открытой.", false
 	case "withdraw":
 		return "Страница источников закрыта. Сам ролик на площадках снимите вручную.", false
+	case "withdraw_connected":
+		return "Страница источников закрыта. Если ролик стоит в расписании YouTube, hub попробует снять его сам и напишет в группу, что вышло.", false
+	case "yt_connected":
+		return "Канал подключён: новые ролики hub загружает сам.", false
+	case "yt_disconnected":
+		return "Канал отключён: доступ hub отозван. Новые ролики ждут загрузки через API публикации, а уже стоящие в расписании выйдут, если не снять их в Studio.", false
+	case "yt_disconnected_keep":
+		return "Канал отключён, но Google не подтвердил отзыв доступа: проверьте страницу разрешений Google. Ролики, уже стоящие в расписании, выйдут, если не снять их в Studio.", true
+	case "yt_denied":
+		return "Доступ не выдан: ничего не изменилось.", true
+	case "yt_bad_state":
+		return "Ссылка на подключение устарела или не ваша. Попробуйте ещё раз.", true
+	case "yt_no_refresh":
+		return "Google не выдал постоянный доступ. Отзовите доступ на странице разрешений Google и подключите заново. Ничего не сохранено.", true
+	case "yt_failed":
+		return "Не получилось подключить канал, подробности в логах hub. Ничего не сохранено.", true
 	case "link_saved":
 		return "Ссылка сохранена.", false
 	case "need_reason":

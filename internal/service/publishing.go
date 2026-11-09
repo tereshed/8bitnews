@@ -65,30 +65,67 @@ type PublishQueueResponse struct {
 	Unschedule []UnscheduleItem   `json:"unschedule"`
 }
 
-// PublishQueue returns what to upload and what to take off the schedule.
+// PublishQueue returns what to upload and what to take off the schedule on the
+// channels hub doesn't take care of itself, so nobody races internal/publisher.
 func (s *Service) PublishQueue(ctx context.Context) (PublishQueueResponse, error) {
 	resp := PublishQueueResponse{Upload: []PublishQueueItem{}, Unschedule: []UnscheduleItem{}}
-	releases, err := s.store.PublishQueue(ctx)
+	connected, err := s.connectedChannels(ctx)
 	if err != nil {
 		return resp, err
 	}
-	for _, r := range releases {
-		item, err := s.publishQueueItem(ctx, r)
-		if err != nil {
-			return resp, err
+	items, err := s.UploadItems(ctx)
+	if err != nil {
+		return resp, err
+	}
+	for _, item := range items {
+		if !connected[item.ChannelID] {
+			resp.Upload = append(resp.Upload, item)
 		}
-		resp.Upload = append(resp.Upload, item)
 	}
 	closed, err := s.store.ReleasesToUnschedule(ctx)
 	if err != nil {
 		return resp, err
 	}
 	for _, u := range closed {
-		resp.Unschedule = append(resp.Unschedule, UnscheduleItem{
-			ReleaseID: u.ReleaseID, ChannelID: u.ChannelID, Status: u.Status, Hold: u.Hold, URL: u.URL, PublishAt: u.PublishAt,
-		})
+		if !connected[u.ChannelID] {
+			resp.Unschedule = append(resp.Unschedule, UnscheduleItem{
+				ReleaseID: u.ReleaseID, ChannelID: u.ChannelID, Status: u.Status, Hold: u.Hold, URL: u.URL, PublishAt: u.PublishAt,
+			})
+		}
 	}
 	return resp, nil
+}
+
+// UploadItems returns everything waiting to go up on YouTube, on every channel.
+func (s *Service) UploadItems(ctx context.Context) ([]PublishQueueItem, error) {
+	releases, err := s.store.PublishQueue(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]PublishQueueItem, 0, len(releases))
+	for _, r := range releases {
+		item, err := s.publishQueueItem(ctx, r)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func (s *Service) connectedChannels(ctx context.Context) (map[string]bool, error) {
+	connected := map[string]bool{}
+	if !s.uploaderOn {
+		return connected, nil
+	}
+	accounts, err := s.store.ConnectedAccounts(ctx, store.PlatformYouTube)
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range accounts {
+		connected[a.ChannelID] = true
+	}
+	return connected, nil
 }
 
 func (s *Service) publishQueueItem(ctx context.Context, r store.Release) (PublishQueueItem, error) {
@@ -181,13 +218,21 @@ func (s *Service) ReserveReleaseSlot(ctx context.Context, releaseID string) (Rel
 	if err != nil {
 		return ReleaseSlotResponse{}, fmt.Errorf("reading the channel of release %s: %w", r.ID, err)
 	}
-	slots, err := publish.PublishSlots(ch)
+	rules, err := publish.SlotRulesOf(ch)
 	if err != nil {
 		return ReleaseSlotResponse{}, err
 	}
+	var legal struct {
+		PublishNotes []string `json:"publish_notes"`
+	}
+	if err := json.Unmarshal(nonEmptyJSON(r.LegalReview), &legal); err != nil {
+		return ReleaseSlotResponse{}, fmt.Errorf("decoding the legal review of release %s: %w", r.ID, err)
+	}
+	// Nobody rechecks a stop condition after Legal: keep the wait short.
+	rules.Soonest = publish.HasStopNote(legal.PublishNotes)
 	notBefore := time.Now().Add(slotLead)
 	at, err := s.store.ReserveSlot(ctx, r.ID, r.ChannelID, notBefore, func(taken map[int64]bool) (time.Time, error) {
-		at, err := publish.NextSlot(notBefore, ch.Timezone, slots, taken)
+		at, err := publish.NextSlot(notBefore, ch.Timezone, rules, taken)
 		if err != nil {
 			return at, err
 		}

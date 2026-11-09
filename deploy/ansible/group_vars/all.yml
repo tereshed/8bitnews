@@ -81,3 +81,6 @@ hub_admin_user: bitnews
 hub_polymaths_url: "{{ lookup('env', 'HUB_POLYMATHS_URL') | default('https://polymaths.work/api/v1', true) }}"
 hub_polymaths_write_api_key: "{{ lookup('env', 'HUB_POLYMATHS_WRITE_API_KEY') | default('', true) }}"
 hub_publisher_api_key: "{{ lookup('env', 'HUB_PUBLISHER_API_KEY') | default('', true) }}"
+hub_youtube_client_id: "{{ lookup('env', 'HUB_YOUTUBE_CLIENT_ID') | default('', true) }}"
+hub_youtube_client_secret: "{{ lookup('env', 'HUB_YOUTUBE_CLIENT_SECRET') | default('', true) }}"
+hub_youtube_token_key: "{{ lookup('env', 'HUB_YOUTUBE_TOKEN_KEY') | default('', true) }}"

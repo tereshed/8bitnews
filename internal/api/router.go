@@ -63,6 +63,7 @@ func NewRouter(svc *service.Service, mcpHandler, pages, admin http.Handler, metr
 		if pages != nil {
 			public.Handle("GET /s/", pages)
 			public.Handle("GET /c/", pages)
+			public.Handle("GET /privacy", pages)
 		}
 		if admin != nil {
 			public.Handle("/admin", admin)

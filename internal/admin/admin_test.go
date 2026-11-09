@@ -32,6 +32,9 @@ type fakeStore struct {
 	setBy    string
 	epoch    int
 	story    string
+	account  *store.PlatformAccount
+	// channelPlatforms replaces the channel's platforms; empty: YouTube on.
+	channelPlatforms string
 }
 
 func (f *fakeStore) AdminSessionEpoch(context.Context, int64) (int, error) { return f.epoch, nil }
@@ -70,7 +73,10 @@ func (f *fakeStore) ListReleaseSources(context.Context, string) ([]store.Release
 	return []store.ReleaseSource{{URL: "https://example.com/a", Outlet: "Example", ArchiveURL: "https://web.archive.org/a"}, {URL: "https://example.com/b", Outlet: "Other"}}, nil
 }
 
-func (f *fakeStore) GetChannel(context.Context, string) (store.Channel, error) {
+func (f *fakeStore) GetChannel(_ context.Context, id string) (store.Channel, error) {
+	if f.channelPlatforms != "" {
+		return store.Channel{ID: id, Name: "8BitNewsUS", Platforms: json.RawMessage(f.channelPlatforms)}, nil
+	}
 	return store.Channel{ID: "8bitnews-es", MetadataMD: "## YouTube Shorts\n\n```\n{summary}\n\n{sources_block}\n\n{hashtags}\n```\n\n**Настройки:**\n- категория News\n",
 		Platforms: json.RawMessage(`{"youtube":{"enabled":true}}`)}, nil
 }
@@ -97,13 +103,14 @@ type fakeModerator struct {
 	moderators map[int64]bool
 	unchanged  bool
 	calls      []actCall
+	channel    string // of the release Act answers with
 }
 
 func (f *fakeModerator) IsModerator(_ context.Context, id int64) bool { return f.moderators[id] }
 
 func (f *fakeModerator) Act(_ context.Context, release, action, who string, id int64, note string) (store.Release, bool, error) {
 	f.calls = append(f.calls, actCall{release, action, who, note, id})
-	return store.Release{ID: release}, !f.unchanged, nil
+	return store.Release{ID: release, ChannelID: f.channel}, !f.unchanged, nil
 }
 
 type fakeMedia struct{}
@@ -670,5 +677,34 @@ func TestStrayTrailingSlash(t *testing.T) {
 	f := newFixture("approved")
 	if rec := f.get("/admin/", true); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin" {
 		t.Errorf("%d %s", rec.Code, rec.Header().Get("Location"))
+	}
+}
+
+// After its slot a video that should have gone out is a person's to look at.
+func TestAnAutomaticVideoPastItsSlotGoesToTheSectionWithButtons(t *testing.T) {
+	f := newFixture("approved")
+	past, future := time.Now().Add(-time.Hour), time.Now().Add(time.Hour)
+	row := func(id, title string, slot *time.Time) store.AdminRelease {
+		return store.AdminRelease{ID: id, ChannelID: "8bitnews-es", Status: "approved", Title: title, CreatedAt: time.Now(),
+			ModeratedBy: store.AutoApprover, AllowedPlatforms: []string{"youtube"}, YouTubeURL: "https://www.youtube.com/shorts/abcdefghijk", SlotAt: slot}
+	}
+	f.store.rows = []store.AdminRelease{
+		row(rel1, "Still waiting", &future),
+		row("b7f01440-4314-4406-9667-7b9c49d4d973", "Slot gone by", &past),
+	}
+	body := f.get("/admin", true).Body.String()
+	auto, confirm := strings.Index(body, "Уходят сами"), strings.Index(body, "Подтвердить выход")
+	if auto < 0 || confirm < auto {
+		t.Fatalf("sections: auto %d, confirm %d: %s", auto, confirm, body)
+	}
+	waiting, gone := strings.Index(body, "Still waiting"), strings.Index(body, "Slot gone by")
+	if waiting < auto || waiting > confirm {
+		t.Errorf("a video before its slot isn't in «Уходят сами»: %d, %d, %d", auto, waiting, confirm)
+	}
+	if gone < confirm {
+		t.Errorf("a video past its slot isn't in the normal section: %d, %d", gone, confirm)
+	}
+	if strings.Count(body, "🟢 Вышел") != 1 {
+		t.Errorf("buttons: %d", strings.Count(body, "🟢 Вышел"))
 	}
 }

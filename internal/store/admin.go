@@ -30,6 +30,8 @@ type AdminRelease struct {
 	AllowedPlatforms []string
 	// PublishHold: why the video is kept from going out by itself; empty when it isn't.
 	PublishHold string
+	// SlotAt: when it is booked to go out, if it is.
+	SlotAt *time.Time
 }
 
 // AdminReleases returns the releases of every channel, newest first: the n most
@@ -43,11 +45,12 @@ func (s *Store) AdminReleases(ctx context.Context, n int) ([]AdminRelease, error
 		       CASE WHEN jsonb_typeof(r.video_package -> 'duration_s') = 'number'
 		            THEN (r.video_package ->> 'duration_s')::float8 ELSE 0 END,
 		       r.created_at, r.moderated_by, r.moderated_at, r.moderation_note,
-		       COALESCE(p.url, ''), r.allowed_platforms, r.publish_hold
+		       COALESCE(p.url, ''), r.allowed_platforms, r.publish_hold, sl.publish_at
 		FROM releases r
 		JOIN story_developments d ON d.id = r.development_id
 		JOIN stories st ON st.id = d.story_id
 		LEFT JOIN release_publications p ON p.release_id = r.id AND p.platform = $2
+		LEFT JOIN release_slots sl ON sl.release_id = r.id
 		WHERE r.status IN ('submitted', 'pending_approval', 'approved')
 		   OR r.id IN (SELECT id FROM releases ORDER BY created_at DESC LIMIT $1)
 		ORDER BY r.created_at DESC
@@ -61,7 +64,7 @@ func (s *Store) AdminReleases(ctx context.Context, n int) ([]AdminRelease, error
 	for rows.Next() {
 		var r AdminRelease
 		if err := rows.Scan(&r.ID, &r.ChannelID, &r.Status, &r.StoryTitle, &r.Development, &r.Title, &r.CoverKey,
-			&r.DurationS, &r.CreatedAt, &r.ModeratedBy, &r.ModeratedAt, &r.Note, &r.YouTubeURL, &r.AllowedPlatforms, &r.PublishHold); err != nil {
+			&r.DurationS, &r.CreatedAt, &r.ModeratedBy, &r.ModeratedAt, &r.Note, &r.YouTubeURL, &r.AllowedPlatforms, &r.PublishHold, &r.SlotAt); err != nil {
 			return nil, fmt.Errorf("scanning a release for the admin page: %w", err)
 		}
 		out = append(out, r)
