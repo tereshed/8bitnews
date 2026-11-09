@@ -40,7 +40,7 @@ def compact(package: dict) -> dict:
         return next((a for a in scene.get("attempts") or [] if a.get("file") == scene.get("accepted")), {})
 
     scenes = [{"id": s.get("id"), "file": s.get("file"), "accepted": s.get("accepted"), "fallback": s.get("fallback"),
-               "kept_with": s.get("kept_with"), "attempts": len(s.get("attempts") or []),
+               "kept_with": s.get("kept_with"), "reused_from": s.get("reused_from"), "attempts": len(s.get("attempts") or []),
                "found": kept(s).get("found", [])} for s in images.get("scenes") or []]
     return {**package, "images": {**{k: v for k, v in images.items() if k != "scenes"}, "scenes": scenes}}
 

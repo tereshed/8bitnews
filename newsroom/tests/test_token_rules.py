@@ -34,3 +34,15 @@ def test_review_kit_reports_the_attempt_it_kept_not_the_last_one():
     assert scene["found"] == ["extra_people"] and scene["kept_with"] == ["extra_people"] and scene["attempts"] == 2
     assert compact(package)["images"]["cost_usd"] == 1 and "prompt" not in str(scene)
 
+
+
+def test_review_kit_keeps_what_a_rebuild_reused_for_qa_to_see():
+    import sys
+    sys.path.insert(0, str(TEAMS.parent / "tools"))
+    from video_review_kit import compact
+
+    reused = {"package": "pkg-1", "scene": "S3", "sha256": "abc", "variants_used": 1}
+    package = {"images": {"cost_usd": 0, "scenes": [{"id": "S3", "file": "images/S3.png", "accepted": "images/S3.png",
+                                                     "fallback": False, "attempts": [], "prompt": "p", "reused_from": reused}]}}
+    scene = compact(package)["images"]["scenes"][0]
+    assert scene["reused_from"] == reused and "prompt" not in scene
