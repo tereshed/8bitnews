@@ -19,7 +19,19 @@
       "role_description": "Скачивает ролик (newsroom/tools/video_review_kit.py), смотрит каждый ключевой кадр и обложку, сверяет со сценарием, format.md и policy.md, переносит технические проверки студии и сдаёт validation_report с замечаниями по важности и адресату.",
       "skills": [
         "hub-access"
-      ]
+      ],
+      "code_backend": "claude-code",
+      "provider_kind": "anthropic_oauth",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "high",
+      "settings": {
+        "code_backend_settings": {
+          "model": "claude-opus-5-5",
+          "env": {
+            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+          }
+        }
+      }
     }
   ],
   "deactivate": [],

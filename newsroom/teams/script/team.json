@@ -14,13 +14,37 @@
       "name": "scriptwriter",
       "role": "scriptwriter",
       "prompt": "scriptwriter.md",
-      "role_description": "Пишет сценарий ролика по research_dossier и channels/<id>/format.md: хук о новом повороте, сцены (текст диктора, текст в кадре, визуал, реальные люди, ссылки на F/L/W), длительность в бюджете слов, музыка, метаданные по metadata.md, обложка. Дорабатывает по ревью и по legal_review. Сдаёт script."
+      "role_description": "Пишет сценарий ролика по research_dossier и channels/<id>/format.md: хук о новом повороте, сцены (текст диктора, текст в кадре, визуал, реальные люди, ссылки на F/L/W), длительность в бюджете слов, музыка, метаданные по metadata.md, обложка. Дорабатывает по ревью и по legal_review. Сдаёт script.",
+      "code_backend": "claude-code",
+      "provider_kind": "anthropic_oauth",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "high",
+      "settings": {
+        "code_backend_settings": {
+          "model": "claude-opus-5-5",
+          "env": {
+            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+          }
+        }
+      }
     },
     {
       "name": "script_editor",
       "role": "reviewer",
       "prompt": "script_editor.md",
-      "role_description": "Ревьюер команды Script: проверяет script — опору каждой фразы на досье, оговорки и статусы фактов, бюджет слов и тайминг, формат канала, правила policy.md, метаданные, язык. Возвращает approved или changes_requested с готовыми формулировками."
+      "role_description": "Ревьюер команды Script: проверяет script — опору каждой фразы на досье, оговорки и статусы фактов, бюджет слов и тайминг, формат канала, правила policy.md, метаданные, язык. Возвращает approved или changes_requested с готовыми формулировками.",
+      "code_backend": "claude-code",
+      "provider_kind": "anthropic_oauth",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "high",
+      "settings": {
+        "code_backend_settings": {
+          "model": "claude-opus-5-5",
+          "env": {
+            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+          }
+        }
+      }
     }
   ],
   "deactivate": [],

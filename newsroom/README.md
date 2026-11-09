@@ -5,8 +5,9 @@
 (ключ — env `POLYMATHS_API_KEY` или `.mcp.json`). Правки в интерфейсе PolyMaths следующий запуск перезапишет.
 
 - `teams/<team>/team.json` — манифест команды: `team_id` (пустой — `sync.py` создаст команду и впишет id), `name`
-  и `type` для создания, описание для делегирования, агенты (`model` — если модель агента задаём сами, иначе остаётся
-  модель PolyMaths; `settings` — настройки песочницы, например Docker; `skills` — skills проекта), контракты.
+  и `type` для создания, описание для делегирования, агенты (`model`, `code_backend`, `provider_kind`,
+  `reasoning_effort` — профиль исполнения; отсутствующие поля сохраняют настройки PolyMaths;
+  `settings` — настройки песочницы, например Docker; `skills` — skills проекта), контракты.
 - `skills/<name>/` — файлы skill'а проекта (`SKILL.md` и env-файл с `${secret:…}`): `sync.py` создаёт или обновляет
   skill и выдаёт его ровно тем агентам, у которых он в `skills` любого `team.json`. `hub-access` — адрес и ключ hub
   для скриптов `tools/`; `studio-video` — ключ генератора картинок, только video_producer.
@@ -31,6 +32,9 @@
   `python3 newsroom/gen_contracts.py`, затем `sync.py`.
 
 ## Команды
+
+Контентные исполнители используют Claude Code (`anthropic_oauth`, `claude-opus-5-5`, `high`). Уровень рассуждений также
+задан в `settings.code_backend_settings.env.DEVTEAM_AGENT_REASONING_EFFORT` для запуска в песочнице.
 
 Надёжность, очередь доработок, запуск расписаний и проверка готовности — [docs/automation.md](../docs/automation.md).
 
