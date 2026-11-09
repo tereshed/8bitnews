@@ -12,7 +12,8 @@
     "issues",
     "required_disclosures",
     "summary_ru",
-    "checked_against"
+    "checked_against",
+    "script"
   ],
   "properties": {
     "mode": {
@@ -36,6 +37,21 @@
         "fix_required",
         "kill"
       ]
+    },
+    "script": {
+      "type": "string",
+      "minLength": 1,
+      "description": "id of the script artifact this review covers: tools compare it with what was built, so a review of another version does not count"
+    },
+    "law_report": {
+      "type": "string",
+      "minLength": 1,
+      "description": "final mode: id of the law_report merged here; release_submit refuses a final review without both reports"
+    },
+    "platform_report": {
+      "type": "string",
+      "minLength": 1,
+      "description": "final mode: id of the platform_report merged here"
     },
     "platforms": {
       "type": "object",
@@ -258,10 +274,12 @@
       },
       "then": {
         "required": [
-          "video_package"
+          "video_package",
+          "law_report",
+          "platform_report"
         ]
       },
-      "description": "A final review names the build it looked at"
+      "description": "A final review names the build it looked at and the two reports behind it"
     },
     {
       "if": {
