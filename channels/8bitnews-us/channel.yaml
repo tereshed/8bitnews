@@ -27,7 +27,9 @@ moderation:
 editorial:
   tone: calm, neutral, analytical; serious mode for deaths, violence and disasters (format.md)
   topics_include: []
-  topics_exclude: []
+  # Владелец 09.11.2026: ролики выходят без человека, а за обвинение отвечает оператор лично.
+  topics_exclude:
+    - "Stories whose point is an accusation against a named person or company that no court has decided: criminal charges, investigations, lawsuits, allegations of misconduct, even from officials or official documents"
 
 format:
   description: format.md
