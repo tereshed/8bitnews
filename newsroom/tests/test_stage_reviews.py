@@ -66,6 +66,18 @@ def test_a_stale_review_under_the_other_kind_doesnt_block_the_current_one():
     assert report["verdict"] == "approved"
 
 
+def test_a_rejection_bound_to_nothing_cant_be_set_aside():
+    delegation = {"team": "Research", "state": "done", "artifacts": [
+        {"kind": "research_dossier", "id": "current"}, {"kind": "review", "id": "a"}, {"kind": "research_review", "id": "b"},
+    ]}
+    parents = {"a": None, "b": "current"}
+    decisions = {"a": "changes_requested", "b": "approved"}
+    report = build_report("d", delegation, fetch_details=lambda i, _: {
+        "parent_id": parents[i], "content": {"decision": decisions[i]},
+    })
+    assert report["verdict"] == "not_approved" and report["notes"]
+
+
 def test_script_team_ignores_the_research_kind():
     delegation = {"team": "Script", "state": "done", "artifacts": [
         {"kind": "script", "id": "current"}, {"kind": "research_review", "id": "r"},

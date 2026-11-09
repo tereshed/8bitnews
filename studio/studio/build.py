@@ -71,7 +71,7 @@ from .srt import write_srt
 from .subtitles import wrap_words
 from .template_pkg import TemplatePackage, load_template
 from .text_render import draw_text
-from .timeline import LENGTH_MARGIN_S, SceneVoice, Timeline, Word, fitted_pause, timeline_from_voice, timeline_to_dict
+from .timeline import SceneVoice, Timeline, Word, fitted_pause, timeline_from_voice, timeline_to_dict
 from .tts import ADAPTERS
 from .video import OUTPUT_H, OUTPUT_W, encode_video_only, mux, probe_duration_s, upscale_nearest
 
@@ -462,18 +462,23 @@ _TRUE_PEAK_MARGIN_DB = 0.2
 _TRUE_PEAK_ROUNDS = 4
 
 
-def check_narration_length(duration_s: float, channel_profile: dict, serious: bool) -> None:
+# How much room a requested cut leaves below the channel's limit.
+CUT_MARGIN_S = 1.0
+
+
+def check_narration_length(duration_s: float, word_count: int, channel_profile: dict) -> None:
     """A script whose voice misses the channel's length goes back before any
     picture is paid for, told how far off it is: without a number, a writer
-    told "too long" cut a video 0.12 s over by 18 s."""
-    fmt = channel_profile["format"]
-    low, high = fmt["duration_s"]["min"], fmt["duration_s"]["max"]
+    told "too long" cut a video 0.12 s over by 18 s. Words are counted at this
+    voice's own pace, not the channel's budget, which is slower; the rebuild
+    may also pick another anchor, which CUT_MARGIN_S leaves room for."""
+    length = channel_profile["format"]["duration_s"]
+    low, high = length["min"], length["max"]
     if low <= duration_s <= high:
         return
-    words = fmt.get("words") or {}
-    rate = words.get("serious_rate" if serious else "rate") or 2.0
-    off = duration_s - high + LENGTH_MARGIN_S if duration_s > high else low - duration_s + LENGTH_MARGIN_S
-    amount = f"about {off:.1f}s, about {math.ceil(off * rate)} words, and no more; leave the rest of the script as it is"
+    off = (duration_s - high if duration_s > high else low - duration_s) + CUT_MARGIN_S
+    words = math.ceil(off * word_count / duration_s)
+    amount = f"about {off:.1f}s, about {words} words at this voice's pace, and no more; leave the rest of the script as it is"
     if duration_s > high:
         raise BuildError(f"narration length: the voice runs {duration_s:.2f}s, over the channel's {high}s. Cut {amount}")
     raise BuildError(f"narration length: the voice runs {duration_s:.2f}s, under the channel's {low}s. Add {amount}")
@@ -617,7 +622,7 @@ def build_package(
         pause_s = fitted
         timeline = timeline_from_voice(scene_voices, pause_s, max_lines, max_chars, font_scale)
     if images is not None:
-        check_narration_length(timeline.duration_s, channel_profile, serious)
+        check_narration_length(timeline.duration_s, sum(len(s["narration"].split()) for s in script["scenes"]), channel_profile)
 
     voice_raw_path = out_dir / "_voice_raw.wav"
     voice_sr = concat_wavs_with_silence(scene_wavs, pause_s, voice_raw_path)
