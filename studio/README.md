@@ -427,8 +427,13 @@ Pipeline (`studio/studio/build.py`): per-scene TTS (`studio/studio/tts.py`;
 `studio.pronunciation` applies/undoes `script.pronunciations` hints around
 it, general code, not the adapter's) -> `timeline.timeline_from_voice`
 (real word timings, each scene as long as its voice audio, plus the
-template's `timing.scene_pause_s` gap between scenes, none at either end)
--> frames rendered and written to disk one at a time -> the picture,
+template's `timing.scene_pause_s` gap between scenes, none at either end;
+a video up to 0.5 s over the channel's maximum gets those gaps closed a
+little, with a note in the package, and the words stay) -> with `--images`,
+a voice still outside the channel's length stops the build here with
+"narration length: ...", how far off it is and about how many words, before
+any picture is drawn; the final `duration` check still measures video.mp4
+-> scene pictures -> frames rendered and written to disk one at a time -> the picture,
 encoded once (`video.encode_video_only`: H.264, ×4 nearest-neighbour to
 1080×1920 @ 30fps) -> the soundtrack (`audio.mix`, below) muxed onto it as
 AAC, and for a long video with music a second soundtrack without music

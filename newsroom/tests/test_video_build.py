@@ -522,3 +522,7 @@ def test_an_earlier_card_is_asked_for_again_so_a_second_card_goes_to_script(tmp_
     build = runs[1][0]
     assert code == 0 and build[build.index("--redraw") + 1] == "S3"
 
+
+
+def test_a_voice_outside_the_channels_length_is_the_scripts_to_fix():
+    assert "narration length" in video_build.SCRIPT_PROBLEMS
