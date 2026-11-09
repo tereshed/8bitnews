@@ -6,12 +6,13 @@
 - **hub** собирает итоговое описание по шаблонам ниже. Он добавляет блок источников, ссылку на страницу источников,
   раскрытие AI и строку об исправлениях. Модель эти блоки не пишет.
 - **Лимиты и поля API** площадок — в `platforms/<platform>/rules.md`. Правила об источниках — в `countries/us/policy.md`.
-- **Публикация пока вручную.** По кнопке «Опубликовать» бот модерации присылает под карточкой пакет для каждой
-  площадки, которую допустил Legal: заголовок, описание, теги, настройки из этого файла и файлы, которых нет
-  в карточке. Модератор выкладывает ролик сам и жмёт «🟢 Выложено на площадки» под карточкой; ошибочное нажатие
-  отменяет «↩️ Не выложено», а «🚫 Закрыть страницу источников» закрывает страницу ролика при ошибочном одобрении или претензии. «📦 Пакет ещё раз» присылает пакет заново. Шаблоны описаний hub берёт из блоков кода ниже, настройки — из списков
-  «Настройки». Автопубликация через API появится, когда будут доступы; в TikTok на собственные аккаунты
-  правила аудита её не допускают (`docs/architecture.md` §14).
+- **Публикация без подтверждения** (`moderation.approval_required: false`, решение владельца 09.11.2026,
+  `docs/automation.md`). Карточка уходит в группу модерации для сведения, релиз одобряется сам и попадает в очередь
+  загрузки на те площадки, которые допустил Legal. Ролик встаёт в расписание на ближайший свободный слот канала; когда он
+  вышел, hub видит это сам и отмечает «🟢». «🚫 Закрыть страницу источников» закрывает релиз, а ролик, уже стоящий в расписании, надо ещё снять с него; «↩️ Не выложено» убирает
+  его из списка канала; «📦 Пакет ещё раз» присылает пакет. Шаблоны описаний hub берёт из блоков кода ниже, настройки —
+  из списков «Настройки». В TikTok на собственные аккаунты правила аудита автозагрузку не допускают
+  (`docs/architecture.md` §14).
 
 ## Общие правила
 
@@ -54,7 +55,7 @@ Sources:
 {sources_block}
 All sources and archived copies: {sources_page_url}
 
-AI disclosure: synthetic narration and AI-generated pixel-art visuals; real people are shown in stylized form.
+AI disclosure: AI-written script, synthetic narration and AI-generated pixel-art visuals; real people are shown in stylized form.
 Corrections: {corrections_contact}
 
 {hashtags}
@@ -69,8 +70,8 @@ Corrections: {corrections_contact}
 - «made for kids» — нет;
 - метка синтетического или изменённого контента — да: в YouTube Studio это вопрос «Altered content», в API —
   `containsSyntheticMedia=true` (по `policy.md`);
-- видимость — публично; при загрузке через API её выбирает модератор при одобрении: так требуют
-  Developer Policies YouTube;
+- видимость — Private с расписанием на слот канала: в Studio «Schedule», в API `status.privacyStatus=private`
+  и `status.publishAt`;
 - язык метаданных и звука — en-US;
 - комментарии включены;
 - плейлист по сюжетной линии для долгих сюжетов **[предложение]**.
@@ -81,7 +82,7 @@ Corrections: {corrections_contact}
 {title}
 {summary}
 Sources: {sources_page_short} (link in bio)
-AI voice and visuals.
+AI script, voice and visuals.
 {hashtags}
 ```
 
@@ -98,7 +99,7 @@ AI voice and visuals.
 {title}
 {summary}
 Sources: {sources_page_short} (link in bio)
-AI voice and visuals; real people are shown as stylized illustrations.
+AI script, voice and visuals; real people are shown as stylized illustrations.
 {hashtags}
 ```
 
@@ -113,7 +114,7 @@ AI voice and visuals; real people are shown as stylized illustrations.
 Одна страница на ролик, плюс индекс канала для ссылки в профиле. Обе hub отдаёт без ключа API:
 - ролик — `{HUB_PUBLIC_URL}/s/{код}`, код — первые 10 шестнадцатеричных знаков id релиза. Открыта с момента одобрения:
   на неё ссылается описание, поэтому она должна работать, как только ролик выйдет;
-- индекс канала — `{HUB_PUBLIC_URL}/c/{id канала}`. В нём ролики, у которых модератор нажал «🟢 Выложено на площадки».
+- индекс канала — `{HUB_PUBLIC_URL}/c/{id канала}`. В нём ролики, которые hub увидел на площадке, или те, где модератор нажал «🟢 Выложено на площадки».
 
 На странице:
 - заголовок, дата и суть ролика;

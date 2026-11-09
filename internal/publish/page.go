@@ -48,7 +48,9 @@ type Page struct {
 	Others      []Source
 	Corrections string // the contact; empty when none is set
 	ChannelURL  string
-	T           pageWords
+	// AutoApproved: no person approved this video (moderation.approval_required: false).
+	AutoApproved bool
+	T            pageWords
 }
 
 // Statement is one scene's narration and the checked sources behind it.
@@ -83,10 +85,11 @@ func BuildPage(in Input) Page {
 
 	checked := sourcesOf(in.Sources, in.Country.Data, in.Channel.Language)
 	page := Page{
-		T:           wordsFor(in.Channel.Language),
-		Channel:     in.Channel.Name,
-		Corrections: in.Config.CorrectionsContact,
-		ChannelURL:  in.Config.ChannelPageURL(r.ChannelID),
+		T:            wordsFor(in.Channel.Language),
+		Channel:      in.Channel.Name,
+		Corrections:  in.Config.CorrectionsContact,
+		ChannelURL:   in.Config.ChannelPageURL(r.ChannelID),
+		AutoApproved: r.Moderation.By == store.AutoApprover,
 	}
 	page.Title, page.Summary = titleOf(script)
 	page.Date = dateOf(r, in.Channel.Timezone, page.T)

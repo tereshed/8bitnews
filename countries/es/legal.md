@@ -36,7 +36,7 @@ verified_at: 2026-11-04
 - **Свой текст или чужие слова.** Если информация «asumida por el medio y su autor como propia», долг проверки «no admite atenuación o flexibilidad alguna» ([STC 76/2002, FJ 3](https://hj.tribunalconstitucional.es/es/Resolucion/Show/4612)).
 - **Надёжный источник.** Если у него «características objetivas que la hacen fidedigna, seria o fiable», может хватить проверки «la exactitud o identidad de la fuente», особенно если он назван в материале ([STC 158/2003, FJ 5](https://hj.tribunalconstitucional.es/es/Resolucion/Show/4933), цит. в STC 62/2025). Пресс-релиз Guardia Civil: нельзя требовать контраста с другими источниками, «sino solo la seguridad de que la fuente era el órgano que se dice» ([STC 178/1993, FJ 5](https://hj.tribunalconstitucional.es/es/Resolucion/Show/2307)). Это близкий аналог американского fair report, но он держится на близости органа к расследованию.
 - **Видео строже текста.** Ответственность «es si cabe mayor cuando se trata de medios audiovisuales», потому что «por las imágenes los medios audiovisuales pueden transmitir mensajes que un medio escrito no es apto para trasmitir» ([STC 139/2007, FJ 11](https://hj.tribunalconstitucional.es/es/Resolucion/Show/6106), со ссылкой на Jersild).
-- Для нас: стандарт — «profesional diligente». Соответствует ли ему фактчек силами LLM, решения мы не нашли `[не проверено]`. Обвинение названному человеку модератор сверяет с первичным документом сам, и след проверки остаётся в досье (см. также `operator/legal.md#ai-act-our-case`).
+- Для нас: стандарт — «profesional diligente». Соответствует ли ему фактчек силами LLM, решения мы не нашли `[не проверено]`. С 09.11.2026 человека перед публикацией нет (решение владельца): обвинение названному человеку сверяют с первичным документом `fact_checker` и Legal, и след проверки остаётся в досье; без такого документа это `blocker`. Хватает ли этого для «profesional diligente», не проверено; риск на операторе (см. также `operator/legal.md#ai-act-our-case`).
 
 ### <a id="opinion-fact"></a>1.2 Мнение и факт
 - Факт и оценка редко разделены: «la comunicación de hechos o de noticias no se da nunca en un estado químicamente puro». Смотрят на элемент, который «aparece como preponderante» ([STC 6/1988, FJ 5](https://hj.tribunalconstitucional.es/es/Resolucion/Show/947)).
@@ -316,7 +316,7 @@ verified_at: 2026-11-04
 
 ### <a id="required-disclosures"></a>8.4 Раскрытия, которых требует закон (для `required_disclosures`)
 - Всегда: AI-голос и AI-изображение — строка из [8.3](#ai-disclosure), флаг площадки.
-- При AI-тексте об общественно важном, если не применяем исключение human review: раскрытие по ст. 50.4, абз. 2 (`operator/legal.md#ai-act-our-case`).
+- При AI-тексте об общественно важном: раскрытие по ст. 50.4, абз. 2. Исключением human review не пользуемся с 09.11.2026 (`operator/legal.md#ai-act-our-case`).
 - При опросе в период 06.10–29.11: данные ст. 69.1 LOREG ([6.3](#election-polls)). С 24 по 28.11 опросов нет, раскрывать нечего.
 - При спонсоре или оплате: «Publicidad» в кадре и голосом, инструмент площадки ([8.2](#regulatory-ads)).
 - При требовании опровержения: текст целиком, бесплатно, без комментариев, в 3 дня (`operator/legal.md#es-rectification`). Требование JEC о поправке опроса: с указанием, что это по её требованию, в 3 дня (ст. 69.4).

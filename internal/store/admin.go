@@ -28,6 +28,8 @@ type AdminRelease struct {
 	YouTubeURL  string
 	// AllowedPlatforms: where Legal let the video go.
 	AllowedPlatforms []string
+	// PublishHold: why the video is kept from going out by itself; empty when it isn't.
+	PublishHold string
 }
 
 // AdminReleases returns the releases of every channel, newest first: the n most
@@ -41,7 +43,7 @@ func (s *Store) AdminReleases(ctx context.Context, n int) ([]AdminRelease, error
 		       CASE WHEN jsonb_typeof(r.video_package -> 'duration_s') = 'number'
 		            THEN (r.video_package ->> 'duration_s')::float8 ELSE 0 END,
 		       r.created_at, r.moderated_by, r.moderated_at, r.moderation_note,
-		       COALESCE(p.url, ''), r.allowed_platforms
+		       COALESCE(p.url, ''), r.allowed_platforms, r.publish_hold
 		FROM releases r
 		JOIN story_developments d ON d.id = r.development_id
 		JOIN stories st ON st.id = d.story_id
@@ -59,7 +61,7 @@ func (s *Store) AdminReleases(ctx context.Context, n int) ([]AdminRelease, error
 	for rows.Next() {
 		var r AdminRelease
 		if err := rows.Scan(&r.ID, &r.ChannelID, &r.Status, &r.StoryTitle, &r.Development, &r.Title, &r.CoverKey,
-			&r.DurationS, &r.CreatedAt, &r.ModeratedBy, &r.ModeratedAt, &r.Note, &r.YouTubeURL, &r.AllowedPlatforms); err != nil {
+			&r.DurationS, &r.CreatedAt, &r.ModeratedBy, &r.ModeratedAt, &r.Note, &r.YouTubeURL, &r.AllowedPlatforms, &r.PublishHold); err != nil {
 			return nil, fmt.Errorf("scanning a release for the admin page: %w", err)
 		}
 		out = append(out, r)
@@ -122,7 +124,9 @@ func (s *Store) SetPublicationURL(ctx context.Context, releaseID, platform, url,
 		INSERT INTO release_publications (release_id, platform, url, set_by)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (release_id, platform) DO UPDATE
-		SET url = EXCLUDED.url, set_by = EXCLUDED.set_by, set_at = now()
+		SET url = EXCLUDED.url, set_by = EXCLUDED.set_by, set_at = now(),
+		    live_at = CASE WHEN release_publications.url = EXCLUDED.url THEN release_publications.live_at END,
+		    overdue_alerted_at = CASE WHEN release_publications.url = EXCLUDED.url THEN release_publications.overdue_alerted_at END
 	`, releaseID, platform, url, by)
 	if err != nil {
 		return fmt.Errorf("recording the %s link of release %s: %w", platform, releaseID, err)

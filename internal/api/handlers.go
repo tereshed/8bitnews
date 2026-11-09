@@ -153,3 +153,65 @@ func (h *handler) handleReleasesRecent(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
+
+func (h *handler) handlePublishQueue(w http.ResponseWriter, r *http.Request) {
+	resp, err := h.svc.PublishQueue(r.Context())
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *handler) handleReleaseSlot(w http.ResponseWriter, r *http.Request) {
+	resp, err := h.svc.ReserveReleaseSlot(r.Context(), r.PathValue("release_id"))
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *handler) handleYouTubePublicationSet(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeJSON[service.YouTubePublicationRequest](r)
+	if err != nil {
+		writeErrorMessage(w, http.StatusBadRequest, "invalid body: "+err.Error())
+		return
+	}
+	if err := h.svc.SetYouTubePublication(r.Context(), r.PathValue("release_id"), req); err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *handler) handleYouTubePublicationForget(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.ForgetYouTubePublication(r.Context(), r.PathValue("release_id")); err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *handler) handleReleaseHoldLift(w http.ResponseWriter, r *http.Request) {
+	if err := h.svc.ReleaseHold(r.Context(), r.PathValue("release_id")); err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *handler) handleReleaseHold(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeJSON[struct {
+		Reason string `json:"reason"`
+	}](r)
+	if err != nil {
+		writeErrorMessage(w, http.StatusBadRequest, "invalid body: "+err.Error())
+		return
+	}
+	if err := h.svc.HoldRelease(r.Context(), r.PathValue("release_id"), req.Reason); err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

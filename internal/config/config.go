@@ -28,6 +28,9 @@ type Config struct {
 	// APIKeys is the set of bearer tokens accepted by REST and MCP, read
 	// from the comma-separated HUB_API_KEYS env var.
 	APIKeys map[string]bool
+	// PublisherAPIKey opens the publishing routes, and no other key does
+	// (HUB_PUBLISHER_API_KEY). Empty leaves them shut.
+	PublisherAPIKey string
 
 	S3 S3Config
 
@@ -188,6 +191,10 @@ func Load() (Config, error) {
 	}
 
 	cfg.APIKeys = parseAPIKeys(os.Getenv("HUB_API_KEYS"))
+	cfg.PublisherAPIKey = strings.TrimSpace(os.Getenv("HUB_PUBLISHER_API_KEY"))
+	if cfg.PublisherAPIKey != "" {
+		cfg.APIKeys[cfg.PublisherAPIKey] = true
+	}
 	if raw := strings.TrimSpace(getEnv("TELEGRAM_MODERATION_CHAT_ID", "")); raw != "" {
 		id, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil {

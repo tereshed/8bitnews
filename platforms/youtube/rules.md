@@ -142,7 +142,7 @@ purpose: База правил YouTube (Shorts) для LLM-агентов, ко�
   - нельзя «automate or trigger … uploads … without the user's prior specific and express consent»;
   - клиент с загрузкой обязан «clearly display an option» выбрать privacy status;
   - нельзя дописывать текст в описание без согласия пользователя.
-  → Одобрение человеком в hub закрывает требование о согласии. Выбор privacy status надо показывать в интерфейсе модерации.
+  → С 09.11.2026 владелец отказался от одобрения каждого ролика. Для загрузки через API «prior specific and express consent» придётся закрывать постоянным согласием владельца на канал; покрывает ли оно требование, не проверено `[толкование]`. Загрузка браузером от этого не спасает: [Условия YouTube](https://www.youtube.com/t/terms) запрещают доступ к сервису автоматическими средствами без письменного разрешения.
 - С 15.10.2026 `selfDeclaredMadeForKids` и `madeForKids` обновляются, только если явно указаны в запросе ([revision history](https://developers.google.com/youtube/v3/revision_history)).
 
 ## 9. Чек-лист «красные флаги» для ревьюера

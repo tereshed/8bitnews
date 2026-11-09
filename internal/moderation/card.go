@@ -78,6 +78,15 @@ func approvedKeyboard(releaseID string, published bool) *Keyboard {
 	return &Keyboard{InlineKeyboard: rows}
 }
 
+// autoKeyboard is the card of a release approved automatically: nobody has to
+// say the video is up, and saying so before it is would list it on the channel.
+func autoKeyboard(releaseID string) *Keyboard {
+	return &Keyboard{InlineKeyboard: [][]Button{
+		{{Text: "📦 Пакет ещё раз", CallbackData: callbackData(actionPackage, releaseID)}},
+		{{Text: "🚫 Закрыть страницу источников", CallbackData: callbackData(actionWithdraw, releaseID)}},
+	}}
+}
+
 // The parts of the release's stored contracts the card shows.
 type videoPackage struct {
 	DurationS float64 `json:"duration_s"`

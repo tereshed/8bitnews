@@ -60,6 +60,7 @@ func runServe(_ []string) {
 	wayback := sources.NewWaybackClient(cfg.WaybackBaseURL, cfg.WaybackSaveTimeout, cfg.WaybackAccessKey, cfg.WaybackSecretKey, cfg.SourceAllowPrivate)
 	availability := sources.NewAvailabilityClient(cfg.WaybackAvailabilityBaseURL, cfg.SourceCheckTimeout, cfg.SourceAllowPrivate)
 
+	pub := publish.Config{PublicURL: cfg.PublicURL, CorrectionsContact: cfg.CorrectionsContact}
 	svc := service.New(service.Deps{
 		Store:                           st,
 		Media:                           media,
@@ -70,8 +71,8 @@ func runServe(_ []string) {
 		SourcesConcurrency:              cfg.SourcesConcurrency,
 		SourcesCheckDeadline:            cfg.SourcesCheckDeadline,
 		SourcesBackgroundArchiveTimeout: cfg.SourcesBackgroundArchiveTimeout,
+		Publish:                         pub,
 	})
-	pub := publish.Config{PublicURL: cfg.PublicURL, CorrectionsContact: cfg.CorrectionsContact}
 	if cfg.PolymathsWriteAPIKey != "" {
 		go polymaths.Run(ctx, st, &polymaths.Client{URL: cfg.PolymathsURL, APIKey: cfg.PolymathsWriteAPIKey}, logger)
 	} else {
@@ -83,12 +84,14 @@ func runServe(_ []string) {
 	if cfg.Moderation.BotToken != "" {
 		tg := moderation.NewTelegram(cfg.Moderation.APIBase, cfg.Moderation.BotToken)
 		bot := moderation.New(tg, st, media, cfg.Moderation.ChatID, cfg.Moderation.PollInterval, pub, logger)
+		videos := admin.NewVideoChecker()
+		bot.SetVideoCheck(videos.Visible)
 		if cfg.PublicURL != "" {
 			auth := admin.NewAuth(cfg.Moderation.BotToken)
 			bot.SetAdminLogin(func(userID int64, who string) string {
 				return cfg.PublicURL + "/admin/login?t=" + auth.LoginToken(admin.Identity{UserID: userID, Name: who})
 			})
-			adminPage = admin.New(admin.Deps{Store: st, Moderator: bot, Media: media, Auth: auth, Videos: admin.NewVideoChecker(), Publish: pub,
+			adminPage = admin.New(admin.Deps{Store: st, Moderator: bot, Media: media, Auth: auth, Videos: videos, Publish: pub,
 				MediaOrigin: cfg.S3.Endpoint, Log: logger})
 		}
 		go bot.Run(ctx)
@@ -111,7 +114,7 @@ func runServe(_ []string) {
 	// for deployments that scrape it from a private network interface.
 	requireMetricsAuth := cfg.MetricsAddr == ""
 	pages := publish.NewPages(st, pub, logger)
-	router := api.NewRouter(svc, mcpHandler, pages, adminPage, metrics, logger, cfg.APIKeys, requireMetricsAuth)
+	router := api.NewRouter(svc, mcpHandler, pages, adminPage, metrics, logger, cfg.APIKeys, cfg.PublisherAPIKey, requireMetricsAuth)
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

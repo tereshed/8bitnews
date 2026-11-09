@@ -80,3 +80,4 @@ hub_admin_user: bitnews
 # Optional moderator rework dispatcher (kept off without credentials).
 hub_polymaths_url: "{{ lookup('env', 'HUB_POLYMATHS_URL') | default('https://polymaths.work/api/v1', true) }}"
 hub_polymaths_write_api_key: "{{ lookup('env', 'HUB_POLYMATHS_WRITE_API_KEY') | default('', true) }}"
+hub_publisher_api_key: "{{ lookup('env', 'HUB_PUBLISHER_API_KEY') | default('', true) }}"

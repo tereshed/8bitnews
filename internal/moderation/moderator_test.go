@@ -106,12 +106,19 @@ func (f *fakeTelegram) byMethod(method string) []call {
 
 // fakeStore keeps one release in memory.
 type fakeStore struct {
-	mu          sync.Mutex
-	failChannel bool
-	release     store.Release
-	carded      int64
-	note        string
-	events      []map[string]any
+	mu            sync.Mutex
+	failChannel   bool
+	channelData   string
+	release       store.Release
+	checks        []store.PublicationCheck
+	overdue       []string
+	uploadAlerts  []store.UploadAlert
+	closedAlerted []string
+	holdAlerted   []string
+	uploadAlerted []string
+	carded        int64
+	note          string
+	events        []map[string]any
 }
 
 func (s *fakeStore) ClaimReleaseForCard(context.Context, time.Duration) (store.Release, bool, error) {
@@ -208,7 +215,7 @@ func (s *fakeStore) GetChannel(context.Context, string) (store.Channel, error) {
 		return store.Channel{}, fmt.Errorf("connection refused")
 	}
 	md, err := os.ReadFile("../../channels/8bitnews-us/metadata.md")
-	return store.Channel{ID: "8bitnews-us", Name: "8BitNewsUS", CountryCC: "US", MetadataMD: string(md),
+	return store.Channel{ID: "8bitnews-us", Name: "8BitNewsUS", CountryCC: "US", MetadataMD: string(md), Data: json.RawMessage(s.channelData),
 		Platforms: json.RawMessage(`{"youtube":{"enabled":true},"tiktok":{"enabled":true},"instagram":{"enabled":true}}`)}, err
 }
 

@@ -39,7 +39,7 @@ type cachedPage struct {
 }
 
 // Pages serves hub's public pages, with no API key: a video's sources page
-// at /s/{code}, from the moderator's approval on; a channel's list of
+// at /s/{code}, from the approval on; a channel's list of
 // videos at /c/{channel_id}, of published releases (the moderator pressed
 // «Выложено»); and what those videos cost at /c/{channel_id}/costs.
 type Pages struct {
@@ -222,7 +222,7 @@ var sourcesTemplate = template.Must(template.New("sources").Parse(pageHead + `<t
 
 <h2>{{.T.How}}</h2>
 <p>{{.T.HowDossier}}</p>
-<p>{{.T.HowAI}}</p>
+<p>{{.T.HowAI}} {{if .AutoApproved}}{{.T.HowReviewAuto}}{{else}}{{.T.HowReviewHuman}}{{end}}</p>
 
 <h2>{{.T.Corrections}}</h2>
 <p>{{.T.NoCorrections}}{{if .Corrections}} {{.T.WriteTo}} {{.Corrections}}.{{end}}</p>
