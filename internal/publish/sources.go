@@ -3,6 +3,7 @@ package publish
 import (
 	"encoding/json"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -127,12 +128,24 @@ func stateMediaNames(countryData json.RawMessage) []string {
 	return names
 }
 
-// goesBy says whether an outlet's name is one of names, alone or followed by
-// more words: "EFE", "EFE (via Infobae)", not "EFEMÉRIDES".
+// goesBy says whether a source's outlet is one of names, ignoring case: as the
+// whole name, or as a part of the forms a story on another site goes by, "EFE
+// (via Infobae)", "Infobae (EFE)", "RTVE via Yahoo". Not as a word in another
+// name: "EFE EME" is a music magazine.
 func goesBy(outlet string, names []string) bool {
-	outlet = strings.TrimSpace(outlet)
+	parts := strings.FieldsFunc(strings.ToLower(outlet), func(r rune) bool { return r == '(' || r == ')' || r == ',' })
+	var candidates []string
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		part = strings.TrimSpace(strings.TrimPrefix(part, "via "))
+		before, after, isVia := strings.Cut(part, " via ")
+		candidates = append(candidates, strings.TrimSpace(before))
+		if isVia {
+			candidates = append(candidates, strings.TrimSpace(after))
+		}
+	}
 	for _, n := range names {
-		if outlet == n || strings.HasPrefix(outlet, n+" ") {
+		if slices.Contains(candidates, strings.ToLower(n)) {
 			return true
 		}
 	}

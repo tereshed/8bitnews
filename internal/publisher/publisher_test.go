@@ -40,12 +40,14 @@ type fakeYouTube struct {
 	unsched []string
 	nextID  int
 
-	revoked     bool
-	startErr    func(w http.ResponseWriter) bool
-	putErr      func(w http.ResponseWriter, u *upload) bool
-	thumbErr    func(w http.ResponseWriter) bool
-	unschedErr  func(w http.ResponseWriter) bool
-	afterUpload func(v *video)
+	revoked       bool
+	startErr      func(w http.ResponseWriter) bool
+	putErr        func(w http.ResponseWriter, u *upload) bool
+	queryErr      func(w http.ResponseWriter, u *upload) bool
+	invalidClient bool
+	thumbErr      func(w http.ResponseWriter) bool
+	unschedErr    func(w http.ResponseWriter) bool
+	afterUpload   func(v *video)
 }
 
 type upload struct {
@@ -72,6 +74,11 @@ func (f *fakeYouTube) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	switch {
 	case path == "/token":
+		if f.invalidClient {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"invalid_client"}`))
+			return
+		}
 		if f.revoked {
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
@@ -132,6 +139,9 @@ func (f *fakeYouTube) session(w http.ResponseWriter, r *http.Request, path strin
 		_ = json.NewEncoder(w).Encode(map[string]any{"id": u.videoID})
 	}
 	if strings.HasPrefix(r.Header.Get("Content-Range"), "bytes */") {
+		if f.queryErr != nil && f.queryErr(w, u) {
+			return
+		}
 		if u.videoID != "" {
 			finished()
 			return
@@ -166,17 +176,58 @@ func (f *fakeYouTube) session(w http.ResponseWriter, r *http.Request, path strin
 
 // fakeStore keeps it all in memory.
 type fakeStore struct {
-	mu       sync.Mutex
-	accounts []store.PlatformAccount
-	alerted  []string
-	release  store.Release
-	hold     string
-	job      store.PublishJob
-	link     string
-	linkBy   string
-	closed   []store.ToUnschedule
-	forgot   []string
-	channel  store.Channel
+	mu        sync.Mutex
+	accounts  []store.PlatformAccount
+	alerted   []string
+	release   store.Release
+	hold      string
+	job       store.PublishJob
+	link      string
+	linkBy    string
+	closed    []store.ToUnschedule
+	forgot    []string
+	channel   store.Channel
+	recheck   []store.RecheckDue
+	rechecked []string
+	locked    bool
+}
+
+type fakeLock struct{}
+
+func (fakeLock) Alive(context.Context) bool { return true }
+func (fakeLock) Release(context.Context)    {}
+
+func (s *fakeStore) LockPublisher(context.Context) (store.Lock, bool, error) {
+	if s.locked {
+		return nil, false, nil
+	}
+	return fakeLock{}, true, nil
+}
+
+func (s *fakeStore) UnannouncedJobs(context.Context) ([]store.PublishJob, error) {
+	if s.job.VideoID == "" || s.job.AnnouncedAt != nil || s.release.Status != "approved" || s.hold != "" {
+		return nil, nil
+	}
+	j := s.job
+	j.ChannelID = channel
+	return []store.PublishJob{j}, nil
+}
+
+func (s *fakeStore) SetPublicationURLIfNone(_ context.Context, _, _, url, by string) error {
+	if s.link == "" {
+		s.link, s.linkBy = url, by
+	}
+	return nil
+}
+
+func (s *fakeStore) SlotsToRecheck(context.Context, time.Time) ([]store.RecheckDue, error) {
+	return s.recheck, nil
+}
+
+func (s *fakeStore) MarkSlotRechecked(_ context.Context, id string) error {
+	s.rechecked = append(s.rechecked, id)
+	s.recheck = nil
+	return nil
 }
 
 func (s *fakeStore) ConnectedAccounts(context.Context, string) ([]store.PlatformAccount, error) {
@@ -218,14 +269,6 @@ func (s *fakeStore) SavePublishJob(_ context.Context, j store.PublishJob) error 
 	s.job = j
 	return nil
 }
-func (s *fakeStore) DeletePublishJob(context.Context, string) error {
-	s.job = store.PublishJob{ReleaseID: rel}
-	return nil
-}
-func (s *fakeStore) SetPublicationURL(_ context.Context, _, _, url, by string) error {
-	s.link, s.linkBy = url, by
-	return nil
-}
 func (s *fakeStore) ReleasesToUnschedule(context.Context) ([]store.ToUnschedule, error) {
 	return s.closed, nil
 }
@@ -233,19 +276,25 @@ func (s *fakeStore) ForgetPublication(_ context.Context, id, _ string) error {
 	s.forgot = append(s.forgot, id)
 	s.closed = nil
 	s.link = ""
-	s.job = store.PublishJob{ReleaseID: rel}
+	s.job = store.PublishJob{ReleaseID: rel, Saved: false}
+	s.recheck = nil
 	return nil
 }
 
 // fakeQueue is the service's side: one item, and a slot.
 type fakeQueue struct {
+	st      *fakeStore
 	items   []service.PublishQueueItem
 	slot    time.Time
 	refused *service.Error
 	booked  int
 }
 
+// UploadItems does what the real queue does: no link, approved, not held.
 func (q *fakeQueue) UploadItems(context.Context) ([]service.PublishQueueItem, error) {
+	if q.st.link != "" || q.st.release.Status != "approved" || q.st.hold != "" {
+		return nil, nil
+	}
 	return q.items, nil
 }
 func (q *fakeQueue) ReserveReleaseSlot(context.Context, string) (service.ReleaseSlotResponse, error) {
@@ -272,9 +321,15 @@ func (m *fakeMedia) Open(_ context.Context, key string) (io.ReadCloser, int64, e
 type fakeNotifier struct {
 	said  []string
 	cards []*int64
+	down  bool
+	tries int
 }
 
 func (n *fakeNotifier) Notify(_ context.Context, card *int64, text string) error {
+	n.tries++
+	if n.down {
+		return errors.New("telegram down")
+	}
 	n.said = append(n.said, text)
 	n.cards = append(n.cards, card)
 	return nil
@@ -311,15 +366,17 @@ func newFixture(t *testing.T) *fixture {
 	f := &fixture{yt: yt, media: &fakeMedia{cover: "PNGDATA"}, say: &fakeNotifier{}, now: now,
 		st: &fakeStore{
 			accounts: []store.PlatformAccount{{ChannelID: channel, Tokens: store.AccountTokens{RefreshSealed: refresh}}},
-			release:  store.Release{ID: rel, ChannelID: channel, Status: "approved", Moderation: store.Moderation{MessageID: &card}},
-			job:      store.PublishJob{ReleaseID: rel},
-			channel:  store.Channel{ID: channel, Language: "en-US", Timezone: "America/New_York"},
+			release: store.Release{ID: rel, ChannelID: channel, Status: "approved", Moderation: store.Moderation{MessageID: &card},
+				Media: json.RawMessage(`{"cover":"releases/x/cover.png"}`)},
+			job:     store.PublishJob{ReleaseID: rel},
+			channel: store.Channel{ID: channel, Language: "en-US", Timezone: "America/New_York"},
 		},
 		q: &fakeQueue{slot: now.Add(6 * time.Hour).UTC(), items: []service.PublishQueueItem{{
 			ReleaseID: rel, ChannelID: channel, Title: "A title", Description: "A description", Tags: []string{"a", "b"},
 			Video: "releases/x/video_no_music.mp4", Cover: "releases/x/cover.png",
 		}}},
 	}
+	f.q.st = f.st
 	f.p = New(f.st, f.q, client, f.media, f.say, plainSealer{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	f.p.now = func() time.Time { return f.now }
 	return f
@@ -328,7 +385,18 @@ func newFixture(t *testing.T) *fixture {
 func (f *fixture) pass() { f.p.Pass(context.Background()) }
 
 // due moves past any backoff.
-func (f *fixture) due() { f.now = f.st.job.NextAttemptAt.Add(time.Second) }
+func (f *fixture) due() {
+	if f.st.job.NextAttemptAt.After(f.now) {
+		f.now = f.st.job.NextAttemptAt.Add(time.Second)
+	}
+}
+
+// closeIt makes the release closed and on the take-down list, with a link.
+func (f *fixture) closeIt(url string, at time.Time) {
+	f.q.items = nil
+	f.st.release.Status = "rejected"
+	f.st.closed = []store.ToUnschedule{{ReleaseID: rel, ChannelID: channel, Status: "rejected", URL: url, PublishAt: at}}
+}
 
 func TestAFullUpload(t *testing.T) {
 	f := newFixture(t)
@@ -369,7 +437,7 @@ func TestACrashAfterTheUploadNeverUploadsTwice(t *testing.T) {
 	f.yt.mu.Unlock()
 	at := f.q.slot
 	// Stored the session, sent every byte, and hub stopped before reading the answer.
-	f.st.job = store.PublishJob{ReleaseID: rel, SessionURI: f.yt.base + "/session/1", VideoSize: int64(len(videoBytes)), PublishAt: &at}
+	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, SessionURI: f.yt.base + "/session/1", VideoSize: int64(len(videoBytes)), PublishAt: &at}
 
 	f.pass()
 
@@ -386,7 +454,7 @@ func TestAnInterruptedUploadResumesFromWhereItStopped(t *testing.T) {
 	f.yt.uploads["/session/1"] = &upload{size: len(videoBytes), received: 400}
 	f.yt.started = []map[string]map[string]any{{"status": {"publishAt": f.q.slot.Format(time.RFC3339)}}}
 	at := f.q.slot
-	f.st.job = store.PublishJob{ReleaseID: rel, SessionURI: f.yt.base + "/session/1", VideoSize: int64(len(videoBytes)), PublishAt: &at}
+	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, SessionURI: f.yt.base + "/session/1", VideoSize: int64(len(videoBytes)), PublishAt: &at}
 
 	f.pass()
 
@@ -402,7 +470,7 @@ func TestAnInterruptedUploadResumesFromWhereItStopped(t *testing.T) {
 func TestASessionYouTubeForgotStartsAgain(t *testing.T) {
 	f := newFixture(t)
 	at := f.q.slot
-	f.st.job = store.PublishJob{ReleaseID: rel, SessionURI: f.yt.base + "/session/forgotten", PublishAt: &at}
+	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, SessionURI: f.yt.base + "/session/forgotten", PublishAt: &at}
 	f.pass()
 	if len(f.yt.started) != 1 || f.st.link == "" || f.q.booked != 1 {
 		t.Errorf("started %d, link %q, booked %d", len(f.yt.started), f.st.link, f.q.booked)
@@ -414,7 +482,7 @@ func TestAnUnfinishedSessionWhoseTimeIsTooCloseGetsANewSlot(t *testing.T) {
 	f.yt.uploads["/session/1"] = &upload{size: len(videoBytes), received: 400}
 	f.yt.started = []map[string]map[string]any{{"status": {}}}
 	soon := f.now.Add(time.Minute)
-	f.st.job = store.PublishJob{ReleaseID: rel, SessionURI: f.yt.base + "/session/1", VideoSize: int64(len(videoBytes)), PublishAt: &soon}
+	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, SessionURI: f.yt.base + "/session/1", VideoSize: int64(len(videoBytes)), PublishAt: &soon}
 	f.pass()
 	if f.q.booked != 1 || len(f.yt.started) != 2 || f.st.job.PublishAt == nil || !f.st.job.PublishAt.Equal(f.q.slot) {
 		t.Errorf("booked %d, started %d, job %+v", f.q.booked, len(f.yt.started), f.st.job)
@@ -467,7 +535,14 @@ func TestAVideoYouTubeRejectedIsHeldAndStartsAfresh(t *testing.T) {
 	f.yt.afterUpload = func(v *video) { v.UploadStatus, v.RejectionReason = "rejected", "duplicate" }
 	f.pass()
 	if !strings.Contains(f.st.hold, "duplicate") || f.st.link != "" || f.st.job.VideoID != "" {
-		t.Errorf("hold %q, link %q, job %+v", f.st.hold, f.st.link, f.st.job)
+		t.Fatalf("hold %q, link %q, job %+v", f.st.hold, f.st.link, f.st.job)
+	}
+	// Lifting the hold uploads afresh.
+	f.yt.afterUpload = nil
+	f.st.hold = ""
+	f.pass()
+	if f.st.hold != "" || f.st.link == "" || len(f.yt.started) != 2 {
+		t.Errorf("after lifting: hold %q, link %q, sessions %d", f.st.hold, f.st.link, len(f.yt.started))
 	}
 }
 
@@ -490,12 +565,15 @@ func TestAVideoNotAsAskedIsRecordedAndHeld(t *testing.T) {
 	}
 }
 
-func TestALabelYouTubeDoesntReportDoesntHold(t *testing.T) {
+func TestALabelYouTubeDoesntReportDoesntHoldButIsMentioned(t *testing.T) {
 	f := newFixture(t)
 	f.yt.afterUpload = func(v *video) { v.Synthetic = nil }
 	f.pass()
 	if f.st.hold != "" || f.st.link == "" {
 		t.Errorf("hold %q, link %q", f.st.hold, f.st.link)
+	}
+	if len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "не подтвердил метку AI") || !strings.Contains(f.say.said[0], "Studio") {
+		t.Errorf("told %q", f.say.said)
 	}
 }
 
@@ -521,7 +599,7 @@ func TestTransientFailuresBackOff(t *testing.T) {
 	}
 	f.yt.startErr = nil
 	f.pass()
-	if f.st.link == "" || f.st.job.Attempts != 0 || f.st.job.LastError != "" {
+	if f.st.link == "" || f.st.job.Attempts != 0 || f.st.job.LastError != "" || f.st.job.AnnouncedAt == nil {
 		t.Errorf("after recovering: link %q, job %+v", f.st.link, f.st.job)
 	}
 }
@@ -579,31 +657,34 @@ func TestAChannelNotConnectedIsLeftAlone(t *testing.T) {
 	}
 }
 
-func TestAPosterThatFailsStaysRetriedThenTheVideoGoesOnWithoutIt(t *testing.T) {
+func TestAPosterThatFailsIsRetriedThenTheVideoGoesOnWithoutIt(t *testing.T) {
 	f := newFixture(t)
 	f.yt.thumbErr = func(w http.ResponseWriter) bool {
 		writeErr(w, http.StatusServiceUnavailable, "backendError")
 		return true
 	}
 	f.pass()
-	if f.st.link != "" || f.st.job.ThumbnailAttempts != 1 || f.st.job.Attempts != 1 {
-		t.Fatalf("first failure: link %q, job %+v", f.st.link, f.st.job)
+	// The link is recorded before the poster: the video exists and can go out.
+	if f.st.link == "" || f.st.job.ThumbnailAttempts != 1 || f.st.job.Attempts != 1 || len(f.say.said) != 0 {
+		t.Fatalf("first failure: link %q, job %+v, told %q", f.st.link, f.st.job, f.say.said)
 	}
 	f.due()
 	f.pass()
-	if f.st.link != "" || f.st.job.ThumbnailAttempts != 2 {
-		t.Fatalf("second failure: link %q, job %+v", f.st.link, f.st.job)
+	if f.st.job.ThumbnailAttempts != 2 || len(f.say.said) != 0 {
+		t.Fatalf("second failure: job %+v, told %q", f.st.job, f.say.said)
 	}
 	f.due()
 	f.pass()
-	if f.st.link == "" {
-		t.Fatalf("third failure: no link, job %+v", f.st.job)
-	}
-	if len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "Обложку") || !strings.Contains(f.say.said[0], "Загружен") {
-		t.Errorf("told: %q", f.say.said)
+	if len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "Обложку") || !strings.Contains(f.say.said[0], "Загружен") || f.st.job.AnnouncedAt == nil {
+		t.Errorf("told %q, job %+v", f.say.said, f.st.job)
 	}
 	if f.yt.puts != 1 || len(f.yt.started) != 1 {
 		t.Errorf("uploaded again: puts %d, started %d", f.yt.puts, len(f.yt.started))
+	}
+	f.due()
+	f.pass()
+	if len(f.say.said) != 1 {
+		t.Errorf("told again: %q", f.say.said)
 	}
 }
 
@@ -618,18 +699,22 @@ func TestAPosterYouTubeRefusesGoesOnAtOnce(t *testing.T) {
 
 func TestAPackageWithNoCoverSaysSo(t *testing.T) {
 	f := newFixture(t)
-	f.q.items[0].Cover = ""
+	f.st.release.Media = json.RawMessage(`{}`)
 	f.pass()
 	if f.st.link == "" || len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "нет обложки") {
 		t.Errorf("link %q, told %q", f.st.link, f.say.said)
 	}
 }
 
+func scheduled(at time.Time) *video {
+	return &video{UploadStatus: "uploaded", Privacy: "private", PublishAt: at.Format(time.RFC3339), Synthetic: yes()}
+}
+
 func TestTakingDownAVideoWithALink(t *testing.T) {
 	f := newFixture(t)
-	f.q.items = nil
-	f.yt.videos["abcdefghijk"] = &video{Privacy: "private", PublishAt: "2030-01-01T00:00:00Z"}
-	f.st.closed = []store.ToUnschedule{{ReleaseID: rel, ChannelID: channel, Status: "rejected", URL: "https://www.youtube.com/shorts/abcdefghijk", PublishAt: f.now.Add(time.Hour)}}
+	at := f.now.Add(3 * time.Hour)
+	f.yt.videos["abcdefghijk"] = scheduled(at)
+	f.closeIt("https://www.youtube.com/shorts/abcdefghijk", at)
 	f.pass()
 	if len(f.yt.unsched) != 1 || f.yt.unsched[0] != "abcdefghijk" || len(f.st.forgot) != 1 {
 		t.Fatalf("unscheduled %v, forgot %v", f.yt.unsched, f.st.forgot)
@@ -637,76 +722,612 @@ func TestTakingDownAVideoWithALink(t *testing.T) {
 	if f.yt.videos["abcdefghijk"].PublishAt != "" {
 		t.Error("the video still has its time")
 	}
-	if len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "снят с расписания") {
+	if len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "снят с расписания") || !strings.Contains(f.say.said[0], "Private") {
 		t.Errorf("told %q", f.say.said)
 	}
 }
 
-func TestTakingDownWithNoLinkAsksTheJob(t *testing.T) {
-	closed := func(f *fixture) []store.ToUnschedule {
-		return []store.ToUnschedule{{ReleaseID: rel, ChannelID: channel, Status: "rejected", PublishAt: f.now.Add(time.Hour)}}
+func TestATakeDownThatFailsKeepsTryingAndTellsOnceAfterTenMinutes(t *testing.T) {
+	for _, c := range []struct {
+		status int
+		reason string
+	}{{403, "quotaExceeded"}, {500, "backendError"}, {503, ""}} {
+		f := newFixture(t)
+		at := f.now.Add(3 * time.Hour)
+		f.yt.videos["abcdefghijk"] = scheduled(at)
+		f.closeIt("https://www.youtube.com/shorts/abcdefghijk", at)
+		calls := 0
+		f.yt.unschedErr = func(w http.ResponseWriter) bool { calls++; writeErr(w, c.status, c.reason); return true }
+		f.pass()
+		f.now = f.now.Add(9 * time.Minute)
+		f.pass()
+		if len(f.say.said) != 0 || calls != 2 {
+			t.Fatalf("%s: before ten minutes: told %q, calls %d", c.reason, f.say.said, calls)
+		}
+		f.now = f.now.Add(2 * time.Minute)
+		f.pass()
+		f.now = f.now.Add(time.Minute)
+		f.pass()
+		if calls != 4 || len(f.st.forgot) != 0 {
+			t.Errorf("%s: calls %d, forgot %v", c.reason, calls, f.st.forgot)
+		}
+		if len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "abcdefghijk") || !strings.Contains(f.say.said[0], at.UTC().Format("02.01 15:04")) {
+			t.Errorf("%s: told %q", c.reason, f.say.said)
+		}
+		// YouTube comes back: it comes off, and the group hears that too.
+		f.yt.unschedErr = nil
+		f.pass()
+		if len(f.st.forgot) != 1 || len(f.say.said) != 2 {
+			t.Errorf("%s: after recovering: forgot %v, told %q", c.reason, f.st.forgot, f.say.said)
+		}
 	}
+}
+
+func TestATakeDownFailingCloseToTheSlotTellsAtOnce(t *testing.T) {
+	f := newFixture(t)
+	at := f.now.Add(8 * time.Minute)
+	f.yt.videos["abcdefghijk"] = scheduled(at)
+	f.closeIt("https://www.youtube.com/shorts/abcdefghijk", at)
+	f.yt.unschedErr = func(w http.ResponseWriter) bool { writeErr(w, 503, ""); return true }
+	f.pass()
+	if len(f.say.said) != 1 {
+		t.Errorf("told %q", f.say.said)
+	}
+}
+
+func TestATakeDownYouTubeRefusesTellsOnceAndKeepsTrying(t *testing.T) {
+	f := newFixture(t)
+	at := f.now.Add(3 * time.Hour)
+	f.yt.videos["abcdefghijk"] = scheduled(at)
+	f.closeIt("https://www.youtube.com/shorts/abcdefghijk", at)
+	f.yt.unschedErr = func(w http.ResponseWriter) bool { writeErr(w, 403, "forbidden"); return true }
+	f.pass()
+	f.pass()
+	if len(f.st.forgot) != 0 || len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "не может снять") {
+		t.Errorf("forgot %v, told %q", f.st.forgot, f.say.said)
+	}
+}
+
+// 200 from videos.update isn't proof.
+func TestAScheduleThatSurvivesTheUpdateIsToldAboutAndKept(t *testing.T) {
+	f := newFixture(t)
+	at := f.now.Add(3 * time.Hour)
+	f.yt.videos["abcdefghijk"] = scheduled(at)
+	f.closeIt("https://www.youtube.com/shorts/abcdefghijk", at)
+	f.yt.unschedErr = func(http.ResponseWriter) bool { return true } // answers 200, changes nothing
+	f.pass()
+	if len(f.st.forgot) != 0 {
+		t.Fatalf("forgot %v", f.st.forgot)
+	}
+	f.now = f.now.Add(2 * time.Minute)
+	f.pass()
+	f.pass()
+	if len(f.st.forgot) != 0 || len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "Studio") || !strings.Contains(f.say.said[0], "abcdefghijk") {
+		t.Fatalf("forgot %v, told %q", f.st.forgot, f.say.said)
+	}
+	// It does come off in the end: the record goes then.
+	f.yt.unschedErr = nil
+	f.pass()
+	if len(f.st.forgot) != 1 {
+		t.Errorf("after it came off: forgot %v", f.st.forgot)
+	}
+}
+
+// An update answering 404 while the video is there.
+func TestAnUpdateThatCantFindAVideoStillOnTheScheduleIsNotBelieved(t *testing.T) {
+	f := newFixture(t)
+	at := f.now.Add(3 * time.Hour)
+	f.yt.videos["abcdefghijk"] = scheduled(at)
+	f.closeIt("https://www.youtube.com/shorts/abcdefghijk", at)
+	f.yt.unschedErr = func(w http.ResponseWriter) bool { writeErr(w, 404, "videoNotFound"); return true }
+	f.pass()
+	if len(f.st.forgot) != 0 {
+		t.Errorf("forgot %v", f.st.forgot)
+	}
+}
+
+func TestAGoneVideoIsForgottenOnlyOnceItStaysGone(t *testing.T) {
+	f := newFixture(t)
+	f.closeIt("https://www.youtube.com/shorts/abcdefghijk", f.now.Add(3*time.Hour))
+	f.pass()
+	if len(f.st.forgot) != 0 || len(f.yt.unsched) != 0 {
+		t.Fatalf("the first miss: forgot %v, unscheduled %v", f.st.forgot, f.yt.unsched)
+	}
+	f.now = f.now.Add(goneConfirmAfter)
+	f.pass()
+	if len(f.st.forgot) != 1 || len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "больше нет") || strings.Contains(f.say.said[0], "Private") {
+		t.Errorf("forgot %v, told %q", f.st.forgot, f.say.said)
+	}
+}
+
+func TestAVideoYouTubeRejectedHasNothingToTakeDown(t *testing.T) {
+	f := newFixture(t)
+	f.yt.videos["abcdefghijk"] = &video{UploadStatus: "rejected", RejectionReason: "duplicate", Privacy: "private"}
+	f.closeIt("https://www.youtube.com/shorts/abcdefghijk", f.now.Add(3*time.Hour))
+	f.pass()
+	if len(f.yt.unsched) != 0 || len(f.st.forgot) != 1 || !strings.Contains(f.say.said[0], "не принял") {
+		t.Errorf("unscheduled %v, forgot %v, told %q", f.yt.unsched, f.st.forgot, f.say.said)
+	}
+}
+
+func TestAPublicVideoOfAClosedReleaseIsMadePrivateToo(t *testing.T) {
+	f := newFixture(t)
+	f.yt.videos["abcdefghijk"] = &video{UploadStatus: "processed", Privacy: "public"}
+	f.closeIt("https://www.youtube.com/shorts/abcdefghijk", f.now.Add(3*time.Hour))
+	f.yt.unschedErr = func(http.ResponseWriter) bool { f.yt.videos["abcdefghijk"].Privacy = "private"; return true }
+	f.pass()
+	if len(f.st.forgot) != 1 {
+		t.Errorf("forgot %v", f.st.forgot)
+	}
+}
+
+func TestTakingDownWithNoLinkAsksTheJob(t *testing.T) {
 	// The job knows the video.
 	f := newFixture(t)
-	f.q.items = nil
-	f.st.closed = closed(f)
-	f.st.job = store.PublishJob{ReleaseID: rel, VideoID: "knownvideo1"}
+	at := f.now.Add(3 * time.Hour)
+	f.yt.videos["knownvideo1"] = scheduled(at)
+	f.closeIt("", at)
+	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, VideoID: "knownvideo1"}
 	f.pass()
 	if len(f.yt.unsched) != 1 || f.yt.unsched[0] != "knownvideo1" || len(f.st.forgot) != 1 {
 		t.Errorf("known: unscheduled %v, forgot %v", f.yt.unsched, f.st.forgot)
 	}
 	// The session finished, and the answer never reached hub.
 	f = newFixture(t)
-	f.q.items = nil
-	f.st.closed = closed(f)
+	at = f.now.Add(3 * time.Hour)
+	f.yt.videos["finished001"] = scheduled(at)
+	f.closeIt("", at)
 	f.yt.uploads["/session/1"] = &upload{size: 1000, received: 1000, videoID: "finished001"}
-	f.st.job = store.PublishJob{ReleaseID: rel, SessionURI: f.yt.base + "/session/1", VideoSize: 1000}
+	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, SessionURI: f.yt.base + "/session/1", VideoSize: 1000}
 	f.pass()
 	if len(f.yt.unsched) != 1 || f.yt.unsched[0] != "finished001" {
 		t.Errorf("finished: unscheduled %v", f.yt.unsched)
 	}
 	// The session never finished: no video exists, nothing to say.
 	f = newFixture(t)
-	f.q.items = nil
-	f.st.closed = closed(f)
+	f.closeIt("", f.now.Add(3*time.Hour))
 	f.yt.uploads["/session/1"] = &upload{size: 1000, received: 10}
-	f.st.job = store.PublishJob{ReleaseID: rel, SessionURI: f.yt.base + "/session/1", VideoSize: 1000}
+	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, SessionURI: f.yt.base + "/session/1", VideoSize: 1000}
 	f.pass()
 	if len(f.yt.unsched) != 0 || len(f.st.forgot) != 1 || len(f.say.said) != 0 {
 		t.Errorf("unfinished: unscheduled %v, forgot %v, told %q", f.yt.unsched, f.st.forgot, f.say.said)
 	}
-	// No job at all: a slot booked by hand, nothing to take down.
+	// A slot with no job row and no link: not hub's, so hub can't vouch for it.
 	f = newFixture(t)
-	f.q.items = nil
-	f.st.closed = closed(f)
+	f.closeIt("", f.now.Add(3*time.Hour))
 	f.pass()
-	if len(f.yt.unsched) != 0 || len(f.st.forgot) != 1 {
-		t.Errorf("no job: unscheduled %v, forgot %v", f.yt.unsched, f.st.forgot)
+	if len(f.yt.unsched) != 0 || len(f.st.forgot) != 1 || len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "Studio") {
+		t.Errorf("no job: unscheduled %v, forgot %v, told %q", f.yt.unsched, f.st.forgot, f.say.said)
 	}
 }
 
-func TestATakeDownThatFailsKeepsTheVideoOnTheList(t *testing.T) {
+// Every byte has arrived, and YouTube hasn't made the video yet.
+func TestAFinalisingUploadIsWaitedForNotForgotten(t *testing.T) {
 	f := newFixture(t)
-	f.q.items = nil
-	f.st.closed = []store.ToUnschedule{{ReleaseID: rel, ChannelID: channel, Status: "rejected", URL: "https://www.youtube.com/shorts/abcdefghijk", PublishAt: f.now.Add(time.Hour)}}
+	at := f.now.Add(3 * time.Hour)
+	f.closeIt("", at)
+	f.yt.uploads["/session/1"] = &upload{size: len(videoBytes), received: len(videoBytes)}
+	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, SessionURI: f.yt.base + "/session/1", VideoSize: int64(len(videoBytes)), PublishAt: &at}
+	f.pass()
+	if len(f.st.forgot) != 0 {
+		t.Fatalf("take-down forgot it: %v", f.st.forgot)
+	}
+	// The same state on the way up: no second send.
+	g := newFixture(t)
+	g.yt.uploads["/session/1"] = &upload{size: len(videoBytes), received: len(videoBytes)}
+	g.st.job = store.PublishJob{Saved: true, ReleaseID: rel, SessionURI: g.yt.base + "/session/1", VideoSize: int64(len(videoBytes)), PublishAt: &at}
+	g.pass()
+	if g.yt.puts != 0 || g.st.hold != "" || g.st.job.Attempts != 1 || len(g.yt.started) != 0 {
+		t.Errorf("puts %d, hold %q, job %+v, sessions %d", g.yt.puts, g.st.hold, g.st.job, len(g.yt.started))
+	}
+}
+
+func TestAStatusQueryThatRepeatsARefusalDropsTheSession(t *testing.T) {
+	f := newFixture(t)
+	f.yt.putErr = func(w http.ResponseWriter, u *upload) bool { writeErr(w, 400, "invalidVideoMetadata"); return true }
+	f.pass()
+	if f.st.hold == "" || f.st.job.SessionURI != "" {
+		t.Fatalf("hold %q, job %+v", f.st.hold, f.st.job)
+	}
+	// Held with a slot: on the take-down list, with no video behind it.
+	f.st.closed = []store.ToUnschedule{{ReleaseID: rel, ChannelID: channel, Status: "approved", Hold: f.st.hold, PublishAt: f.q.slot}}
+	f.pass()
+	if len(f.st.forgot) != 1 {
+		t.Errorf("forgot %v", f.st.forgot)
+	}
+	for _, said := range f.say.said {
+		if strings.HasSuffix(strings.TrimSpace(said), "/shorts/") {
+			t.Errorf("a link to nothing: %q", said)
+		}
+	}
+	// Someone lifts the hold, YouTube is fine now: a new session, no second hold.
+	f.yt.putErr = nil
+	f.st.closed, f.st.hold = nil, ""
+	f.pass()
+	if f.st.hold != "" || f.st.link == "" || len(f.yt.started) != 2 {
+		t.Errorf("after lifting: hold %q, link %q, sessions %d", f.st.hold, f.st.link, len(f.yt.started))
+	}
+}
+
+func TestADeadSessionFoundOnTheStatusQueryIsDropped(t *testing.T) {
+	f := newFixture(t)
+	at := f.q.slot
+	f.yt.uploads["/session/1"] = &upload{size: len(videoBytes), received: 10}
+	f.yt.queryErr = func(w http.ResponseWriter, u *upload) bool { writeErr(w, 400, "invalidVideoMetadata"); return true }
+	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, SessionURI: f.yt.base + "/session/1", VideoSize: int64(len(videoBytes)), PublishAt: &at}
+	f.pass()
+	if f.st.hold == "" || f.st.job.SessionURI != "" {
+		t.Fatalf("hold %q, job %+v", f.st.hold, f.st.job)
+	}
+	f.st.hold = ""
+	f.yt.queryErr = nil
+	f.pass()
+	if f.st.hold != "" || f.st.link == "" || len(f.yt.started) != 1 {
+		t.Errorf("after lifting: hold %q, link %q, sessions %d", f.st.hold, f.st.link, len(f.yt.started))
+	}
+}
+
+// uploadLimitExceeded passes with time, but the session it ended doesn't come back.
+func TestARetryableErrorEndingASessionStartsANewOneNextTime(t *testing.T) {
+	f := newFixture(t)
+	f.yt.putErr = func(w http.ResponseWriter, u *upload) bool { writeErr(w, 400, "uploadLimitExceeded"); return true }
+	f.yt.queryErr = func(w http.ResponseWriter, u *upload) bool { writeErr(w, 400, "uploadLimitExceeded"); return true }
+	f.pass()
+	if f.st.hold != "" || f.st.job.SessionURI != "" || f.st.job.Attempts != 1 {
+		t.Fatalf("hold %q, job %+v", f.st.hold, f.st.job)
+	}
+	f.due()
+	f.pass()
+	if len(f.yt.started) != 2 || f.st.job.Attempts != 2 {
+		t.Errorf("sessions %d, job %+v", len(f.yt.started), f.st.job)
+	}
+	f.yt.putErr, f.yt.queryErr = nil, nil
+	f.due()
+	f.pass()
+	if f.st.link == "" {
+		t.Errorf("after the limit passed: job %+v", f.st.job)
+	}
+}
+
+func TestABrowserSlotWithNoJobHoldsAndNeverUploadsASecondCopy(t *testing.T) {
+	f := newFixture(t)
+	at := f.q.slot
+	f.q.items[0].PublishAt = &at
+	f.pass()
+	if len(f.yt.started) != 0 || f.yt.puts != 0 || f.st.link != "" || !strings.Contains(f.st.hold, "Studio") {
+		t.Fatalf("sessions %d, puts %d, link %q, hold %q", len(f.yt.started), f.yt.puts, f.st.link, f.st.hold)
+	}
+	// The owner looked, and it isn't there: lifting the hold means go.
+	f.st.hold = ""
+	f.pass()
+	if f.st.hold != "" || f.st.link == "" || len(f.yt.started) != 1 {
+		t.Errorf("after lifting: hold %q, link %q, sessions %d", f.st.hold, f.st.link, len(f.yt.started))
+	}
+}
+
+func TestHubsOwnSlotKeepsGoingAfterACrash(t *testing.T) {
+	f := newFixture(t)
+	at := f.q.slot
+	f.q.items[0].PublishAt = &at
+	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel}
+	f.pass()
+	if f.st.hold != "" || f.st.link == "" {
+		t.Errorf("hold %q, link %q", f.st.hold, f.st.link)
+	}
+}
+
+func TestTheLinkIsRecordedAsSoonAsTheVideoExists(t *testing.T) {
+	f := newFixture(t)
+	f.yt.thumbErr = func(w http.ResponseWriter) bool { writeErr(w, 503, ""); return true }
+	f.pass()
+	if f.st.job.VideoID == "" || f.st.link != shortsURL(f.st.job.VideoID) {
+		t.Errorf("job %+v, link %q", f.st.job, f.st.link)
+	}
+}
+
+func TestAModeratorsLinkIsLeftInPlace(t *testing.T) {
+	f := newFixture(t)
+	f.st.link = "https://www.youtube.com/shorts/moderators1"
+	f.st.linkBy = "Kostya"
+	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, VideoID: "hubsvideo01"}
+	f.yt.videos["hubsvideo01"] = scheduled(f.q.slot)
+	at := f.q.slot
+	f.st.job.PublishAt = &at
+	f.pass()
+	if f.st.link != "https://www.youtube.com/shorts/moderators1" {
+		t.Errorf("link %q", f.st.link)
+	}
+}
+
+// coverGone is a store with no cover in it.
+type coverGone struct{ *fakeMedia }
+
+func (m coverGone) Open(ctx context.Context, key string) (io.ReadCloser, int64, error) {
+	if strings.HasSuffix(key, "cover.png") {
+		return nil, 0, errors.New("NoSuchKey")
+	}
+	return m.fakeMedia.Open(ctx, key)
+}
+
+func TestAnUnreadableCoverCountsAsAttemptsThenOneAlert(t *testing.T) {
+	f := newFixture(t)
+	f.p.media = coverGone{f.media}
+	f.pass()
+	if f.st.link == "" {
+		t.Fatal("no link")
+	}
+	for i := 0; i < 8; i++ {
+		f.due()
+		f.pass()
+	}
+	if f.st.job.ThumbnailAttempts != thumbnailAttempts-1 || f.st.job.AnnouncedAt == nil || f.st.hold != "" {
+		t.Errorf("job %+v, hold %q", f.st.job, f.st.hold)
+	}
+	if len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "Обложку") {
+		t.Errorf("told %q", f.say.said)
+	}
+}
+
+func TestAVideoDeletedInStudioHoldsInsteadOfLooping(t *testing.T) {
+	f := newFixture(t)
+	f.pass()
+	delete(f.yt.videos, f.st.job.VideoID)
+	f.st.link = "" // cleared on the admin page
+	f.say.said = nil
+	for i := 0; i < 5 && f.st.hold == ""; i++ {
+		f.pass()
+		f.now = f.now.Add(10 * time.Minute)
+	}
+	if !strings.Contains(f.st.hold, "больше нет на YouTube") || f.st.link != "" || f.st.job.VideoID != "" {
+		t.Fatalf("hold %q, link %q, job %+v", f.st.hold, f.st.link, f.st.job)
+	}
+	// Lifting the hold uploads afresh, instead of holding again.
+	f.st.hold = ""
+	f.pass()
+	if f.st.hold != "" || f.st.link == "" || len(f.yt.started) != 2 {
+		t.Errorf("after lifting: hold %q, link %q, sessions %d", f.st.hold, f.st.link, len(f.yt.started))
+	}
+}
+
+func TestAClearedLinkOnAVideoThatIsThereComesBackQuietly(t *testing.T) {
+	f := newFixture(t)
+	f.pass()
+	f.st.link = ""
+	f.say.said = nil
+	f.pass()
+	if f.st.link == "" || len(f.say.said) != 0 || len(f.yt.started) != 1 {
+		t.Errorf("link %q, told %q, sessions %d", f.st.link, f.say.said, len(f.yt.started))
+	}
+}
+
+func TestAReleaseClosedMidUploadIsNotPromised(t *testing.T) {
+	f := newFixture(t)
+	f.yt.afterUpload = func(v *video) { f.st.release.Status = "rejected" }
+	f.pass()
+	if f.st.link == "" {
+		t.Error("the video exists: its link must be on record for the take-down")
+	}
+	for _, said := range f.say.said {
+		if strings.Contains(said, "выйдет") {
+			t.Errorf("promised: %q", said)
+		}
+	}
+}
+
+// A take-down must not forget a release the upload loop has in hand.
+func TestATakeDownWaitsForAnUploadInProgress(t *testing.T) {
+	f := newFixture(t)
+	at := f.now.Add(3 * time.Hour)
+	f.closeIt("", at)
+	f.p.setUploading(rel)
+	f.p.takeDown(context.Background(), map[string]string{channel: refresh})
+	if len(f.st.forgot) != 0 {
+		t.Fatalf("forgot %v while uploading", f.st.forgot)
+	}
+	f.p.setUploading("")
+	f.p.takeDown(context.Background(), map[string]string{channel: refresh})
+	if len(f.st.forgot) != 1 {
+		t.Errorf("after the upload: forgot %v", f.st.forgot)
+	}
+}
+
+func TestAModeratorsReplacedLinkTakesDownBothVideos(t *testing.T) {
+	f := newFixture(t)
+	f.pass()
+	hubs := f.st.job.VideoID
+	theirs := "video00000X"
+	f.yt.videos[theirs] = scheduled(f.q.slot)
+	f.closeIt(shortsURL(theirs), f.q.slot)
 	f.yt.unschedErr = func(w http.ResponseWriter) bool {
-		writeErr(w, http.StatusServiceUnavailable, "backendError")
+		// The first one goes through, the other doesn't: nothing is forgotten yet.
+		if len(f.yt.unsched) == 0 && f.yt.videos[theirs].PublishAt != "" {
+			f.yt.unsched = append(f.yt.unsched, theirs)
+			f.yt.videos[theirs].PublishAt = ""
+			return true
+		}
+		writeErr(w, 503, "")
 		return true
 	}
 	f.pass()
-	if len(f.st.forgot) != 0 || len(f.say.said) != 0 {
-		t.Errorf("transient: forgot %v, told %q", f.st.forgot, f.say.said)
-	}
-	f.yt.unschedErr = func(w http.ResponseWriter) bool { writeErr(w, http.StatusForbidden, "forbidden"); return true }
-	f.pass()
-	f.pass()
-	if len(f.st.forgot) != 0 || len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "не дал снять") {
-		t.Errorf("refused: forgot %v, told %q", f.st.forgot, f.say.said)
+	if len(f.st.forgot) != 0 || f.st.job.VideoID != hubs {
+		t.Fatalf("hub's video still on the schedule, yet: forgot %v, job %+v", f.st.forgot, f.st.job)
 	}
 	f.yt.unschedErr = nil
 	f.pass()
-	if len(f.st.forgot) != 1 {
-		t.Errorf("recovering: forgot %v", f.st.forgot)
+	if len(f.st.forgot) != 1 || f.yt.videos[hubs].PublishAt != "" || f.yt.videos[theirs].PublishAt != "" {
+		t.Errorf("forgot %v, hub's %q, theirs %q", f.st.forgot, f.yt.videos[hubs].PublishAt, f.yt.videos[theirs].PublishAt)
+	}
+}
+
+func TestARecheckBeforeTheSlot(t *testing.T) {
+	due := func(f *fixture) {
+		f.st.recheck = []store.RecheckDue{{ReleaseID: rel, ChannelID: channel, URL: shortsURL("abcdefghijk"), PublishAt: f.now.Add(20 * time.Minute)}}
+		f.q.items = nil
+	}
+	// All is well: read once.
+	f := newFixture(t)
+	due(f)
+	f.yt.videos["abcdefghijk"] = scheduled(f.now.Add(20 * time.Minute))
+	f.pass()
+	if len(f.st.rechecked) != 1 || f.st.hold != "" {
+		t.Errorf("fine: rechecked %v, hold %q", f.st.rechecked, f.st.hold)
+	}
+	// Rejected since the read-back at upload.
+	f = newFixture(t)
+	due(f)
+	f.yt.videos["abcdefghijk"] = &video{UploadStatus: "rejected", RejectionReason: "duplicate", Privacy: "private"}
+	f.pass()
+	if !strings.Contains(f.st.hold, "duplicate") || len(f.st.forgot) != 1 {
+		t.Errorf("rejected: hold %q, forgot %v", f.st.hold, f.st.forgot)
+	}
+	// Failed in processing.
+	f = newFixture(t)
+	due(f)
+	f.yt.videos["abcdefghijk"] = &video{UploadStatus: "failed", Privacy: "private"}
+	f.pass()
+	if !strings.Contains(f.st.hold, "failed") {
+		t.Errorf("failed: hold %q", f.st.hold)
+	}
+	// YouTube not answering: asked again next pass, not marked.
+	f = newFixture(t)
+	due(f)
+	f.yt.revoked = false
+	f.yt.mu.Lock()
+	f.yt.videos["abcdefghijk"] = scheduled(f.now.Add(20 * time.Minute))
+	f.yt.mu.Unlock()
+	f.p.yt = failingVideo{f.p.yt}
+	f.pass()
+	if len(f.st.rechecked) != 0 || f.st.hold != "" {
+		t.Errorf("no answer: rechecked %v, hold %q", f.st.rechecked, f.st.hold)
+	}
+	// Deleted: only once it stays gone.
+	f = newFixture(t)
+	due(f)
+	f.pass()
+	if f.st.hold != "" {
+		t.Fatalf("the first miss: hold %q", f.st.hold)
+	}
+	f.now = f.now.Add(goneConfirmAfter)
+	f.pass()
+	if !strings.Contains(f.st.hold, "больше нет на YouTube") {
+		t.Errorf("gone: hold %q", f.st.hold)
+	}
+}
+
+type failingVideo struct{ YouTube }
+
+func (failingVideo) GetVideo(context.Context, string, string) (youtube.Video, error) {
+	return youtube.Video{}, &youtube.Error{Retry: true, Message: "503"}
+}
+
+// Telegram down must not silence what the group has to hear.
+func TestAnAlertWaitsForTelegram(t *testing.T) {
+	// A lost access.
+	f := newFixture(t)
+	f.yt.revoked = true
+	f.say.down = true
+	f.pass()
+	if len(f.st.alerted) != 0 || f.say.tries == 0 {
+		t.Fatalf("marked while nobody was told: %v, tries %d", f.st.alerted, f.say.tries)
+	}
+	f.say.down = false
+	f.pass()
+	if len(f.st.alerted) != 1 || len(f.say.said) != 1 {
+		t.Errorf("after Telegram came back: alerted %v, told %q", f.st.alerted, f.say.said)
+	}
+	// The poster warning.
+	f = newFixture(t)
+	f.yt.thumbErr = func(w http.ResponseWriter) bool { writeErr(w, 403, "forbidden"); return true }
+	f.say.down = true
+	f.pass()
+	if f.st.link == "" || f.st.job.AnnouncedAt != nil {
+		t.Fatalf("link %q, job %+v", f.st.link, f.st.job)
+	}
+	f.say.down = false
+	f.due()
+	f.pass()
+	if len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "Обложку") || f.st.job.AnnouncedAt == nil {
+		t.Errorf("told %q, job %+v", f.say.said, f.st.job)
+	}
+	// A take-down's alert, and its report.
+	f = newFixture(t)
+	at := f.now.Add(5 * time.Minute)
+	f.yt.videos["abcdefghijk"] = scheduled(at)
+	f.closeIt(shortsURL("abcdefghijk"), at)
+	f.yt.unschedErr = func(w http.ResponseWriter) bool { writeErr(w, 503, ""); return true }
+	f.say.down = true
+	f.pass()
+	f.say.down = false
+	f.pass()
+	if len(f.say.said) != 1 {
+		t.Errorf("the alert: told %q", f.say.said)
+	}
+	f.yt.unschedErr = nil
+	f.say.down = true
+	f.pass()
+	if len(f.st.forgot) != 0 {
+		t.Errorf("forgotten with nobody told: %v", f.st.forgot)
+	}
+	f.say.down = false
+	f.pass()
+	if len(f.st.forgot) != 1 || len(f.say.said) != 2 {
+		t.Errorf("after Telegram came back: forgot %v, told %q", f.st.forgot, f.say.said)
+	}
+}
+
+func TestARefusedClientIsOneAlertAndHoldsNothing(t *testing.T) {
+	f := newFixture(t)
+	f.yt.invalidClient = true
+	f.pass()
+	f.due()
+	f.pass()
+	if f.st.hold != "" || f.st.job.Attempts != 0 || len(f.st.alerted) != 0 {
+		t.Errorf("hold %q, job %+v, alerted %v", f.st.hold, f.st.job, f.st.alerted)
+	}
+	if len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "HUB_YOUTUBE_CLIENT_SECRET") {
+		t.Errorf("told %q", f.say.said)
+	}
+	// The secret is fixed: the channel goes on without being connected again.
+	f.yt.invalidClient = false
+	f.pass()
+	if f.st.link == "" {
+		t.Errorf("after the fix: job %+v", f.st.job)
+	}
+}
+
+func TestOnlyTheLockHolderWorks(t *testing.T) {
+	f := newFixture(t)
+	f.st.locked = true
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	f.p.Run(ctx)
+	if len(f.yt.started) != 0 {
+		t.Errorf("uploaded without the lock: %d", len(f.yt.started))
+	}
+}
+
+func TestRunUploadsWithTheLock(t *testing.T) {
+	f := newFixture(t)
+	// Real time here: Run's clock isn't the fixture's to move.
+	f.p.now = time.Now
+	f.q.slot = time.Now().Add(6 * time.Hour).Truncate(time.Second).UTC()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { f.p.Run(ctx); close(done) }()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		f.yt.mu.Lock()
+		up := len(f.yt.videos)
+		f.yt.mu.Unlock()
+		if up == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	if len(f.yt.videos) != 1 {
+		t.Errorf("videos: %d", len(f.yt.videos))
 	}
 }
 
@@ -724,9 +1345,12 @@ func TestAJobPickedUpAfterItsTimeIsRecordedNotHeld(t *testing.T) {
 	f := newFixture(t)
 	past := f.now.Add(-time.Hour)
 	f.yt.videos["oldvideo001"] = &video{UploadStatus: "processed", Privacy: "public", PublishAt: past.Format(time.RFC3339)}
-	f.st.job = store.PublishJob{ReleaseID: rel, VideoID: "oldvideo001", PublishAt: &past}
+	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, VideoID: "oldvideo001", PublishAt: &past}
 	f.pass()
 	if f.st.hold != "" || f.st.link != "https://www.youtube.com/shorts/oldvideo001" {
 		t.Errorf("hold %q, link %q", f.st.hold, f.st.link)
+	}
+	if len(f.say.said) != 1 || strings.Contains(f.say.said[0], "выйдет") {
+		t.Errorf("told %q", f.say.said)
 	}
 }

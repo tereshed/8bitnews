@@ -40,6 +40,7 @@ func (f *fakeStore) DeletePlatformAccount(context.Context, string, string) error
 
 type fakeConnector struct {
 	refresh   string
+	missing   []string
 	exchangeE error
 	channel   youtube.Channel
 	channelE  error
@@ -51,9 +52,9 @@ type fakeConnector struct {
 func (c *fakeConnector) AuthCodeURL(state string) string {
 	return "https://accounts.google.com/o/oauth2/v2/auth?state=" + url.QueryEscape(state)
 }
-func (c *fakeConnector) Exchange(_ context.Context, code string) (string, error) {
+func (c *fakeConnector) Exchange(_ context.Context, code string) (youtube.Grant, error) {
 	c.exchanged = append(c.exchanged, code)
-	return c.refresh, c.exchangeE
+	return youtube.Grant{Refresh: c.refresh, Missing: c.missing}, c.exchangeE
 }
 func (c *fakeConnector) MyChannel(context.Context, string) (youtube.Channel, error) {
 	return c.channel, c.channelE
@@ -192,6 +193,29 @@ func TestNoRefreshTokenStoresNothing(t *testing.T) {
 	rec := f.get(f.callback(f.auth.YouTubeState(f.me.UserID, "8bitnews-us"), "code"), true)
 	if !strings.Contains(rec.Header().Get("Location"), "yt_no_refresh") || f.store.account != nil {
 		t.Errorf("%s, %+v", rec.Header().Get("Location"), f.store.account)
+	}
+}
+
+func TestAPartialConsentIsRefusedAndSaysWhatIsMissing(t *testing.T) {
+	f, conn, _ := connectFixture(t)
+	conn.missing = []string{"https://www.googleapis.com/auth/youtube.force-ssl"}
+	rec := f.get(f.callback(f.auth.YouTubeState(f.me.UserID, "8bitnews-us"), "code"), true)
+	body := rec.Body.String()
+	if rec.Code != http.StatusBadRequest || !strings.Contains(body, "просмотр и изменение роликов канала") || !strings.Contains(body, "Ничего не сохранено") {
+		t.Errorf("%d: %s", rec.Code, body)
+	}
+	if f.store.account != nil || len(conn.revoked) != 0 {
+		t.Errorf("stored %+v, revoked %v", f.store.account, conn.revoked)
+	}
+}
+
+func TestDisconnectingSaysScheduledVideosStillGoOut(t *testing.T) {
+	f, _, _ := connectFixture(t)
+	if body := f.get("/admin/youtube", true).Body.String(); !strings.Contains(body, "уже стоящие в расписании, отключение не снимает") {
+		t.Errorf("the page promises too much: %s", body)
+	}
+	if text, _ := flashText("yt_disconnected"); !strings.Contains(text, "в расписании выйдут") {
+		t.Errorf("flash: %s", text)
 	}
 }
 

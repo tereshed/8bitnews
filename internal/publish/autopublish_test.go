@@ -191,6 +191,13 @@ func TestSpanishStateMediaGetTheirMarkFromTheProfile(t *testing.T) {
 		{URL: "https://www.infobae.com/d", Outlet: "EFE (via Infobae)"},
 		{URL: "https://www.infobae.com/e", Outlet: "Infobae"},
 		{URL: "https://www.example.org/f", Outlet: "EFEMÉRIDES"},
+		{URL: "https://www.infobae.com/g", Outlet: "Infobae (EFE)"},
+		{URL: "https://www.example.org/h", Outlet: "Agencia Efe"},
+		{URL: "https://es.yahoo.com/i", Outlet: "RTVE (via Yahoo)"},
+		{URL: "https://www.example.org/j", Outlet: "EFE EME"},
+		{URL: "https://www.example.org/k", Outlet: "Yahoo via rtve"},
+		{URL: "https://www.example.org/l", Outlet: "EFE Verde (via Infobae)"},
+		{URL: "https://www.example.org/m", Outlet: "Revista RTVE Hoy"},
 	}
 	got := sourcesOf(rows, data, "es-ES")
 	for url, want := range map[string]string{
@@ -200,6 +207,13 @@ func TestSpanishStateMediaGetTheirMarkFromTheProfile(t *testing.T) {
 		"https://www.infobae.com/d": " (medio estatal)",
 		"https://www.infobae.com/e": "",
 		"https://www.example.org/f": "",
+		"https://www.infobae.com/g": " (medio estatal)",
+		"https://www.example.org/h": " (medio estatal)",
+		"https://es.yahoo.com/i":    " (medio estatal)",
+		"https://www.example.org/j": "",
+		"https://www.example.org/k": " (medio estatal)",
+		"https://www.example.org/l": " (medio estatal)",
+		"https://www.example.org/m": "",
 	} {
 		if m := got[url].Marks(); m != want {
 			t.Errorf("%s: marks %q, want %q", url, m, want)

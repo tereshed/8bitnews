@@ -71,7 +71,7 @@ func (m *Moderator) AutoApprove(ctx context.Context) {
 func autoApprovedReply(hubUploads bool) string {
 	const opening = "🤖 Одобрено автоматически: на этом канале подтверждение выключено. Ролик встанет в ближайший слот. "
 	if hubUploads {
-		return opening + "Чтобы он не вышел — «🚫 Закрыть страницу источников»: hub снимет его с расписания сам."
+		return opening + "Чтобы он не вышел — «🚫 Закрыть страницу источников»: hub попробует снять его с расписания и напишет сюда, что вышло."
 	}
 	return opening + "Чтобы он не вышел — «🚫 Закрыть страницу источников»; если он уже в расписании, его ещё надо снять в Studio."
 }
@@ -183,7 +183,7 @@ func holdText(u store.UploadAlert, hubUploads bool) string {
 	if u.MayBeScheduled {
 		next = "Он может уже стоять в расписании: снимите его в Studio, иначе он выйдет."
 		if hubUploads {
-			next = "Если он уже в расписании, hub снимет его сам за пару минут."
+			next = "Если он уже в расписании, hub попробует снять его и напишет сюда, что вышло."
 		}
 	}
 	const opening = "⏸ Ролик задержан. "

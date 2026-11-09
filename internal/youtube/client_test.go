@@ -351,18 +351,24 @@ func TestExchangeAndRevoke(t *testing.T) {
 		}
 		_, _ = w.Write([]byte(answer))
 	}))
-	answer = `{"access_token":"acc","refresh_token":"ref","expires_in":3600}`
-	refresh, err := c.Exchange(context.Background(), "code")
-	if err != nil || refresh != "ref" {
-		t.Fatalf("%q, %v", refresh, err)
+	answer = `{"access_token":"acc","refresh_token":"ref","expires_in":3600,"scope":"` + strings.Join(Scopes, " ") + `"}`
+	grant, err := c.Exchange(context.Background(), "code")
+	if err != nil || grant.Refresh != "ref" || len(grant.Missing) != 0 {
+		t.Fatalf("%+v, %v", grant, err)
 	}
 	if form.Get("grant_type") != "authorization_code" || form.Get("code") != "code" || form.Get("client_secret") != "sec" ||
 		form.Get("redirect_uri") != "https://hub.example/admin/youtube/callback" {
 		t.Errorf("form: %v", form)
 	}
 	answer = `{"access_token":"acc","expires_in":3600}`
-	if refresh, err := c.Exchange(context.Background(), "code"); err != nil || refresh != "" {
-		t.Errorf("no refresh token: %q, %v", refresh, err)
+	if grant, err := c.Exchange(context.Background(), "code"); err != nil || grant.Refresh != "" || len(grant.Missing) != 0 {
+		t.Errorf("no refresh token, no scope named: %+v, %v", grant, err)
+	}
+	// Google lets a person untick a permission.
+	answer = `{"access_token":"acc","refresh_token":"ref","expires_in":3600,"scope":"` + Scopes[0] + `"}`
+	grant, err = c.Exchange(context.Background(), "code")
+	if err != nil || len(grant.Missing) != 2 || grant.Missing[0] != Scopes[1] || grant.Missing[1] != Scopes[2] {
+		t.Errorf("a partial consent: %+v, %v", grant, err)
 	}
 	if err := c.Revoke(context.Background(), "ref"); err != nil || form.Get("token") != "ref" {
 		t.Errorf("revoke: %v, %v", err, form)
@@ -372,11 +378,52 @@ func TestExchangeAndRevoke(t *testing.T) {
 func TestATokenErrorNeverCarriesTheBody(t *testing.T) {
 	c, _ := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"error":"invalid_client","refresh_token":"SECRET"}`))
+		_, _ = w.Write([]byte(`{"error":"invalid_request","refresh_token":"SECRET"}`))
 	}))
 	_, err := c.Exchange(context.Background(), "code")
-	if err == nil || strings.Contains(err.Error(), "SECRET") || !strings.Contains(err.Error(), "invalid_client") {
+	if err == nil || strings.Contains(err.Error(), "SECRET") || !strings.Contains(err.Error(), "invalid_request") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestARefusedClientIsItsOwnKindOfError(t *testing.T) {
+	c, _ := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"invalid_client","refresh_token":"SECRET"}`))
+	}))
+	_, err := c.GetVideo(context.Background(), "r", "v")
+	if !errors.Is(err, ErrClientRefused) || Retryable(err) || strings.Contains(err.Error(), "SECRET") {
+		t.Errorf("err = %v, retryable %v", err, Retryable(err))
+	}
+}
+
+func TestWhatEndsASession(t *testing.T) {
+	for name, c := range map[string]struct {
+		err  error
+		dead bool
+	}{
+		"a refusal":            {&Error{Status: 400, Reason: "invalidVideoMetadata"}, true},
+		"upload limit":         {&Error{Status: 400, Reason: "uploadLimitExceeded", Retry: true}, true},
+		"quota on the upload":  {&Error{Status: 403, Reason: "quotaExceeded", Retry: true}, true},
+		"an old access token":  {&Error{Status: 401, Retry: true}, false},
+		"too many requests":    {&Error{Status: 429, Retry: true}, false},
+		"a server error":       {&Error{Status: 503, Retry: true}, false},
+		"the network":          {&Error{Retry: true}, false},
+		"not an error of ours": {errors.New("x"), false},
+		"no error":             {nil, false},
+	} {
+		if got := SessionDead(c.err); got != c.dead {
+			t.Errorf("%s: SessionDead = %v", name, got)
+		}
+	}
+}
+
+func TestFinalising(t *testing.T) {
+	if !(UploadState{Offset: 100}).Finalising(100) {
+		t.Error("all the bytes there, no video")
+	}
+	if (UploadState{Offset: 99}).Finalising(100) || (UploadState{Offset: 100, VideoID: "v"}).Finalising(100) || (UploadState{}).Finalising(0) {
+		t.Error("not finalising")
 	}
 }
 

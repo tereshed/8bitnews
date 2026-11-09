@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -95,21 +96,45 @@ func (c *Client) AuthCodeURL(state string) string {
 	return c.cfg.AuthURL + "?" + q.Encode()
 }
 
-// Exchange turns the code from the consent screen into a refresh token. It is
-// "" if Google didn't send one.
-func (c *Client) Exchange(ctx context.Context, code string) (string, error) {
+// Grant is what the consent screen gave.
+type Grant struct {
+	// Refresh is "" if Google didn't send one.
+	Refresh string
+	// Missing are the Scopes the person didn't grant: Google's consent screen
+	// lets them untick each one.
+	Missing []string
+}
+
+// Exchange turns the code from the consent screen into a grant.
+func (c *Client) Exchange(ctx context.Context, code string) (Grant, error) {
 	tok, err := c.tokenRequest(ctx, url.Values{
 		"grant_type":   {"authorization_code"},
 		"code":         {code},
 		"redirect_uri": {c.cfg.RedirectURL},
 	})
 	if err != nil {
-		return "", err
+		return Grant{}, err
 	}
 	if tok.RefreshToken != "" {
 		c.remember(tok.RefreshToken, tok)
 	}
-	return tok.RefreshToken, nil
+	return Grant{Refresh: tok.RefreshToken, Missing: missingScopes(tok.Scope)}, nil
+}
+
+// missingScopes compares the answer's scope with ours. An answer that names none
+// means all that was asked for (RFC 6749, 5.1).
+func missingScopes(granted string) []string {
+	if strings.TrimSpace(granted) == "" {
+		return nil
+	}
+	have := strings.Fields(granted)
+	var missing []string
+	for _, want := range Scopes {
+		if !slices.Contains(have, want) {
+			missing = append(missing, want)
+		}
+	}
+	return missing
 }
 
 // Revoke ends the access behind a refresh token.
@@ -140,6 +165,7 @@ type tokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int64  `json:"expires_in"`
+	Scope        string `json:"scope"`
 	Error        string `json:"error"`
 	Description  string `json:"error_description"`
 }
@@ -168,6 +194,8 @@ func (c *Client) tokenRequest(ctx context.Context, form url.Values) (tokenRespon
 	switch {
 	case tok.Error == "invalid_grant":
 		return tok, ErrAuthRevoked
+	case tok.Error == "invalid_client" || tok.Error == "unauthorized_client":
+		return tok, fmt.Errorf("%w: %s", ErrClientRefused, tok.Error)
 	case resp.StatusCode >= 500:
 		return tok, &Error{Status: resp.StatusCode, Retry: true, Message: "the token endpoint answered " + resp.Status}
 	case resp.StatusCode >= 300 || tok.AccessToken == "":
@@ -339,11 +367,17 @@ func (c *Client) StartUpload(ctx context.Context, refresh string, u Upload, size
 }
 
 // UploadState is where a session stands: Offset bytes have arrived, or, with
-// VideoID set, the upload is finished. A session YouTube no longer knows gives
+// VideoID set, the upload is finished. All the bytes there and no video id yet
+// means YouTube is finalising it: wait. A session YouTube no longer knows gives
 // ErrSessionGone.
 type UploadState struct {
 	Offset  int64
 	VideoID string
+}
+
+// Finalising says all the bytes have arrived and the video isn't there yet.
+func (s UploadState) Finalising(size int64) bool {
+	return s.VideoID == "" && size > 0 && s.Offset >= size
 }
 
 // QueryUpload asks a session how far it got: it is how a restart learns that
@@ -552,9 +586,25 @@ func drain(resp *http.Response) {
 // connect the channel again.
 var ErrAuthRevoked = errors.New("youtube: the channel's access has been revoked")
 
+// ErrClientRefused: Google doesn't accept hub's OAuth client, as after a rotated
+// secret. That's hub's configuration, not any video's fault or any channel's.
+var ErrClientRefused = errors.New("youtube: Google refuses hub's OAuth client")
+
 // ErrSessionGone: YouTube no longer knows an upload session, and the upload
 // didn't finish through it. Start another.
 var ErrSessionGone = errors.New("youtube: the upload session is gone")
+
+// SessionDead says an answer ended an upload session. A session's status query
+// repeats the error that ended it, so asking again gets nowhere, even when the
+// error itself passes with time (uploadLimitExceeded): the next try needs a new
+// session. A 401 is about the access token and a 408 or 429 about the moment.
+func SessionDead(err error) bool {
+	var e *Error
+	if !errors.As(err, &e) || e.Status < 400 || e.Status >= 500 {
+		return false
+	}
+	return e.Status != http.StatusUnauthorized && e.Status != http.StatusRequestTimeout && e.Status != http.StatusTooManyRequests
+}
 
 // Error is a refusal from YouTube, or a failure to reach it.
 type Error struct {
@@ -573,9 +623,9 @@ func (e *Error) Error() string {
 }
 
 // Retryable says whether an error may pass by itself: everything but a clear
-// refusal, and a revoked access, which won't.
+// refusal, a revoked access and a refused client, which won't.
 func Retryable(err error) bool {
-	if errors.Is(err, ErrAuthRevoked) {
+	if errors.Is(err, ErrAuthRevoked) || errors.Is(err, ErrClientRefused) {
 		return false
 	}
 	var e *Error

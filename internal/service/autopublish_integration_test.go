@@ -718,14 +718,158 @@ func TestPublishJobsKeepHowFarAnUploadGot(t *testing.T) {
 	if got, err := st.PublishJobOf(ctx, r.ID); err != nil || got.VideoID != "" {
 		t.Errorf("after forgetting: %+v, %v", got, err)
 	}
+}
+
+func TestOnlyOneProcessHoldsThePublishersLock(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	first, ok, err := st.LockPublisher(ctx)
+	if err != nil || !ok {
+		t.Fatalf("the first: %v, %v", ok, err)
+	}
+	if !first.Alive(ctx) {
+		t.Error("a held lock isn't alive")
+	}
+	if _, ok, err := st.LockPublisher(ctx); err != nil || ok {
+		t.Fatalf("the second got it too: %v, %v", ok, err)
+	}
+	first.Release(ctx)
+	second, ok, err := st.LockPublisher(ctx)
+	if err != nil || !ok {
+		t.Fatalf("after the release: %v, %v", ok, err)
+	}
+	second.Release(ctx)
+	if first.Alive(ctx) {
+		t.Error("a released lock is alive")
+	}
+}
+
+func TestUnannouncedJobsAreOfApprovedUnheldReleases(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "unann-a")
+	approve(t, st, r.ID, store.AutoApprover)
+	listed := func() []store.PublishJob {
+		t.Helper()
+		jobs, err := st.UnannouncedJobs(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return jobs
+	}
+	job := store.PublishJob{ReleaseID: r.ID, SessionURI: "https://x/s", VideoSize: 5}
 	if err := st.SavePublishJob(ctx, job); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.DeletePublishJob(ctx, r.ID); err != nil {
+	if len(listed()) != 0 {
+		t.Error("no video yet, yet listed")
+	}
+	job.VideoID = "vid"
+	if err := st.SavePublishJob(ctx, job); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := st.PublishJobOf(ctx, r.ID); err != nil || got.VideoID != "" {
-		t.Errorf("after deleting: %+v, %v", got, err)
+	if got := listed(); len(got) != 1 || got[0].ChannelID != "unann-a" || got[0].VideoID != "vid" || !got[0].Saved || got[0].AnnouncedAt != nil {
+		t.Fatalf("listed: %+v", got)
+	}
+	if err := st.SetPublishHold(ctx, r.ID, "x"); err != nil {
+		t.Fatal(err)
+	}
+	if len(listed()) != 0 {
+		t.Error("a held release is listed")
+	}
+	if err := st.SetPublishHold(ctx, r.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now()
+	job.AnnouncedAt = &at
+	if err := st.SavePublishJob(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	if len(listed()) != 0 {
+		t.Error("an announced job is listed")
+	}
+	got, err := st.PublishJobOf(ctx, r.ID)
+	if err != nil || got.AnnouncedAt == nil || !got.Saved {
+		t.Errorf("read back: %+v, %v", got, err)
+	}
+	blank, err := st.PublishJobOf(ctx, seedRelease(t, st, "unann-a").ID)
+	if err != nil || blank.Saved {
+		t.Errorf("no row: %+v, %v", blank, err)
+	}
+}
+
+func TestHubsLinkDoesNotReplaceAModerators(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "ifnone-a")
+	approve(t, st, r.ID, store.AutoApprover)
+	if err := st.SetPublicationURLIfNone(ctx, r.ID, store.PlatformYouTube, "https://www.youtube.com/shorts/hubs0000001", "hub"); err != nil {
+		t.Fatal(err)
+	}
+	if url, err := st.PublicationURL(ctx, r.ID, store.PlatformYouTube); err != nil || url != "https://www.youtube.com/shorts/hubs0000001" {
+		t.Errorf("first: %q, %v", url, err)
+	}
+	if err := st.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, "https://www.youtube.com/shorts/moderators1", "Kostya"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetPublicationURLIfNone(ctx, r.ID, store.PlatformYouTube, "https://www.youtube.com/shorts/hubs0000001", "hub"); err != nil {
+		t.Fatal(err)
+	}
+	if url, err := st.PublicationURL(ctx, r.ID, store.PlatformYouTube); err != nil || url != "https://www.youtube.com/shorts/moderators1" {
+		t.Errorf("after a moderator: %q, %v", url, err)
+	}
+}
+
+func TestSlotsToRecheckAreNearAndReadOnce(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "rechk-a")
+	approve(t, st, r.ID, store.AutoApprover)
+	if err := st.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, "https://www.youtube.com/shorts/abcdefghijk", "hub"); err != nil {
+		t.Fatal(err)
+	}
+	slot := time.Now().Add(20 * time.Minute).Truncate(time.Second)
+	if err := st.SetSlot(ctx, r.ID, r.ChannelID, slot); err != nil {
+		t.Fatal(err)
+	}
+	due := func() int {
+		t.Helper()
+		list, err := st.SlotsToRecheck(ctx, time.Now().Add(30*time.Minute))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(list)
+	}
+	if due() != 1 {
+		t.Fatal("a slot 20 minutes off isn't due")
+	}
+	if list, _ := st.SlotsToRecheck(ctx, time.Now().Add(10*time.Minute)); len(list) != 0 {
+		t.Error("a slot further off than asked is due")
+	}
+	if err := st.MarkSlotRechecked(ctx, r.ID); err != nil {
+		t.Fatal(err)
+	}
+	if due() != 0 {
+		t.Error("read twice")
+	}
+	// The same time again keeps the mark; a new time is a new question.
+	if err := st.SetSlot(ctx, r.ID, r.ChannelID, slot); err != nil {
+		t.Fatal(err)
+	}
+	if due() != 0 {
+		t.Error("the same slot lost its mark")
+	}
+	if err := st.SetSlot(ctx, r.ID, r.ChannelID, slot.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if due() != 1 {
+		t.Error("a moved slot isn't due")
+	}
+	if err := st.SetPublishHold(ctx, r.ID, "x"); err != nil {
+		t.Fatal(err)
+	}
+	if due() != 0 {
+		t.Error("a held release is due")
 	}
 }
 

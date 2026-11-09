@@ -14,10 +14,10 @@ language: es-ES
 local:
   # агентства и общественное вещание
   # aka: имена, под которыми издание идёт на чужих сайтах («EFE (via Infobae)»): пометка hub держится и на них.
-  - { outlet: Agencia EFE, domain: efe.com, kind: wire, leaning: center, ownership: state_funded, aka: [EFE, Agencia EFE], note: "государственная компания" }
+  - { outlet: Agencia EFE, domain: efe.com, kind: wire, leaning: center, ownership: state_funded, aka: [EFE, Agencia EFE, EFE Verde], note: "государственная компания" }
   - { outlet: EFE Verde, domain: efeverde.com, kind: wire, leaning: center, ownership: state_funded, note: "экологическая служба EFE" }
   - { outlet: Europa Press, domain: europapress.es, kind: wire, leaning: center }
-  - { outlet: RTVE, domain: rtve.es, kind: press, leaning: center, ownership: state_funded, note: "руководство избирают Cortes; баланс меняется с большинством" }
+  - { outlet: RTVE, domain: rtve.es, kind: press, leaning: center, ownership: state_funded, aka: [RTVE], note: "руководство избирают Cortes; баланс меняется с большинством" }
   # центр и деловые
   - { outlet: La Vanguardia, domain: lavanguardia.com, kind: press, leaning: center, note: "Барселона, взгляд из Каталонии" }
   - { outlet: El Confidencial, domain: elconfidencial.com, kind: press, leaning: center }

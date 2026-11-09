@@ -91,13 +91,15 @@ purpose: Инструкция владельцу: как настроить ка
      - `https://www.googleapis.com/auth/youtube.force-ssl` — смена видимости и чтение своего ролика: так hub проверяет
        загрузку и снимает ролик с расписания;
      - `https://www.googleapis.com/auth/yt-analytics.readonly` — статистика для DataLens.
+   - **Branding, для перевода в production:** домашняя страница `https://hub.8bitlang.org/c/8bitnews-us`, политика
+     конфиденциальности `https://hub.8bitlang.org/privacy`, разрешённый домен `8bitlang.org`. Без них Google не даст опубликовать приложение.
    - **Audience → Publish app → In production.** Важно: у приложения в статусе Testing refresh token (токен, по которому hub входит
      без вас) живёт 7 дней, и hub пришлось бы заново авторизовывать каждую неделю
      ([OAuth](https://developers.google.com/identity/protocols/oauth2)).
      Проверку приложения Google не проходим. При входе вы увидите экран «Google hasn't verified this app» →
      Advanced → перейти в приложение. Непроверенному приложению доступны 100 пользователей
      ([unverified apps](https://support.google.com/cloud/answer/7454865)); нам нужен один — вы.
-4. **Clients** — OAuth-клиент: тип Web application, redirect URI `https://hub.8bitlang.org/admin/youtube/callback`
+4. **Clients** — OAuth-клиент: тип Web application, имя `8bitnews hub`, redirect URI `https://hub.8bitlang.org/admin/youtube/callback`
    (`{HUB_PUBLIC_URL}/admin/youtube/callback`).
 5. **Секреты.** Client secret и JSON клиента не присылайте в чат и не кладите в репозиторий. В hub они попадают через
    `~/.config/8bitnews/deploy.env`: `HUB_YOUTUBE_CLIENT_ID`, `HUB_YOUTUBE_CLIENT_SECRET` и `HUB_YOUTUBE_TOKEN_KEY`
@@ -105,8 +107,9 @@ purpose: Инструкция владельцу: как настроить ка
 6. **Согласие по каждому каналу.** После деплоя: `/admin` боту в личку → страница админки → «Подключение каналов YouTube».
    Там написано, на что вы соглашаетесь: hub загружает каждый готовый ролик, не спрашивая о каждом, как Private с расписанием,
    с меткой AI и «не для детей». Нажмите «Подключить», в списке аккаунтов выберите именно этот канал, разрешите. Hub сверит
-   канал с `platforms.youtube.account` в профиле и откажет, если выбран другой. Отключить можно там же или на
-   [странице разрешений Google](https://myaccount.google.com/permissions).
+   канал с `platforms.youtube.account` в профиле и откажет, если выбран другой или снята галочка с какого-то разрешения. Отключить можно там же или
+   на [странице разрешений Google](https://myaccount.google.com/permissions): это останавливает новые загрузки, а ролики, уже стоящие в расписании,
+   всё равно выйдут, если не снять их в Studio.
 7. **Квота.** Ничего не запрашивайте: у загрузки отдельный лимит — 100 вызовов в день на проект
    (`rules.md`, раздел 8). Двум каналам по 1–3 ролика в день хватает.
 

@@ -310,13 +310,13 @@ func TestWhatTheGroupIsToldDependsOnWhoTakesAVideoDown(t *testing.T) {
 		name, text string
 		says, not  string
 	}{
-		{"withdrawn, browser", withdrawnReply("K", false), "снимите вручную", "hub снимет"},
-		{"withdrawn, hub", withdrawnReply("K", true), "hub снимет", "до слота"},
-		{"approved, browser", autoApprovedReply(false), "снять в Studio", "hub снимет"},
-		{"approved, hub", autoApprovedReply(true), "hub снимет", "Studio"},
-		{"held, browser", holdText(store.UploadAlert{Hold: "x", MayBeScheduled: true}, false), "снимите его в Studio", "hub снимет"},
-		{"held, hub", holdText(store.UploadAlert{Hold: "x", MayBeScheduled: true}, true), "hub снимет", "Studio"},
-		{"held, nothing up", holdText(store.UploadAlert{Hold: "x"}, true), "Сам он не выйдет", "снимет"},
+		{"withdrawn, browser", withdrawnReply("K", false), "снимите вручную", "hub попробует"},
+		{"withdrawn, hub", withdrawnReply("K", true), "hub попробует", "до слота"},
+		{"approved, browser", autoApprovedReply(false), "снять в Studio", "hub попробует"},
+		{"approved, hub", autoApprovedReply(true), "hub попробует", "Studio"},
+		{"held, browser", holdText(store.UploadAlert{Hold: "x", MayBeScheduled: true}, false), "снимите его в Studio", "hub попробует"},
+		{"held, hub", holdText(store.UploadAlert{Hold: "x", MayBeScheduled: true}, true), "hub попробует", "Studio"},
+		{"held, nothing up", holdText(store.UploadAlert{Hold: "x"}, true), "Сам он не выйдет", "снять"},
 	} {
 		if !strings.Contains(c.text, c.says) || strings.Contains(c.text, c.not) {
 			t.Errorf("%s: %q", c.name, c.text)
@@ -331,7 +331,7 @@ func TestAutoApprovalSaysWhoTakesAVideoDownOnThisChannel(t *testing.T) {
 	st.release.CreatedAt = time.Now()
 	m.SetUploaderCheck(func(context.Context, string) bool { return true })
 	m.AutoApprove(context.Background())
-	if sent := tg.byMethod("sendMessage"); len(sent) != 1 || !strings.Contains(sent[0].params["text"].(string), "hub снимет") {
+	if sent := tg.byMethod("sendMessage"); len(sent) != 1 || !strings.Contains(sent[0].params["text"].(string), "hub попробует") {
 		t.Errorf("sent %+v", sent)
 	}
 }

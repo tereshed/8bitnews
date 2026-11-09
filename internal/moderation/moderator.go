@@ -426,7 +426,7 @@ func publishedReply(who string, published bool) string {
 func withdrawnReply(who string, hubUploads bool) string {
 	opening := "🚫 Страница источников закрыта — " + who + ". Несколько минут она ещё может открываться из кэша."
 	if hubUploads {
-		return opening + " Если ролик стоит в расписании YouTube, hub снимет его сам за пару минут; на других площадках снимите вручную."
+		return opening + " Если ролик стоит в расписании YouTube, hub попробует снять его сам и напишет сюда, что вышло; на других площадках снимите вручную."
 	}
 	return opening + " Сам ролик на площадках снимите вручную; если он стоит в расписании, то до слота, иначе он выйдет."
 }

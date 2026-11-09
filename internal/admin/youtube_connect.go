@@ -6,6 +6,7 @@ import (
 	"errors"
 	"html/template"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -25,7 +26,7 @@ const (
 // Connector is the OAuth side of connecting a channel (internal/youtube).
 type Connector interface {
 	AuthCodeURL(state string) string
-	Exchange(ctx context.Context, code string) (string, error)
+	Exchange(ctx context.Context, code string) (youtube.Grant, error)
 	MyChannel(ctx context.Context, refresh string) (youtube.Channel, error)
 	Revoke(ctx context.Context, refresh string) error
 }
@@ -65,6 +66,19 @@ func youtubeAccount(ch store.Channel) (handle string, enabled bool) {
 	}
 	_ = json.Unmarshal(ch.Platforms, &platforms)
 	return platforms.YouTube.Account, platforms.YouTube.Enabled
+}
+
+// scopeName says a permission the way the consent screen's reader would.
+func scopeName(scope string) string {
+	switch path.Base(scope) {
+	case "youtube.upload":
+		return "загрузка роликов"
+	case "youtube.force-ssl":
+		return "просмотр и изменение роликов канала"
+	case "yt-analytics.readonly":
+		return "статистика канала"
+	}
+	return scope
 }
 
 func sameHandle(a, b string) bool {
@@ -168,12 +182,24 @@ func (h *Handler) youtubeCallback(w http.ResponseWriter, r *http.Request, id Ide
 		h.fail(w, err)
 		return
 	}
-	refresh, err := h.YouTube.Exchange(ctx, q.Get("code"))
+	grant, err := h.YouTube.Exchange(ctx, q.Get("code"))
 	if err != nil {
 		h.Log.Error("admin: connecting YouTube: exchanging the code", "channel_id", channelID, "error", err)
 		redirect(w, r, back, "yt_failed")
 		return
 	}
+	// Google lets a person untick each permission. Without one of them hub would
+	// fail later, with less to say about why.
+	if len(grant.Missing) > 0 {
+		names := make([]string, len(grant.Missing))
+		for i, scope := range grant.Missing {
+			names[i] = scopeName(scope)
+		}
+		h.youtubeRender(w, r, id, http.StatusBadRequest, "Google выдал не все разрешения: не хватает «"+strings.Join(names, "», «")+
+			"». Ничего не сохранено. Подключите канал заново и оставьте все галочки.", true)
+		return
+	}
+	refresh := grant.Refresh
 	if refresh == "" {
 		redirect(w, r, back, "yt_no_refresh")
 		return
@@ -253,9 +279,9 @@ var youtubeTemplate = template.Must(template.New("youtube").Parse(head + `<title
 <li>метка AI включена, «не для детей», категория News &amp; Politics;</li>
 <li>заголовок, описание и теги — из пакета ролика, без добавлений;</li>
 <li>обложка — из пакета ролика;</li>
-<li>hub может снять ролик с расписания, если его релиз закрыт или задержан.</li>
+<li>hub снимает ролик с расписания, если его релиз закрыт или задержан, и сообщает в группу, если не смог.</li>
 </ul>
-<p>Остановить можно здесь, кнопкой «Отключить», или на <a href="https://myaccount.google.com/permissions">странице разрешений Google</a>. Пока канал не подключён, ролики ждут загрузки через API публикации.</p>
+<p>Новые загрузки останавливает кнопка «Отключить» здесь или <a href="https://myaccount.google.com/permissions">страница разрешений Google</a>. <b>Ролики, уже стоящие в расписании, отключение не снимает: они выйдут в свой час</b>, а hub снять их больше не сможет; снимайте их в Studio. Пока канал не подключён, ролики ждут загрузки через API публикации.</p>
 <p class="hint">Google покажет предупреждение «This app isn't verified»: это наше приложение 8bitnews publisher. Нажмите Advanced и перейдите к нему. В списке аккаунтов выберите именно этот канал.</p>
 {{range .Rows}}<div class="progress"><b>{{.Name}}</b> {{.Handle}}
 <div class="meta">{{if .Connected}}подключён{{with .AccountName}}: {{.}}{{end}}{{with .ConnectedBy}} · {{.}}{{end}}{{with .ConnectedAt}} · {{.}}{{end}}

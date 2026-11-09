@@ -162,7 +162,8 @@ func (s *Store) takenSlots(ctx context.Context, channelID string, from time.Time
 func (s *Store) SetSlot(ctx context.Context, releaseID, channelID string, at time.Time) error {
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO release_slots (release_id, channel_id, publish_at) VALUES ($1, $2, $3)
-		ON CONFLICT (release_id) DO UPDATE SET publish_at = EXCLUDED.publish_at, created_at = now()
+		ON CONFLICT (release_id) DO UPDATE SET publish_at = EXCLUDED.publish_at, created_at = now(),
+		    rechecked_at = CASE WHEN release_slots.publish_at = EXCLUDED.publish_at THEN release_slots.rechecked_at END
 	`, releaseID, channelID, at)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == uniqueViolationCode {
