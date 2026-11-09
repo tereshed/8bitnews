@@ -39,6 +39,11 @@
 те, кто проверяет (`fact_checker`, `script_editor`, Legal, QA), — `claude-opus-5-5`, `high`. Уровень рассуждений также задан
 в `settings.code_backend_settings.env.DEVTEAM_AGENT_REASONING_EFFORT` для запуска в песочнице.
 
+Legal читает выжимки (`countries/<cc>/legal_digest.md`, `operator/legal_digest.md`, `platforms/<platform>/rules_digest.md`), а полный раздел
+базы открывает, когда сработал триггер (`tools/kb_section.py`). Правишь базу — поправь и выжимку: тест `test_legal_digests.py` ловит новые и потерянные
+разделы, но не изменённое правило. Сценарий после доработки проверяет один `legal_lead` по изменениям, пока `tools/script_diff.py` не потребует всю команду;
+готовый ролик Legal смотрит только в том, чего в сценарии не было видно, пока `tools/legal_final_scope.py` не потребует проверить и текст.
+
 Надёжность, очередь доработок, запуск расписаний и проверка готовности — [docs/automation.md](../docs/automation.md).
 
 | Команда | Статус | Агенты → артефакт |
