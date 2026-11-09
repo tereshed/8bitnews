@@ -1,6 +1,9 @@
 """`studio build`: script.json + channel profile + template package -> a
 self-contained video_package directory (studio/README.md). Pipeline:
-voice (per scene TTS) -> timeline from those word timings -> frames ->
+voice (per scene TTS) -> timeline from those word timings, with the scene
+pauses closed a little if the video is narrowly too long -> a script that
+still misses the channel's length stops here, before pictures are paid for ->
+scene pictures -> frames ->
 the picture, encoded once -> soundtrack (voice, ducked music, transition
 sounds; mastered to the loudness target) muxed onto it, and a second one
 without music for a long video -> cover + keyframes -> package.json
@@ -68,7 +71,7 @@ from .srt import write_srt
 from .subtitles import wrap_words
 from .template_pkg import TemplatePackage, load_template
 from .text_render import draw_text
-from .timeline import SceneVoice, Timeline, Word, timeline_from_voice, timeline_to_dict
+from .timeline import SceneVoice, Timeline, Word, fitted_pause, timeline_from_voice, timeline_to_dict
 from .tts import ADAPTERS
 from .video import OUTPUT_H, OUTPUT_W, encode_video_only, mux, probe_duration_s, upscale_nearest
 
@@ -459,6 +462,28 @@ _TRUE_PEAK_MARGIN_DB = 0.2
 _TRUE_PEAK_ROUNDS = 4
 
 
+# How much room a requested cut leaves below the channel's limit.
+CUT_MARGIN_S = 1.0
+
+
+def check_narration_length(duration_s: float, word_count: int, channel_profile: dict) -> None:
+    """A script whose voice misses the channel's length goes back before any
+    picture is paid for, told how far off it is: without a number, a writer
+    told "too long" cut a video 0.12 s over by 18 s. Words are counted at this
+    voice's own pace, not the channel's budget, which is slower; the rebuild
+    may also pick another anchor, which CUT_MARGIN_S leaves room for."""
+    length = channel_profile["format"]["duration_s"]
+    low, high = length["min"], length["max"]
+    if low <= duration_s <= high:
+        return
+    off = (duration_s - high if duration_s > high else low - duration_s) + CUT_MARGIN_S
+    words = math.ceil(off * word_count / duration_s)
+    amount = f"about {off:.1f}s, about {words} words at this voice's pace, and no more; leave the rest of the script as it is"
+    if duration_s > high:
+        raise BuildError(f"narration length: the voice runs {duration_s:.2f}s, over the channel's {high}s. Cut {amount}")
+    raise BuildError(f"narration length: the voice runs {duration_s:.2f}s, under the channel's {low}s. Add {amount}")
+
+
 def build_package(
     script_path: Path,
     channel_id: str,
@@ -540,20 +565,9 @@ def build_package(
         if assets_dir is not None:
             raise BuildError("--images and --assets both give the scene pictures: pass one")
         from .openrouter import OpenRouterClient
-        from .scene_images import generate_scene_images, load_earlier_pictures
 
-        cfg = image_settings()
-        earlier, unreadable = (None, None) if reuse_from is None else load_earlier_pictures(
-            reuse_from, reuse_package_id or str(reuse_from))
+        image_client = image_client or OpenRouterClient()
         redraw_names, redraw_notes = resolve_redraw(script, redraw)
-        assets_dir, images_report = generate_scene_images(
-            script, template, channel_id, out_dir, image_client or OpenRouterClient(),
-            model=cfg["model"], check_model=cfg["check_model"], earlier=earlier, redraw=redraw_names,
-        )
-        if unreadable:
-            images_report.notes.append(f"the earlier package's pictures can't be reused ({unreadable}): every picture "
-                                       "was drawn again")
-        images_report.notes.extend(redraw_notes)
 
     tts_name_resolved = _resolve_tts_name(tts_name, channel_profile)
     # Each anchor speaks with its own voice (format.md, 'Ведущие').
@@ -597,7 +611,18 @@ def build_package(
         scene_voices.append(SceneVoice(scene_id=scene["id"], shot=scene["shot"], words=words, duration_s=duration))
         scene_wavs.append(tts_result.wav_path)
 
-    timeline = timeline_from_voice(scene_voices, pause_s, max_lines, max_chars, sub_style.get("font_scale", 1))
+    font_scale = sub_style.get("font_scale", 1)
+    timeline = timeline_from_voice(scene_voices, pause_s, max_lines, max_chars, font_scale)
+    length = channel_profile["format"]["duration_s"]
+    gaps = len(scene_voices) - 1
+    fitted = fitted_pause(timeline.duration_s - gaps * pause_s, gaps, pause_s, length["max"])
+    if fitted != pause_s:
+        extra_notes.append(f"scene pauses {pause_s:.3f}s -> {fitted:.3f}s: the narration ran {timeline.duration_s:.2f}s "
+                           f"against the channel's {length['max']}s; the words are unchanged")
+        pause_s = fitted
+        timeline = timeline_from_voice(scene_voices, pause_s, max_lines, max_chars, font_scale)
+    if images is not None:
+        check_narration_length(timeline.duration_s, sum(len(s["narration"].split()) for s in script["scenes"]), channel_profile)
 
     voice_raw_path = out_dir / "_voice_raw.wav"
     voice_sr = concat_wavs_with_silence(scene_wavs, pause_s, voice_raw_path)
@@ -605,6 +630,21 @@ def build_package(
         Path(p).unlink(missing_ok=True)
 
     sfx = [SfxEvent(t_s=timeline.scenes[i].start_s, path=p, duration_s=_wav_length(p)) for i, p in sorted(sounds.items())]
+
+    if images is not None:
+        from .scene_images import generate_scene_images, load_earlier_pictures
+
+        cfg = image_settings()
+        earlier, unreadable = (None, None) if reuse_from is None else load_earlier_pictures(
+            reuse_from, reuse_package_id or str(reuse_from))
+        assets_dir, images_report = generate_scene_images(
+            script, template, channel_id, out_dir, image_client,
+            model=cfg["model"], check_model=cfg["check_model"], earlier=earlier, redraw=redraw_names,
+        )
+        if unreadable:
+            images_report.notes.append(f"the earlier package's pictures can't be reused ({unreadable}): every picture "
+                                       "was drawn again")
+        images_report.notes.extend(redraw_notes)
 
     frames_dir = out_dir / "frames"
     if frames_dir.exists():

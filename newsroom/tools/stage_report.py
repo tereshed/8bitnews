@@ -31,12 +31,16 @@ def build_report(result_id: str, delegation: dict, fetch=artifact, fetch_details
         return report
     if team in ("Research", "Script"):
         report["verdict"] = "not_approved"
-        if "review" in ids:
-            review = fetch_details(ids["review"], "review")
-            if review.get("parent_id") == ids[kind] and review["content"].get("decision") == "approved":
-                report["verdict"] = "approved"
-            elif review.get("parent_id") != ids[kind]:
-                report["notes"].append("Review is not bound to the latest output artifact")
+        # fact_checker's review reaches PolyMaths under either kind, with the same content.
+        names = ("review", "research_review") if team == "Research" else ("review",)
+        reviews = [fetch_details(ids[name], name) for name in names if name in ids]
+        current = [review for review in reviews if review.get("parent_id") == ids[kind]]
+        # A review bound to nothing could be the newer one, so it can't be set aside as stale.
+        unbound = any(not review.get("parent_id") for review in reviews)
+        if current and not unbound and all(review["content"].get("decision") == "approved" for review in current):
+            report["verdict"] = "approved"
+        elif unbound or (reviews and not current):
+            report["notes"].append("Review is not bound to the latest output artifact")
         return report
     doc = fetch(ids[kind], kind)
 

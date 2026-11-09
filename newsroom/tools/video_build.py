@@ -73,7 +73,7 @@ REPO_PARTS = ("channels", "countries", "newsroom/contracts", "music/catalog.yaml
 UPLOAD = ("video", "video_no_music", "subtitles", "cover", "timeline", "script")
 # `studio build` errors that only a different script fixes (BuildError texts, studio/studio/build.py, cover_title.py).
 SCRIPT_PROBLEMS = ("does not fit its plate", "cover text", "failed script.schema.json validation",
-                   "does not match any scene id", "no picture for the cover", "is not valid JSON")
+                   "does not match any scene id", "no picture for the cover", "is not valid JSON", "narration length")
 EXIT_OK, EXIT_ERROR, EXIT_ARGS, EXIT_CHECKS, EXIT_SCRIPT = 0, 1, 2, 3, 4
 # `--redraw` items: a scene id, a keyframe name (what QA's findings carry), or the cover.
 REDRAW_ITEM = re.compile(r"(S[0-9]+)(?:_(?:first|mid))?|cover|all")

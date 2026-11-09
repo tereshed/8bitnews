@@ -10,11 +10,18 @@ from a TTS adapter's real per-scene word timings plus the template's
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .constants import DEFAULT_WPM, SERIOUS_WPM
 from .subtitles import SubtitleCue, split_cues
+
+# The encoded video.mp4 can run a little past the timeline (rounding to frames, AAC padding).
+LENGTH_MARGIN_S = 0.1
+# How much closing the scene gaps may take off a video in total, and how short a gap may get.
+MAX_PAUSE_FIT_S = 0.5
+MIN_SCENE_PAUSE_S = 0.2
 
 
 @dataclass(frozen=True)
@@ -137,6 +144,18 @@ class SceneVoice:
     word. A real voice runs a little past its last word (a breath of tail),
     and the scene has to last as long as its audio or every later scene
     drifts off the voice track."""
+
+
+def fitted_pause(spoken_s: float, gaps: int, pause_s: float, max_s: float) -> float:
+    """The scene pause that brings a narrowly long video inside `max_s`, or
+    `pause_s` when it already fits or closing the gaps wouldn't be enough.
+    The words stay as they are, so a video 0.12 s over doesn't go back to the
+    script and to Legal."""
+    over = spoken_s + gaps * pause_s - (max_s - LENGTH_MARGIN_S)
+    if over <= 0 or gaps <= 0 or over > MAX_PAUSE_FIT_S:
+        return pause_s
+    fitted = math.floor((pause_s - over / gaps) * 1000) / 1000
+    return fitted if fitted >= MIN_SCENE_PAUSE_S else pause_s
 
 
 def timeline_from_voice(

@@ -46,6 +46,6 @@ jobs:
         env:
           STUDIO_REPO_ROOT: ${{ github.workspace }}
         working-directory: studio
-        run: python -m pytest -q tests/test_scene_images.py tests/test_validate_checks.py
+        run: python -m pytest -q tests/test_scene_images.py tests/test_validate_checks.py tests/test_narration_length.py
       - name: Newsroom schedules, progress and deterministic reports
         run: python -m pytest -q newsroom/tests
