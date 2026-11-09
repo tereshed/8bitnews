@@ -198,6 +198,9 @@ func TestSpanishStateMediaGetTheirMarkFromTheProfile(t *testing.T) {
 		{URL: "https://www.example.org/k", Outlet: "Yahoo via rtve"},
 		{URL: "https://www.example.org/l", Outlet: "EFE Verde (via Infobae)"},
 		{URL: "https://www.example.org/m", Outlet: "Revista RTVE Hoy"},
+		{URL: "https://www.example.org/n", Outlet: "EFE vía Infobae"},
+		{URL: "https://www.example.org/o", Outlet: "Infobae / EFE"},
+		{URL: "https://www.example.org/p", Outlet: "Infobae/RTVE"},
 	}
 	got := sourcesOf(rows, data, "es-ES")
 	for url, want := range map[string]string{
@@ -214,6 +217,9 @@ func TestSpanishStateMediaGetTheirMarkFromTheProfile(t *testing.T) {
 		"https://www.example.org/k": " (medio estatal)",
 		"https://www.example.org/l": " (medio estatal)",
 		"https://www.example.org/m": "",
+		"https://www.example.org/n": " (medio estatal)",
+		"https://www.example.org/o": " (medio estatal)",
+		"https://www.example.org/p": " (medio estatal)",
 	} {
 		if m := got[url].Marks(); m != want {
 			t.Errorf("%s: marks %q, want %q", url, m, want)

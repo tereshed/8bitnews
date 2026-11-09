@@ -42,14 +42,21 @@ const (
 	takeDownAlertAfter = 10 * time.Minute
 	// YouTube can answer a read with the old state for a moment after a write.
 	surviveAlertAfter = time.Minute
-	// A video missing this long is gone, not a read that hasn't caught up.
+	// A video not shown this long gets said so: before that it may only be a read
+	// that hasn't caught up. Hub keeps its record either way.
 	goneConfirmAfter = 5 * time.Minute
+	// How long without the lock before the group hears.
+	noLockAlertAfter = 10 * time.Minute
 	// Signs what hub recorded itself, in release_publications.
 	setByHub = "hub"
 )
 
 // backoff is the wait after each failure in a row.
 var backoff = []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute, time.Hour}
+
+// takeDownBackoff is the same for a take-down, where time matters more. A
+// videos.update costs 50 of 10,000 quota units a day, so not every pass.
+var takeDownBackoff = []time.Duration{time.Minute, 5 * time.Minute}
 
 var (
 	errStillScheduled = errors.New("YouTube оставил расписание")
@@ -70,7 +77,8 @@ type Store interface {
 	SavePublishJob(ctx context.Context, j store.PublishJob) error
 	SetPublicationURLIfNone(ctx context.Context, releaseID, platform, url, by string) error
 	ReleasesToUnschedule(ctx context.Context) ([]store.ToUnschedule, error)
-	ForgetPublication(ctx context.Context, releaseID, platform string) error
+	ForgetIfOutOfPlay(ctx context.Context, releaseID, platform string) (bool, error)
+	HoldAndForget(ctx context.Context, releaseID, platform, reason string) error
 	SlotsToRecheck(ctx context.Context, before time.Time) ([]store.RecheckDue, error)
 	MarkSlotRechecked(ctx context.Context, releaseID string) error
 }
@@ -122,17 +130,23 @@ type Publisher struct {
 	uploading string               // the release the upload loop has in hand
 	failing   map[string]time.Time // take-downs failing, since when
 	alerted   map[string]bool      // take-downs the group has heard about
+	nextTry   map[string]time.Time // take-downs waiting out their backoff
+	tries     map[string]int       // and how many have failed in a row
 	goneSince map[string]time.Time // videos YouTube doesn't show, since when
 
 	// alertMu keeps the two loops from both telling the group about one channel.
 	alertMu       sync.Mutex
 	clientAlerted map[string]bool
+
+	noLockSince time.Time
+	noLockTold  bool
 }
 
 // New builds the worker.
 func New(st Store, q Queue, yt YouTube, media Media, notify Notifier, sealer Sealer, log *slog.Logger) *Publisher {
 	return &Publisher{store: st, queue: q, yt: yt, media: media, notify: notify, sealer: sealer, log: log, now: time.Now,
-		failing: map[string]time.Time{}, alerted: map[string]bool{}, goneSince: map[string]time.Time{}, clientAlerted: map[string]bool{}}
+		failing: map[string]time.Time{}, alerted: map[string]bool{}, nextTry: map[string]time.Time{}, tries: map[string]int{},
+		goneSince: map[string]time.Time{}, clientAlerted: map[string]bool{}}
 }
 
 // Run works while it holds the lock, and waits for the lock otherwise, until
@@ -144,9 +158,12 @@ func (p *Publisher) Run(ctx context.Context) {
 		switch {
 		case err != nil:
 			p.log.Error("publisher: taking the lock", "error", err)
+			p.withoutLock(ctx)
 		case !ok:
 			p.log.Info("publisher: another process holds the lock")
+			p.withoutLock(ctx)
 		default:
+			p.noLockSince, p.noLockTold = time.Time{}, false
 			p.runLocked(ctx, lock)
 			lock.Release(context.WithoutCancel(ctx))
 		}
@@ -155,6 +172,18 @@ func (p *Publisher) Run(ctx context.Context) {
 		case <-time.After(passEvery):
 		}
 	}
+}
+
+// withoutLock tells the group once, after a while with no lock: uploads and
+// take-downs have stopped, and only a log line would say so.
+func (p *Publisher) withoutLock(ctx context.Context) {
+	if p.noLockSince.IsZero() {
+		p.noLockSince = p.now()
+	}
+	if p.noLockTold || p.now().Sub(p.noLockSince) < noLockAlertAfter {
+		return
+	}
+	p.noLockTold = p.tell(ctx, nil, "⚠️ Загрузчик hub уже 10 минут без блокировки: ролики сами не загружаются и не снимаются с расписания. Возможно, запущен второй процесс hub, или нет связи с базой.")
 }
 
 // runLocked runs both loops for as long as the lock's connection lives.
@@ -424,16 +453,18 @@ func (p *Publisher) settle(ctx context.Context, releaseID string, job *store.Pub
 		if err := p.save(ctx, job); err != nil {
 			p.log.Error("publisher: saving a job", "release_id", releaseID, "error", err)
 		}
-		p.hold(context.WithoutCancel(ctx), releaseID, "YouTube отказал: "+err.Error())
+		_ = p.hold(context.WithoutCancel(ctx), releaseID, "YouTube отказал: "+err.Error()) // logged; the next pass meets the same refusal
 	}
 	return nil
 }
 
 // hold takes a release out of the queue; hub announces holds (moderation).
-func (p *Publisher) hold(ctx context.Context, releaseID, reason string) {
-	if err := p.store.SetPublishHold(ctx, releaseID, reason); err != nil {
+func (p *Publisher) hold(ctx context.Context, releaseID, reason string) error {
+	err := p.store.SetPublishHold(ctx, releaseID, reason)
+	if err != nil {
 		p.log.Error("publisher: holding a release", "release_id", releaseID, "error", err)
 	}
+	return err
 }
 
 func (p *Publisher) save(ctx context.Context, job *store.PublishJob) error {
@@ -458,8 +489,7 @@ func (p *Publisher) publish(ctx context.Context, item service.PublishQueueItem, 
 		return err
 	}
 	if w := youtubeWarnings(item.Warnings); len(w) > 0 {
-		p.hold(ctx, item.ReleaseID, "пакет с предупреждениями: "+strings.Join(w, "; "))
-		return nil
+		return p.hold(ctx, item.ReleaseID, "пакет с предупреждениями: "+strings.Join(w, "; "))
 	}
 	ch, err := p.store.GetChannel(ctx, item.ChannelID)
 	if err != nil {
@@ -473,8 +503,7 @@ func (p *Publisher) publish(ctx context.Context, item service.PublishQueueItem, 
 			if err := p.save(ctx, job); err != nil {
 				return err
 			}
-			p.hold(ctx, item.ReleaseID, "слот уже брали до hub: ролик мог уйти на YouTube через браузер. Посмотрите в Studio. Если его там нет, снимите задержку, и hub загрузит его сам.")
-			return nil
+			return p.hold(ctx, item.ReleaseID, "слот уже брали до hub: ролик мог уйти на YouTube через браузер. Посмотрите в Studio. Если его там нет, снимите задержку, и hub загрузит его сам.")
 		}
 		// The row before the slot: a crash between them can't look like the above.
 		if err := p.save(ctx, job); err != nil {
@@ -608,8 +637,7 @@ func (p *Publisher) finish(ctx context.Context, r store.Release, refresh string,
 	past := job.PublishAt != nil && job.PublishAt.Before(p.now())
 	if !past {
 		if wrong := notAsAsked(v, job); len(wrong) > 0 {
-			p.hold(ctx, r.ID, "загруженный ролик "+job.VideoID+" не такой, как просили: "+strings.Join(wrong, "; "))
-			return nil
+			return p.hold(ctx, r.ID, "загруженный ролик "+job.VideoID+" не такой, как просили: "+strings.Join(wrong, "; "))
 		}
 	}
 	poster, err := p.poster(ctx, r, refresh, job)
@@ -641,9 +669,12 @@ func (p *Publisher) finish(ctx context.Context, r store.Release, refresh string,
 	return p.save(ctx, job)
 }
 
-// stillThere reads the video back. It reports false if the video is refused or
-// has stayed gone: hub has then forgotten it and held the release, which also
-// means lifting the hold uploads afresh instead of holding again.
+// stillThere reads the video back. It reports false if the release has been
+// held. A video YouTube refused can't go out, so hub forgets it, and lifting the
+// hold uploads afresh. A video YouTube doesn't show may only be a listing behind
+// the truth, and may still go out: hub tries to take it off the schedule, says
+// what it knows, and keeps its record, since without one nothing would watch that
+// video and a lift would upload a second copy.
 func (p *Publisher) stillThere(ctx context.Context, releaseID, refresh string, job *store.PublishJob) (youtube.Video, bool, error) {
 	v, err := p.yt.GetVideo(ctx, refresh, job.VideoID)
 	if err != nil {
@@ -653,21 +684,45 @@ func (p *Publisher) stillThere(ctx context.Context, releaseID, refresh string, j
 		if !p.missing(job.VideoID) {
 			return v, false, &youtube.Error{Retry: true, Message: "YouTube doesn't show video " + job.VideoID + " yet"}
 		}
-		return v, false, p.forgetAndHold(ctx, releaseID, "ролика "+job.VideoID+" больше нет на YouTube: похоже, его удалили в Studio. Снимите задержку, и hub загрузит его заново.")
+		if err := p.yt.Unschedule(ctx, refresh, job.VideoID); errors.Is(err, youtube.ErrAuthRevoked) || errors.Is(err, youtube.ErrClientRefused) {
+			return v, false, err
+		} else if err != nil {
+			p.log.Warn("publisher: taking down a video YouTube doesn't show", "release_id", releaseID, "error", err)
+		}
+		if err := p.store.SetPublicationURLIfNone(ctx, releaseID, store.PlatformYouTube, shortsURL(job.VideoID), setByHub); err != nil {
+			return v, false, err
+		}
+		if err := p.hold(ctx, releaseID, notShown([]string{job.VideoID})); err != nil {
+			return v, false, err
+		}
+		p.markAlerted(releaseID) // the hold says it all: the take-down needn't say it again
+		// Told: after a lift this doesn't come round to hold again.
+		at := p.now()
+		job.AnnouncedAt = &at
+		return v, false, p.save(ctx, job)
 	}
 	p.seen(job.VideoID)
 	if reason := v.Refused(); reason != "" {
-		return v, false, p.forgetAndHold(ctx, releaseID, "YouTube не принял ролик "+job.VideoID+": "+reason)
+		return v, false, p.store.HoldAndForget(ctx, releaseID, store.PlatformYouTube, "YouTube не принял ролик "+job.VideoID+": "+reason)
 	}
 	return v, true, nil
 }
 
-func (p *Publisher) forgetAndHold(ctx context.Context, releaseID, reason string) error {
-	if err := p.store.ForgetPublication(ctx, releaseID, store.PlatformYouTube); err != nil {
-		return err
+// notShown says what hub knows about videos YouTube doesn't show, and what it
+// doesn't.
+func notShown(videos []string) string {
+	links := make([]string, len(videos))
+	for i, id := range videos {
+		links[i] = shortsURL(id)
 	}
-	p.hold(ctx, releaseID, reason)
-	return nil
+	return "YouTube не показывает ролик " + strings.Join(links, " ") + ". Если он есть в Studio, снимите его там, иначе он может выйти в свой час. " +
+		"Ссылка и слот остаются за релизом, поэтому снятие задержки не загрузит копию. Новая загрузка — только через DELETE /api/v1/publishing/releases/{id}/youtube."
+}
+
+func (p *Publisher) markAlerted(releaseID string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.alerted[releaseID] = true
 }
 
 // notAsAsked compares a video with what the upload asked for. A label YouTube
@@ -750,7 +805,9 @@ func when(at *time.Time, tz string) string {
 
 // recheck reads a video back shortly before its slot. YouTube can reject a video
 // well after the upload, while it reads as "uploaded", and the owner should
-// hear before the slot, not after it.
+// hear before the slot, not after it. It reads hub's own upload and the link,
+// which differ if a moderator replaced the link: one that is fine goes out, so a
+// mistyped link is no reason to stop hub's video.
 func (p *Publisher) recheck(ctx context.Context, tokens map[string]string) {
 	due, err := p.store.SlotsToRecheck(ctx, p.now().Add(recheckBefore))
 	if err != nil {
@@ -762,63 +819,152 @@ func (p *Publisher) recheck(ctx context.Context, tokens map[string]string) {
 		if !connected {
 			continue
 		}
-		videoID := path.Base(d.URL)
-		v, err := p.yt.GetVideo(ctx, refresh, videoID)
-		switch {
-		case errors.Is(err, youtube.ErrAuthRevoked), errors.Is(err, youtube.ErrClientRefused):
-			p.accessTrouble(ctx, err, d.ChannelID, tokens)
-			continue
-		case err != nil:
-			p.log.Warn("publisher: rechecking a video, trying again", "release_id", d.ReleaseID, "error", err)
-			continue
-		case !v.Found:
-			if p.missing(videoID) {
-				p.forgetOrLog(ctx, d.ReleaseID, "ролика "+videoID+" больше нет на YouTube, а его слот близко. Снимите задержку, и hub загрузит его заново.")
+		if err := p.recheckOne(ctx, d, refresh); err != nil {
+			if errors.Is(err, youtube.ErrAuthRevoked) || errors.Is(err, youtube.ErrClientRefused) {
+				p.accessTrouble(ctx, err, d.ChannelID, tokens)
+				continue
 			}
-			continue
-		}
-		p.seen(videoID)
-		if reason := v.Refused(); reason != "" {
-			p.forgetOrLog(ctx, d.ReleaseID, "YouTube не принял ролик "+videoID+", и в свой слот он не выйдет: "+reason)
-			continue
-		}
-		if err := p.store.MarkSlotRechecked(ctx, d.ReleaseID); err != nil {
-			p.log.Error("publisher: recording a recheck", "release_id", d.ReleaseID, "error", err)
+			p.log.Warn("publisher: rechecking a video, trying again", "release_id", d.ReleaseID, "error", err)
 		}
 	}
 }
 
-func (p *Publisher) forgetOrLog(ctx context.Context, releaseID, reason string) {
-	if err := p.forgetAndHold(ctx, releaseID, reason); err != nil {
-		p.log.Error("publisher: holding a release", "release_id", releaseID, "error", err)
+// recheckOne returns an error, and leaves the slot unmarked, to come round again.
+func (p *Publisher) recheckOne(ctx context.Context, d store.RecheckDue, refresh string) error {
+	job, err := p.store.PublishJobOf(ctx, d.ReleaseID)
+	if err != nil {
+		return err
 	}
+	var videos, fine, refused, notThere []string
+	if job.VideoID != "" {
+		videos = append(videos, job.VideoID)
+	}
+	if id := path.Base(d.URL); !contains(videos, id) {
+		videos = append(videos, id)
+	}
+	reasons := map[string]string{}
+	for _, id := range videos {
+		v, err := p.yt.GetVideo(ctx, refresh, id)
+		switch {
+		case err != nil:
+			return err
+		case !v.Found:
+			notThere = append(notThere, id)
+		case v.Refused() != "":
+			p.seen(id)
+			refused = append(refused, id)
+			reasons[id] = v.Refused()
+		default:
+			p.seen(id)
+			fine = append(fine, id)
+		}
+	}
+	shown := true
+	for _, id := range notThere {
+		shown = p.missing(id) && shown
+	}
+	if len(notThere) > 0 && !shown {
+		return nil // not long enough to say so: next pass
+	}
+	switch {
+	case len(fine) > 0:
+		// One of them goes out. The others are worth a word, nothing more.
+		if bad := append(refused, notThere...); len(bad) > 0 {
+			if !p.tellOnCard(ctx, d.ReleaseID, "⚠️ Перед выходом: ролик "+shortsURL(fine[0])+" на месте, а "+shortsURL(bad[0])+" YouTube не показывает или не принял. Проверьте ссылку в админке.") {
+				return nil
+			}
+		}
+	case len(notThere) > 0:
+		for _, id := range notThere {
+			err := p.yt.Unschedule(ctx, refresh, id)
+			if errors.Is(err, youtube.ErrAuthRevoked) || errors.Is(err, youtube.ErrClientRefused) {
+				return err
+			}
+			if err != nil {
+				p.log.Warn("publisher: taking down a video YouTube doesn't show", "release_id", d.ReleaseID, "error", err)
+			}
+		}
+		if err := p.hold(ctx, d.ReleaseID, notShown(notThere)); err != nil {
+			return err
+		}
+		p.markAlerted(d.ReleaseID)
+	default:
+		id := refused[0]
+		return p.store.HoldAndForget(ctx, d.ReleaseID, store.PlatformYouTube, "YouTube не принял ролик "+id+", и в свой слот он не выйдет: "+reasons[id])
+	}
+	return p.store.MarkSlotRechecked(ctx, d.ReleaseID)
 }
 
 // takeDown takes off the schedule what must not go out: its release has been
 // closed or held. Nothing is forgotten until YouTube shows the video off the
-// schedule, because what's forgotten nobody watches any more. A release the
-// upload loop has in hand waits for the next pass: its video may be about to
-// appear, and hub would have no record of it.
+// schedule, because what's forgotten nobody watches any more; a video YouTube
+// doesn't show stays on record, and on this list, until its slot has passed. A
+// release the upload loop has in hand waits for the next pass: its video may be
+// about to appear, and hub would have no record of it.
 func (p *Publisher) takeDown(ctx context.Context, tokens map[string]string) {
 	list, err := p.store.ReleasesToUnschedule(ctx)
 	if err != nil {
 		p.log.Error("publisher: reading what to take down", "error", err)
 		return
 	}
+	p.pruneTakeDowns(list)
 	for _, u := range list {
 		refresh, connected := tokens[u.ChannelID]
-		if !connected || p.isUploading(u.ReleaseID) {
+		if !connected || p.isUploading(u.ReleaseID) || p.waiting(u) {
 			continue
 		}
-		videos, err := p.takeDownOne(ctx, u, refresh)
-		switch {
-		case err == nil:
-		case errors.Is(err, youtube.ErrAuthRevoked), errors.Is(err, youtube.ErrClientRefused):
+		err := p.takeDownOne(ctx, u, refresh)
+		if errors.Is(err, youtube.ErrAuthRevoked) || errors.Is(err, youtube.ErrClientRefused) {
 			p.accessTrouble(ctx, err, u.ChannelID, tokens)
-		default:
-			p.takeDownFailed(ctx, u, videos, err)
+		} else if err != nil {
+			p.log.Error("publisher: taking a video down", "release_id", u.ReleaseID, "error", err)
 		}
 	}
+}
+
+// pruneTakeDowns forgets what it knew about releases no longer on the list: a
+// hold lifted and put back later is a new case, and the group should hear of it.
+func (p *Publisher) pruneTakeDowns(list []store.ToUnschedule) {
+	on := make(map[string]bool, len(list))
+	for _, u := range list {
+		on[u.ReleaseID] = true
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for id := range p.alerted {
+		if !on[id] {
+			delete(p.alerted, id)
+		}
+	}
+	for id := range p.failing {
+		if !on[id] {
+			delete(p.failing, id)
+		}
+	}
+	for id := range p.nextTry {
+		if !on[id] {
+			delete(p.nextTry, id)
+			delete(p.tries, id)
+		}
+	}
+}
+
+// waiting says a take-down is sitting out its backoff; near the slot it never does.
+func (p *Publisher) waiting(u store.ToUnschedule) bool {
+	if u.PublishAt.Sub(p.now()) <= recheckBefore {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	next, ok := p.nextTry[u.ReleaseID]
+	return ok && next.After(p.now())
+}
+
+func (p *Publisher) tryAgainLater(releaseID string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.nextTry[releaseID] = p.now().Add(takeDownBackoff[min(p.tries[releaseID], len(takeDownBackoff)-1)])
+	p.tries[releaseID]++
 }
 
 // videosBehind lists what hub knows of on YouTube for a release: the link and
@@ -857,47 +1003,73 @@ func contains(list []string, want string) bool {
 	return false
 }
 
-// takeDownOne returns the videos it knows of, for the message if it fails.
-func (p *Publisher) takeDownOne(ctx context.Context, u store.ToUnschedule, refresh string) ([]string, error) {
+// takeDownOne tries every video before saying what failed: a wrong link mustn't
+// keep hub's own video on the schedule. Only an error about the channel comes back.
+func (p *Publisher) takeDownOne(ctx context.Context, u store.ToUnschedule, refresh string) error {
 	job, err := p.store.PublishJobOf(ctx, u.ReleaseID)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	videos, err := p.videosBehind(ctx, u, job, refresh)
-	if err != nil {
-		return videos, err
-	}
-	var told []string
+	videos, firstErr := p.videosBehind(ctx, u, job, refresh)
+	var told, failed, notThere []string
 	for _, id := range videos {
-		line, done, err := p.offSchedule(ctx, refresh, id)
-		if err != nil {
-			return videos, err
+		line, gone, err := p.offSchedule(ctx, refresh, id)
+		switch {
+		case errors.Is(err, youtube.ErrAuthRevoked), errors.Is(err, youtube.ErrClientRefused):
+			return err
+		case err != nil:
+			failed = append(failed, id)
+			if firstErr == nil || errors.Is(err, errStillScheduled) {
+				firstErr = err
+			}
+		case gone:
+			notThere = append(notThere, id)
+		default:
+			told = append(told, line)
 		}
-		if !done {
-			return videos, nil // not seen long enough to call it gone: next pass
-		}
-		told = append(told, line)
+	}
+	if errors.Is(firstErr, youtube.ErrAuthRevoked) || errors.Is(firstErr, youtube.ErrClientRefused) {
+		return firstErr
+	}
+	if firstErr != nil {
+		p.tryAgainLater(u.ReleaseID)
+		p.takeDownFailed(ctx, u, failed, firstErr)
+		return nil
+	}
+	if len(notThere) > 0 {
+		p.tryAgainLater(u.ReleaseID)
+		p.notShownAlert(ctx, u, notThere)
+		return nil
 	}
 	if len(videos) == 0 && !job.Saved {
 		told = append(told, "Слот этого релиза брали не через hub, и ссылки на ролик нет: он может стоять в расписании. Посмотрите в Studio.")
 	}
+	// Back in play while this went on: the record stays, and the upload goes on.
+	_, free, err := p.open(ctx, u.ReleaseID)
+	if err != nil {
+		return err
+	}
+	if free || p.isUploading(u.ReleaseID) {
+		if len(videos) > 0 {
+			p.tellOnCard(ctx, u.ReleaseID, "⚠️ Задержку сняли, пока hub снимал ролик с расписания: "+shortsURL(videos[0])+" сейчас без расписания. Поставьте его в Studio, иначе он не выйдет.")
+		}
+		return nil
+	}
 	// The message first: if it doesn't go out, the record stays and this comes
 	// round again, with nothing left to change on YouTube.
 	if len(told) > 0 && !p.tellOnCard(ctx, u.ReleaseID, strings.Join(told, "\n")) {
-		return videos, nil
+		return nil
 	}
-	if err := p.store.ForgetPublication(ctx, u.ReleaseID, store.PlatformYouTube); err != nil {
-		return videos, err
+	if _, err := p.store.ForgetIfOutOfPlay(ctx, u.ReleaseID, store.PlatformYouTube); err != nil {
+		return err
 	}
-	p.mu.Lock()
-	delete(p.failing, u.ReleaseID)
-	delete(p.alerted, u.ReleaseID)
-	p.mu.Unlock()
-	return videos, nil
+	return nil
 }
 
-// offSchedule keeps a video from going out and checks that it worked. It returns
-// what to tell the group, and false if the video can't be called gone yet.
+// offSchedule keeps a video from going out and checks that it worked. Found or
+// not, it asks YouTube to take it off: a listing can lag behind a video that is
+// scheduled. It returns what to tell the group, and true if YouTube doesn't show
+// the video after that.
 func (p *Publisher) offSchedule(ctx context.Context, refresh, id string) (string, bool, error) {
 	link := shortsURL(id)
 	v, err := p.yt.GetVideo(ctx, refresh, id)
@@ -905,32 +1077,49 @@ func (p *Publisher) offSchedule(ctx context.Context, refresh, id string) (string
 		return "", false, err
 	}
 	if v.Found && v.Refused() != "" {
-		return "🚫 Ролик не выйдет, YouTube его не принял: " + link, true, nil
+		return "🚫 Ролик не выйдет, YouTube его не принял: " + link, false, nil
 	}
-	if v.Found && (v.PublishAt != nil || v.PrivacyStatus != "private") {
-		if err := p.yt.Unschedule(ctx, refresh, id); err != nil {
-			return "", false, err
-		}
-		if v, err = p.yt.GetVideo(ctx, refresh, id); err != nil {
-			return "", false, err
-		}
-		if v.Found && (v.PublishAt != nil || v.PrivacyStatus != "private") {
-			return "", false, errStillScheduled
-		}
+	if err := p.yt.Unschedule(ctx, refresh, id); err != nil {
+		return "", false, err
+	}
+	if v, err = p.yt.GetVideo(ctx, refresh, id); err != nil {
+		return "", false, err
 	}
 	if !v.Found {
-		if !p.missing(id) {
-			return "", false, nil
-		}
-		return "🚫 Ролика больше нет на YouTube, снимать нечего: " + link, true, nil
+		return "", true, nil
 	}
 	p.seen(id)
-	return "🚫 Ролик снят с расписания, на YouTube он сейчас Private: " + link, true, nil
+	if v.PublishAt != nil || v.PrivacyStatus != "private" {
+		return "", false, errStillScheduled
+	}
+	return "🚫 Ролик снят с расписания, на YouTube он сейчас Private: " + link, false, nil
 }
 
-// takeDownFailed keeps the release on the list, to try again next pass, and
-// tells the group once: at once if YouTube refuses or the slot is near, and
-// otherwise if it's still failing after a while.
+// notShownAlert tells the group once, when YouTube hasn't shown a video for a
+// while or the slot is near. Hub goes on trying until the slot has passed.
+func (p *Publisher) notShownAlert(ctx context.Context, u store.ToUnschedule, videos []string) {
+	shown := true
+	for _, id := range videos {
+		shown = p.missing(id) && shown
+	}
+	p.mu.Lock()
+	told := p.alerted[u.ReleaseID]
+	p.mu.Unlock()
+	if told || (!shown && u.PublishAt.Sub(p.now()) > takeDownAlertAfter) {
+		return
+	}
+	links := make([]string, len(videos))
+	for i, id := range videos {
+		links[i] = shortsURL(id)
+	}
+	if p.tellOnCard(ctx, u.ReleaseID, "⚠️ YouTube не показывает ролик "+strings.Join(links, " ")+". Если он есть в Studio, снимите его там, иначе он может выйти "+when(&u.PublishAt, "")+". hub продолжает пробовать до этого часа и хранит запись о ролике.") {
+		p.markAlerted(u.ReleaseID)
+	}
+}
+
+// takeDownFailed tells the group once, while the release stays on the list to be
+// tried again: at once if YouTube refuses or the slot is near, and otherwise if
+// it's still failing after a while. videos are the ones that failed.
 func (p *Publisher) takeDownFailed(ctx context.Context, u store.ToUnschedule, videos []string, err error) {
 	p.log.Warn("publisher: taking a video down, trying again", "release_id", u.ReleaseID, "error", err)
 	now := p.now()
@@ -966,9 +1155,7 @@ func (p *Publisher) takeDownFailed(ctx context.Context, u store.ToUnschedule, vi
 		reason = "hub попросил YouTube снять ролик с расписания, а расписание осталось"
 	}
 	if p.tellOnCard(ctx, u.ReleaseID, "⚠️ "+reason+". Он выйдет "+when(&u.PublishAt, "")+", если его не снять в Studio. hub продолжает пробовать. "+where) {
-		p.mu.Lock()
-		p.alerted[u.ReleaseID] = true
-		p.mu.Unlock()
+		p.markAlerted(u.ReleaseID)
 	}
 }
 

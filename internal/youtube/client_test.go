@@ -404,7 +404,8 @@ func TestWhatEndsASession(t *testing.T) {
 	}{
 		"a refusal":            {&Error{Status: 400, Reason: "invalidVideoMetadata"}, true},
 		"upload limit":         {&Error{Status: 400, Reason: "uploadLimitExceeded", Retry: true}, true},
-		"quota on the upload":  {&Error{Status: 403, Reason: "quotaExceeded", Retry: true}, true},
+		"quota":                {&Error{Status: 403, Reason: "quotaExceeded", Retry: true}, false},
+		"a passing rate limit": {&Error{Status: 403, Reason: "rateLimitExceeded", Retry: true}, false},
 		"an old access token":  {&Error{Status: 401, Retry: true}, false},
 		"too many requests":    {&Error{Status: 429, Retry: true}, false},
 		"a server error":       {&Error{Status: 503, Retry: true}, false},

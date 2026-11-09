@@ -931,3 +931,83 @@ func TestAStopNoteTakesTheSoonestSlotAndBlackoutDatesAreSkipped(t *testing.T) {
 		t.Errorf("blackout: %s, want %s", got.PublishAt.UTC().Format(time.DateOnly), want)
 	}
 }
+
+func TestForgettingChecksTheReleaseIsOutOfPlay(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "oop-a")
+	approve(t, st, r.ID, store.AutoApprover)
+	link := "https://www.youtube.com/shorts/abcdefghijk"
+	seedRecord := func() {
+		t.Helper()
+		if err := st.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, link, "hub"); err != nil {
+			t.Fatal(err)
+		}
+		if err := st.SetSlot(ctx, r.ID, r.ChannelID, time.Now().Add(time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		if err := st.SavePublishJob(ctx, store.PublishJob{ReleaseID: r.ID, VideoID: "abcdefghijk"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	kept := func() bool {
+		t.Helper()
+		url, err := st.PublicationURL(ctx, r.ID, store.PlatformYouTube)
+		if err != nil {
+			t.Fatal(err)
+		}
+		slot, err := st.SlotOf(ctx, r.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		job, err := st.PublishJobOf(ctx, r.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (url != "") != (slot != nil) || (url != "") != job.Saved {
+			t.Fatalf("half a record: link %q, slot %v, job %+v", url, slot, job)
+		}
+		return url != ""
+	}
+	seedRecord()
+	// Approved and free: it's in play, nothing goes.
+	if done, err := st.ForgetIfOutOfPlay(ctx, r.ID, store.PlatformYouTube); err != nil || done || !kept() {
+		t.Errorf("in play: %v, %v, kept %v", done, err, kept())
+	}
+	// Held: it goes.
+	if err := st.SetPublishHold(ctx, r.ID, "x"); err != nil {
+		t.Fatal(err)
+	}
+	if done, err := st.ForgetIfOutOfPlay(ctx, r.ID, store.PlatformYouTube); err != nil || !done || kept() {
+		t.Errorf("held: %v, %v, kept %v", done, err, kept())
+	}
+	if err := st.SetPublishHold(ctx, r.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// Hold and forget as one step.
+	seedRecord()
+	if err := st.HoldAndForget(ctx, r.ID, store.PlatformYouTube, "rejected"); err != nil {
+		t.Fatal(err)
+	}
+	if hold, err := st.PublishHold(ctx, r.ID); err != nil || hold != "rejected" || kept() {
+		t.Errorf("hold %q, %v, kept %v", hold, err, kept())
+	}
+	if err := st.HoldAndForget(ctx, "00000000-0000-0000-0000-000000000000", store.PlatformYouTube, "x"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("a release that doesn't exist: %v", err)
+	}
+	// Closed: it goes.
+	if err := st.SetPublishHold(ctx, r.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	seedRecord()
+	if _, _, err := st.WithdrawRelease(ctx, r.ID, "Kostya"); err != nil {
+		t.Fatal(err)
+	}
+	if done, err := st.ForgetIfOutOfPlay(ctx, r.ID, store.PlatformYouTube); err != nil || !done || kept() {
+		t.Errorf("closed: %v, %v, kept %v", done, err, kept())
+	}
+	if _, err := st.ForgetIfOutOfPlay(ctx, "00000000-0000-0000-0000-000000000000", store.PlatformYouTube); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("a release that doesn't exist: %v", err)
+	}
+}

@@ -183,6 +183,13 @@ func (s *Store) ForgetPublication(ctx context.Context, releaseID, platform strin
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := forgetPublicationIn(ctx, tx, releaseID, platform); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func forgetPublicationIn(ctx context.Context, tx pgx.Tx, releaseID, platform string) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM release_publications WHERE release_id = $1 AND platform = $2`, releaseID, platform); err != nil {
 		return fmt.Errorf("forgetting the %s link of release %s: %w", platform, releaseID, err)
 	}
@@ -192,18 +199,65 @@ func (s *Store) ForgetPublication(ctx context.Context, releaseID, platform strin
 	if _, err := tx.Exec(ctx, `DELETE FROM publish_jobs WHERE release_id = $1`, releaseID); err != nil {
 		return fmt.Errorf("forgetting the upload of release %s: %w", releaseID, err)
 	}
+	return nil
+}
+
+// ForgetIfOutOfPlay forgets a publication only if its release is still closed or
+// held, checked under the row's lock, so a hold lifted at this moment can't lose
+// the record of an upload that goes on. It reports false if the release is back
+// in play, and then changes nothing.
+func (s *Store) ForgetIfOutOfPlay(ctx context.Context, releaseID, platform string) (bool, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var status, hold string
+	err = tx.QueryRow(ctx, `SELECT status, publish_hold FROM releases WHERE id = $1 FOR UPDATE`, releaseID).Scan(&status, &hold)
+	if err != nil {
+		return false, fmt.Errorf("reading release %s: %w", releaseID, mapNotFound(err))
+	}
+	if status == "approved" && hold == "" {
+		return false, nil
+	}
+	if err := forgetPublicationIn(ctx, tx, releaseID, platform); err != nil {
+		return false, err
+	}
+	return true, tx.Commit(ctx)
+}
+
+// HoldAndForget holds a release and forgets its publication as one step: a hold
+// that failed after a forget would have the release uploaded again.
+func (s *Store) HoldAndForget(ctx context.Context, releaseID, platform, reason string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	tag, err := tx.Exec(ctx, setHoldSQL, releaseID, reason)
+	if err != nil {
+		return fmt.Errorf("holding release %s: %w", releaseID, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("holding release %s: %w", releaseID, ErrNotFound)
+	}
+	if err := forgetPublicationIn(ctx, tx, releaseID, platform); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
+
+const setHoldSQL = `
+	UPDATE releases
+	SET publish_hold = $2, updated_at = now(),
+	    hold_alerted_at = CASE WHEN publish_hold = $2 THEN hold_alerted_at END
+	WHERE id = $1
+`
 
 // SetPublishHold keeps a release out of the queue for a reason; an empty
 // reason lets it back in. A new reason is news to the group again.
 func (s *Store) SetPublishHold(ctx context.Context, releaseID, reason string) error {
-	tag, err := s.pool.Exec(ctx, `
-		UPDATE releases
-		SET publish_hold = $2, updated_at = now(),
-		    hold_alerted_at = CASE WHEN publish_hold = $2 THEN hold_alerted_at END
-		WHERE id = $1
-	`, releaseID, reason)
+	tag, err := s.pool.Exec(ctx, setHoldSQL, releaseID, reason)
 	if err != nil {
 		return fmt.Errorf("holding release %s: %w", releaseID, err)
 	}

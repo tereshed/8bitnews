@@ -594,16 +594,17 @@ var ErrClientRefused = errors.New("youtube: Google refuses hub's OAuth client")
 // didn't finish through it. Start another.
 var ErrSessionGone = errors.New("youtube: the upload session is gone")
 
-// SessionDead says an answer ended an upload session. A session's status query
-// repeats the error that ended it, so asking again gets nowhere, even when the
-// error itself passes with time (uploadLimitExceeded): the next try needs a new
-// session. A 401 is about the access token and a 408 or 429 about the moment.
+// SessionDead says an answer ended an upload session, so asking it again would
+// only repeat the same error: a clear refusal, and uploadLimitExceeded, which
+// passes with time but not for this session. Anything else that passes with time
+// keeps the session: after a 403 rateLimitExceeded the upload may well have
+// finished, and a new session would make a second copy.
 func SessionDead(err error) bool {
 	var e *Error
 	if !errors.As(err, &e) || e.Status < 400 || e.Status >= 500 {
 		return false
 	}
-	return e.Status != http.StatusUnauthorized && e.Status != http.StatusRequestTimeout && e.Status != http.StatusTooManyRequests
+	return !e.Retry || e.Reason == "uploadLimitExceeded"
 }
 
 // Error is a refusal from YouTube, or a failure to reach it.

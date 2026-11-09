@@ -130,10 +130,11 @@ func stateMediaNames(countryData json.RawMessage) []string {
 
 // goesBy says whether a source's outlet is one of names, ignoring case: as the
 // whole name, or as a part of the forms a story on another site goes by, "EFE
-// (via Infobae)", "Infobae (EFE)", "RTVE via Yahoo". Not as a word in another
-// name: "EFE EME" is a music magazine.
+// (via Infobae)", "Infobae (EFE)", "RTVE via Yahoo", "EFE vía Infobae", "Infobae
+// / EFE". Not as a word in another name: "EFE EME" is a music magazine.
 func goesBy(outlet string, names []string) bool {
-	parts := strings.FieldsFunc(strings.ToLower(outlet), func(r rune) bool { return r == '(' || r == ')' || r == ',' })
+	lower := strings.ReplaceAll(strings.ToLower(outlet), "vía", "via")
+	parts := strings.FieldsFunc(lower, func(r rune) bool { return r == '(' || r == ')' || r == ',' || r == '/' })
 	var candidates []string
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
