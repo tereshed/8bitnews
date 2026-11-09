@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -251,7 +252,9 @@ func TestHeldVideoInTheScheduleIsToBeTakenDown(t *testing.T) {
 	}
 }
 
-func TestClosedReleasesGiveTheirSlotBackUnlessTheVideoStandsInTheSchedule(t *testing.T) {
+// A slot with no link is the only trace of an upload that crashed before
+// recording itself: closing the release mustn't lose it.
+func TestAClosedReleaseKeepsItsSlotUntilItIsTakenOff(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 	now := time.Now().Truncate(time.Second)
@@ -262,7 +265,7 @@ func TestClosedReleasesGiveTheirSlotBackUnlessTheVideoStandsInTheSchedule(t *tes
 		}
 		return slot, nil
 	}
-	a := seedRelease(t, st, "giveback")
+	a := seedRelease(t, st, "keepslot")
 	approve(t, st, a.ID, store.AutoApprover)
 	if got, err := st.ReserveSlot(ctx, a.ID, a.ChannelID, now, first); err != nil || !got.Equal(slot) {
 		t.Fatalf("reserving: %v, %v", got, err)
@@ -270,23 +273,79 @@ func TestClosedReleasesGiveTheirSlotBackUnlessTheVideoStandsInTheSchedule(t *tes
 	if _, _, err := st.WithdrawRelease(ctx, a.ID, "Kostya"); err != nil {
 		t.Fatal(err)
 	}
-	b := seedRelease(t, st, "giveback")
+	list, err := st.ReleasesToUnschedule(ctx)
+	if err != nil || len(list) != 1 || list[0].ReleaseID != a.ID || list[0].URL != "" {
+		t.Fatalf("a closed release with a slot and no link: %+v, %v", list, err)
+	}
+	b := seedRelease(t, st, "keepslot")
 	approve(t, st, b.ID, store.AutoApprover)
-	if got, err := st.ReserveSlot(ctx, b.ID, b.ChannelID, now, first); err != nil || !got.Equal(slot) {
-		t.Errorf("the withdrawn release's time wasn't given back: %v, %v", got, err)
+	if got, err := st.ReserveSlot(ctx, b.ID, b.ChannelID, now, first); err != nil || !got.Equal(slot.Add(time.Hour)) {
+		t.Errorf("took the time of a video that may be scheduled: %v, %v", got, err)
 	}
-
-	// Its video is on YouTube for that time: this one keeps it.
-	if err := st.SetPublicationURL(ctx, b.ID, store.PlatformYouTube, "https://www.youtube.com/shorts/abcdefghijk", "api"); err != nil {
+	// Looked in Studio, nothing there: the time comes back.
+	if err := st.ForgetPublication(ctx, a.ID, store.PlatformYouTube); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := st.WithdrawRelease(ctx, b.ID, "Kostya"); err != nil {
-		t.Fatal(err)
+	if list, err := st.ReleasesToUnschedule(ctx); err != nil || len(list) != 0 {
+		t.Errorf("still listed: %+v, %v", list, err)
 	}
-	c := seedRelease(t, st, "giveback")
+	c := seedRelease(t, st, "keepslot")
 	approve(t, st, c.ID, store.AutoApprover)
-	if got, err := st.ReserveSlot(ctx, c.ID, c.ChannelID, now, first); err != nil || !got.Equal(slot.Add(time.Hour)) {
-		t.Errorf("took the time of a video still scheduled: %v, %v", got, err)
+	if got, err := st.ReserveSlot(ctx, c.ID, c.ChannelID, now, first); err != nil || !got.Equal(slot) {
+		t.Errorf("the freed time: %v, %v", got, err)
+	}
+}
+
+// Told that it hadn't come out, then closed, then it comes out: the group hears that too.
+func TestAClosedVideoIsWatchedEvenAfterAnOverdueAlertOrAPress(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "closedwatch")
+	approve(t, st, r.ID, store.AutoApprover)
+	if err := st.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, "https://www.youtube.com/shorts/abcdefghijk", "api"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetSlot(ctx, r.ID, r.ChannelID, time.Now().Add(-time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.MarkPublicationOverdue(ctx, r.ID, store.PlatformYouTube); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.SetPublished(ctx, r.ID, true); err != nil { // settles live_at
+		t.Fatal(err)
+	}
+	if _, _, err := st.WithdrawRelease(ctx, r.ID, "Kostya"); err != nil {
+		t.Fatal(err)
+	}
+	checks, err := st.PublicationsToCheck(ctx)
+	if err != nil || len(checks) != 1 || !checks[0].OverdueAlerted || checks[0].ClosedAlerted {
+		t.Fatalf("not watched: %+v, %v", checks, err)
+	}
+	if err := st.MarkPublicationClosedAlerted(ctx, r.ID, store.PlatformYouTube); err != nil {
+		t.Fatal(err)
+	}
+	if checks, err := st.PublicationsToCheck(ctx); err != nil || len(checks) != 0 {
+		t.Errorf("watched after its alert: %+v, %v", checks, err)
+	}
+}
+
+// A release closed before the slots, as old ones were, raises no alarm on deploy.
+func TestAnOldClosedVideoRaisesNoAlarm(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "oldclosed")
+	approve(t, st, r.ID, "Kostya")
+	if err := st.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, "https://www.youtube.com/shorts/abcdefghijk", "x"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.WithdrawRelease(ctx, r.ID, "Kostya"); err != nil {
+		t.Fatal(err)
+	}
+	if checks, err := st.PublicationsToCheck(ctx); err != nil || len(checks) != 0 {
+		t.Errorf("an old closed video is watched: %+v, %v", checks, err)
+	}
+	if list, err := st.ReleasesToUnschedule(ctx); err != nil || len(list) != 0 {
+		t.Errorf("an old closed video is to be taken down: %+v, %v", list, err)
 	}
 }
 
@@ -295,17 +354,17 @@ func TestStalledUploadsAndClosedVideosAfterTheirSlot(t *testing.T) {
 	ctx := context.Background()
 	r := seedRelease(t, st, "stall-a")
 	approve(t, st, r.ID, store.AutoApprover)
-	stalled, err := st.StalledUploads(ctx, time.Now().Add(time.Minute))
+	stalled, err := st.UploadAlerts(ctx, time.Now().Add(time.Minute))
 	if err != nil || len(stalled) != 1 || stalled[0].ReleaseID != r.ID {
 		t.Fatalf("stalled = %+v, %v", stalled, err)
 	}
-	if none, err := st.StalledUploads(ctx, time.Now().Add(-time.Hour)); err != nil || len(none) != 0 {
+	if none, err := st.UploadAlerts(ctx, time.Now().Add(-time.Hour)); err != nil || len(none) != 0 {
 		t.Errorf("a fresh approval counted as stalled: %+v, %v", none, err)
 	}
 	if err := st.MarkUploadAlerted(ctx, r.ID); err != nil {
 		t.Fatal(err)
 	}
-	if again, err := st.StalledUploads(ctx, time.Now().Add(time.Minute)); err != nil || len(again) != 0 {
+	if again, err := st.UploadAlerts(ctx, time.Now().Add(time.Minute)); err != nil || len(again) != 0 {
 		t.Errorf("told twice: %+v, %v", again, err)
 	}
 
@@ -323,7 +382,7 @@ func TestStalledUploadsAndClosedVideosAfterTheirSlot(t *testing.T) {
 	if err != nil || len(checks) != 1 || checks[0].Status != "rejected" {
 		t.Fatalf("closed video not watched: %+v, %v", checks, err)
 	}
-	if err := st.MarkPublicationOverdue(ctx, r.ID, store.PlatformYouTube); err != nil {
+	if err := st.MarkPublicationClosedAlerted(ctx, r.ID, store.PlatformYouTube); err != nil {
 		t.Fatal(err)
 	}
 	if checks, err := st.PublicationsToCheck(ctx); err != nil || len(checks) != 0 {
@@ -479,6 +538,21 @@ func TestReserveReleaseSlotRefusals(t *testing.T) {
 	}
 	if at, err := st.SlotOf(ctx, old.ID); err != nil || at != nil {
 		t.Errorf("a stale release holds %v, %v", at, err)
+	}
+	// Out of the queue, and the group hears why.
+	if queueHas(t, st, old.ID) {
+		t.Error("a stale release is still in the queue")
+	}
+	alerts, err := st.UploadAlerts(ctx, time.Now().Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	told := false
+	for _, a := range alerts {
+		told = told || (a.ReleaseID == old.ID && strings.Contains(a.Hold, "too old"))
+	}
+	if !told {
+		t.Errorf("the group won't hear about a stale release: %+v", alerts)
 	}
 }
 

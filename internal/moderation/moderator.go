@@ -41,7 +41,8 @@ type Store interface {
 	ReleasesAwaitingDecision(ctx context.Context) ([]store.Release, error)
 	PublicationsToCheck(ctx context.Context) ([]store.PublicationCheck, error)
 	MarkPublicationOverdue(ctx context.Context, releaseID, platform string) error
-	StalledUploads(ctx context.Context, before time.Time) ([]store.StalledUpload, error)
+	MarkPublicationClosedAlerted(ctx context.Context, releaseID, platform string) error
+	UploadAlerts(ctx context.Context, before time.Time) ([]store.UploadAlert, error)
 	MarkUploadAlerted(ctx context.Context, releaseID string) error
 }
 
@@ -153,7 +154,7 @@ func (m *Moderator) Run(ctx context.Context) {
 			m.AutoApprove(ctx)
 			if time.Since(checked) >= publicationCheckEvery {
 				m.CheckPublications(ctx)
-				m.CheckStalledUploads(ctx)
+				m.CheckUploads(ctx)
 				checked = time.Now()
 			}
 			if !sleep(ctx, m.every) {

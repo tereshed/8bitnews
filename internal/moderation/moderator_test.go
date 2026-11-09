@@ -112,7 +112,8 @@ type fakeStore struct {
 	release       store.Release
 	checks        []store.PublicationCheck
 	overdue       []string
-	stalled       []store.StalledUpload
+	uploadAlerts  []store.UploadAlert
+	closedAlerted []string
 	uploadAlerted []string
 	carded        int64
 	note          string

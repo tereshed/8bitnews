@@ -2,6 +2,7 @@ package moderation
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -31,17 +32,24 @@ func (s *fakeStore) MarkPublicationOverdue(_ context.Context, id, _ string) erro
 	return nil
 }
 
-func (s *fakeStore) StalledUploads(context.Context, time.Time) ([]store.StalledUpload, error) {
+func (s *fakeStore) MarkPublicationClosedAlerted(_ context.Context, id, _ string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.stalled, nil
+	s.closedAlerted = append(s.closedAlerted, id)
+	return nil
+}
+
+func (s *fakeStore) UploadAlerts(context.Context, time.Time) ([]store.UploadAlert, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.uploadAlerts, nil
 }
 
 func (s *fakeStore) MarkUploadAlerted(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.uploadAlerted = append(s.uploadAlerted, id)
-	s.stalled = nil
+	s.uploadAlerts = nil
 	return nil
 }
 
@@ -206,34 +214,66 @@ func TestCheckPublicationsAlertsWhenAClosedOrHeldVideoGoesOut(t *testing.T) {
 		m.SetVideoCheck(func(context.Context, string) (bool, bool) { return true, true })
 		m.CheckPublications(context.Background())
 		sent := tg.byMethod("sendMessage")
-		if len(sent) != 1 || !strings.Contains(sent[0].params["text"].(string), "снять") || len(st.overdue) != 1 {
-			t.Fatalf("%s: alert: %+v, marked %v", name, sent, st.overdue)
+		if len(sent) != 1 || !strings.Contains(sent[0].params["text"].(string), "снять") || len(st.closedAlerted) != 1 {
+			t.Fatalf("%s: alert: %+v, marked %v", name, sent, st.closedAlerted)
 		}
 		if st.release.Status != row.Status {
 			t.Errorf("%s: release moved to %s", name, st.release.Status)
 		}
 
-		st.checks[0].OverdueAlerted = true
+		st.checks[0].ClosedAlerted = true
 		m.CheckPublications(context.Background())
 		if sent := tg.byMethod("sendMessage"); len(sent) != 1 {
 			t.Errorf("%s: alerted twice: %d", name, len(sent))
 		}
+
+		// A warning that it hadn't come out doesn't use up the one that it has.
+		st.checks[0].ClosedAlerted, st.checks[0].OverdueAlerted = false, true
+		m.CheckPublications(context.Background())
+		if sent := tg.byMethod("sendMessage"); len(sent) != 2 {
+			t.Errorf("%s: an earlier overdue alert silenced this one: %d", name, len(sent))
+		}
 	}
 }
 
-func TestCheckStalledUploadsTellsTheGroupOnce(t *testing.T) {
-	m, tg, st, _ := newBot(t, "approved")
-	st.stalled = []store.StalledUpload{{ReleaseID: release, CardMessageID: cardID(77), ApprovedAt: time.Now().Add(-7 * time.Hour)}}
-	m.CheckStalledUploads(context.Background())
-	sent := tg.byMethod("sendMessage")
-	if len(sent) != 1 || !strings.Contains(sent[0].params["text"].(string), "загрузчик") {
-		t.Fatalf("alert: %+v", sent)
+func TestCheckUploadsTellsTheGroupOnce(t *testing.T) {
+	for name, c := range map[string]struct {
+		alert store.UploadAlert
+		want  string
+	}{
+		"stalled": {store.UploadAlert{ReleaseID: release, CardMessageID: cardID(77), ApprovedAt: time.Now().Add(-7 * time.Hour)}, "загрузчик"},
+		"held":    {store.UploadAlert{ReleaseID: release, CardMessageID: cardID(77), ApprovedAt: time.Now(), Hold: "the vote is out"}, "the vote is out"},
+	} {
+		m, tg, st, _ := newBot(t, "approved")
+		st.uploadAlerts = []store.UploadAlert{c.alert}
+		m.CheckUploads(context.Background())
+		sent := tg.byMethod("sendMessage")
+		if len(sent) != 1 || !strings.Contains(sent[0].params["text"].(string), c.want) {
+			t.Fatalf("%s: alert: %+v", name, sent)
+		}
+		if len(st.uploadAlerted) != 1 {
+			t.Errorf("%s: not recorded: %v", name, st.uploadAlerted)
+		}
+		m.CheckUploads(context.Background())
+		if sent := tg.byMethod("sendMessage"); len(sent) != 1 {
+			t.Errorf("%s: told twice: %d", name, len(sent))
+		}
 	}
-	if len(st.uploadAlerted) != 1 {
-		t.Errorf("not recorded: %v", st.uploadAlerted)
+}
+
+// Nobody has to say the video is up; saying so early would list it on the channel.
+func TestAnAutomaticCardHasNoPublishedButton(t *testing.T) {
+	m, tg, st, _ := newBot(t, "pending_approval")
+	st.channelData = autoChannel
+	st.release.Moderation.MessageID = cardID(77)
+	st.release.CreatedAt = time.Now()
+	m.AutoApprove(context.Background())
+	kb := tg.byMethod("editMessageReplyMarkup")
+	if len(kb) != 1 {
+		t.Fatalf("keyboard calls: %+v", kb)
 	}
-	m.CheckStalledUploads(context.Background())
-	if sent := tg.byMethod("sendMessage"); len(sent) != 1 {
-		t.Errorf("told twice: %d", len(sent))
+	text := fmt.Sprint(kb[0].params["reply_markup"])
+	if strings.Contains(text, "🟢") || !strings.Contains(text, "🚫") {
+		t.Errorf("keyboard: %s", text)
 	}
 }

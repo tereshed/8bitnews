@@ -17,7 +17,8 @@ CREATE TABLE release_slots (
 -- +goose StatementBegin
 ALTER TABLE release_publications
     ADD COLUMN live_at            timestamptz,
-    ADD COLUMN overdue_alerted_at timestamptz;
+    ADD COLUMN overdue_alerted_at timestamptz,
+    ADD COLUMN closed_alerted_at  timestamptz;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
@@ -51,6 +52,7 @@ ALTER TABLE releases
 
 -- +goose StatementBegin
 ALTER TABLE release_publications
+    DROP COLUMN IF EXISTS closed_alerted_at,
     DROP COLUMN IF EXISTS overdue_alerted_at,
     DROP COLUMN IF EXISTS live_at;
 -- +goose StatementEnd

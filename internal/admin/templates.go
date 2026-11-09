@@ -108,7 +108,8 @@ const rowCard = `{{define "row"}}<div class="card">
 <div class="row">
 {{if eq .Status "pending_approval"}}<form class="inline" method="post" action="/admin/r/{{.ID}}/act"><input type="hidden" name="back" value="list"><input type="hidden" name="action" value="approve"><button class="go" type="submit">✅ Одобрить</button></form><a href="/admin/r/{{.ID}}">Смотреть, вернуть или отклонить</a>{{end}}
 {{if and .Barred (or (eq .Status "approved") (eq .Status "published"))}}<span class="warn">Legal не допустил YouTube.{{with .Allowed}} Допущены: {{.}}.{{end}}</span>{{end}}
-{{if eq .Status "approved"}}{{if .YouTubeURL}}<form class="inline" method="post" action="/admin/r/{{.ID}}/act"><input type="hidden" name="back" value="list"><input type="hidden" name="action" value="published"><button class="go" type="submit">🟢 Вышел</button></form>{{end}}<a href="/admin/r/{{.ID}}">Пакет для загрузки</a>{{end}}
+{{with .PublishHold}}<span class="warn">Задержан: {{.}}</span>{{end}}
+{{if eq .Status "approved"}}{{if and .YouTubeURL (not .AutoPublishes)}}<form class="inline" method="post" action="/admin/r/{{.ID}}/act"><input type="hidden" name="back" value="list"><input type="hidden" name="action" value="published"><button class="go" type="submit">🟢 Вышел</button></form>{{end}}<a href="/admin/r/{{.ID}}">Пакет для загрузки</a>{{end}}
 </div>
 {{if .NeedsLink}}<form class="link-form" method="post" action="/admin/r/{{.ID}}/link"><input type="hidden" name="back" value="list"><input type="text" name="url" placeholder="Ссылка на ролик на YouTube" aria-label="Ссылка на ролик на YouTube" required><button type="submit">Сохранить</button></form>{{end}}
 </div>

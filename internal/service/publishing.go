@@ -196,6 +196,13 @@ func (s *Service) ReserveReleaseSlot(ctx context.Context, releaseID string) (Rel
 		}
 		return at, nil
 	})
+	var refused *Error
+	if errors.As(err, &refused) && refused.Kind == KindConflict {
+		// Out of the queue, and hub tells the group why.
+		if holdErr := s.store.SetPublishHold(ctx, r.ID, refused.Message); holdErr != nil {
+			return ReleaseSlotResponse{}, holdErr
+		}
+	}
 	if err != nil {
 		return ReleaseSlotResponse{}, err
 	}
@@ -248,19 +255,21 @@ func (s *Service) SetYouTubePublication(ctx context.Context, releaseID string, r
 	if owner != "" && owner != r.ID {
 		return conflictf("video %s is recorded for release %s", req.VideoID, owner)
 	}
-	if req.PublishAt != nil {
-		if req.PublishAt.Before(time.Now()) {
-			return invalidf("publish_at %s has passed", req.PublishAt.UTC().Format(time.RFC3339))
-		}
-		err := s.store.SetSlot(ctx, r.ID, r.ChannelID, *req.PublishAt)
-		if errors.Is(err, store.ErrSlotTaken) {
-			return conflictf("another release of channel %s holds %s", r.ChannelID, req.PublishAt.UTC().Format(time.RFC3339))
-		}
-		if err != nil {
-			return err
-		}
+	if req.PublishAt != nil && req.PublishAt.Before(time.Now()) {
+		return invalidf("publish_at %s has passed", req.PublishAt.UTC().Format(time.RFC3339))
 	}
-	return s.store.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, url, setByAPI)
+	// The link first: the video is on YouTube whatever becomes of its time.
+	if err := s.store.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, url, setByAPI); err != nil {
+		return err
+	}
+	if req.PublishAt == nil {
+		return nil
+	}
+	err = s.store.SetSlot(ctx, r.ID, r.ChannelID, *req.PublishAt)
+	if errors.Is(err, store.ErrSlotTaken) {
+		return conflictf("another release of channel %s holds %s", r.ChannelID, req.PublishAt.UTC().Format(time.RFC3339))
+	}
+	return err
 }
 
 // ForgetYouTubePublication drops a release's link and slot: the video is off
