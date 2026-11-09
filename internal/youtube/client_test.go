@@ -190,7 +190,10 @@ func TestQueryUpload(t *testing.T) {
 	}))
 	session := srv.URL + "/session/1"
 
-	answer = func(w http.ResponseWriter) { w.Header().Set("Range", "bytes=0-99"); w.WriteHeader(http.StatusPermanentRedirect) }
+	answer = func(w http.ResponseWriter) {
+		w.Header().Set("Range", "bytes=0-99")
+		w.WriteHeader(http.StatusPermanentRedirect)
+	}
 	st, err := c.QueryUpload(context.Background(), "r", session, 500)
 	if err != nil || st.Offset != 100 || st.VideoID != "" || contentRange != "bytes */500" {
 		t.Errorf("partial: %+v, %v, %q", st, err, contentRange)

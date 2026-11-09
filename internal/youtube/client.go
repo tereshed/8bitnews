@@ -386,8 +386,8 @@ func (c *Client) SendBytes(ctx context.Context, refresh, session string, body io
 }
 
 func uploadAnswer(resp *http.Response) (UploadState, error) {
-	switch {
-	case resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated:
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusCreated:
 		var video struct {
 			ID string `json:"id"`
 		}
@@ -395,9 +395,9 @@ func uploadAnswer(resp *http.Response) (UploadState, error) {
 			return UploadState{}, &Error{Retry: true, Message: "YouTube finished an upload and gave no video id"}
 		}
 		return UploadState{VideoID: video.ID}, nil
-	case resp.StatusCode == http.StatusPermanentRedirect: // 308: "resume incomplete"
+	case http.StatusPermanentRedirect: // 308: "resume incomplete"
 		return UploadState{Offset: nextOffset(resp.Header.Get("Range"))}, nil
-	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
+	case http.StatusNotFound, http.StatusGone:
 		return UploadState{}, ErrSessionGone
 	}
 	return UploadState{}, apiError(resp)
