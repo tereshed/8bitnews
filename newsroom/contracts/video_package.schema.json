@@ -474,6 +474,10 @@
           ],
           "description": "The cover title's plate: low in the safe zone just above the AI line, or at its top; studio pick alternates them (owner, 07.11.2026)"
         },
+        "excluded": {
+          "type": "object",
+          "description": "What reviewers rejected on the way to this build: a rebuild keeps excluding it"
+        },
         "reasons": {
           "type": "object"
         },

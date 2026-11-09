@@ -254,6 +254,9 @@ def _reusable_picture(entry: dict, earlier: EarlierPictures) -> tuple[bytes | No
             return None, "its file is not the accepted attempt"
     except OSError:
         return None, "its file is missing"
+    reused = entry.get("reused_from")
+    if isinstance(reused, dict) and reused.get("sha256") and hashlib.sha256(data).hexdigest() != reused["sha256"]:
+        return None, "its file is not the picture on record"
     size = _image_size(data)
     if size is None or min(size) < MIN_PICTURE_PX:
         return None, f"its file is unusable: image {size}"

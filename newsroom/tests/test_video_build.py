@@ -207,7 +207,7 @@ def test_parse_redraw_refuses_what_it_cant_tie_to_a_picture(value):
     assert e.value.code == video_build.EXIT_ARGS
 
 
-def _rebuild_run(tmp_path, monkeypatch, *, reuse=None, redraw=None, hub=None, built=None, pick_extra=None):
+def _rebuild_run(tmp_path, monkeypatch, *, reuse=None, redraw=None, hub=None, built=None, pick_extra=None, rework=None, excludes=None):
     """video_build.build without Docker. Returns (exit code, the steps, the argv of each studio run, their inputs)."""
     (tmp_path / "script.json").write_text(json.dumps(
         {"channel_id": "8bitnews-us", "scenes": [{"id": "S1"}, {"id": "S2"}, {"id": "S3"}]}))
@@ -236,7 +236,7 @@ def _rebuild_run(tmp_path, monkeypatch, *, reuse=None, redraw=None, hub=None, bu
     work.mkdir()
     args = argparse.Namespace(script_artifact=None, script=str(tmp_path / "script.json"), story_brief_artifact=None,
                               story_brief=str(tmp_path / "story_brief.json"), development_id=None, upload_only=False,
-                              no_upload=True, reuse_package=reuse, redraw=redraw)
+                              no_upload=True, reuse_package=reuse, redraw=redraw, rework_report=rework)
     steps = {}
     keys = {"HUB_URL": "http://hub.invalid", "HUB_API_KEY": "k", "STUDIO_OPENROUTER_API_KEY": "k"}
     code = video_build.build(args, {}, keys, out, work, lambda name, **info: steps.update({name: info}), {})
@@ -396,3 +396,110 @@ def test_a_summary_without_the_prefix_is_not_taken_for_a_script_problem():
     report = build_report("delegation", {"team": "Video", "state": "done", "artifacts": [], "summary": "The script does not build"},
                           lambda *_: pytest.fail("there is no package to fetch"))
     assert report["verdict"] == "missing" and not report["fix_owners"]
+
+
+@pytest.mark.parametrize("issue,names,unbound", [
+    ({"id": "Q1", "severity": "major", "fix_owner": "video", "scene_id": "S3"}, ["S3"], []),
+    ({"id": "Q1", "severity": "major", "fix_owner": "video", "keyframe": "S7_mid"}, ["S7"], []),
+    ({"id": "Q1", "severity": "major", "fix_owner": "video", "scene_id": "cover"}, ["cover"], []),
+    ({"id": "P1", "severity": "high", "fix_owner": "video", "where": "S2 picture and S10 keyframe"}, ["S2", "S10"], []),
+    ({"id": "P1", "severity": "high", "fix_owner": "video", "where": "обложка"}, ["cover"], []),
+    ({"id": "Q2", "severity": "major", "fix_owner": "video", "area": "audio"}, [], ["Q2"]),
+    ({"id": "Q3", "severity": "minor", "fix_owner": "video", "scene_id": "S3"}, [], []),
+    ({"id": "R1", "severity": "low", "fix_owner": "video", "where": "S3"}, [], []),
+    ({"id": "Q4", "severity": "major", "fix_owner": "script", "scene_id": "S3"}, [], []),
+    ({"id": "P2", "severity": "high", "fix_owner": "video", "where": "S3", "resolved_by_exclusion": True}, [], []),
+])
+def test_rejected_pictures_are_read_from_the_report_not_from_the_agent(issue, names, unbound):
+    assert video_build.redraw_from_report({"issues": [issue]}) == (names, unbound)
+
+
+def test_a_rejected_anchor_stays_excluded_across_rebuilds():
+    assert video_build.merged_excludes({"anchor": ["w1"]}, {"excluded": {"anchor": ["m7"], "template": ["t"]}}) == {
+        "anchor": ["m7", "w1"], "template": ["t"]}
+    assert video_build.merged_excludes({}, {}) == {}
+
+
+def _earlier_stub(monkeypatch, script="", passed=True, scenes=()):
+    package = {"script": script, "pick": {}, "validate": {"passed": passed}, "images": {"scenes": list(scenes)}}
+    seen = []
+
+    def fetch(hub, ref, dest, channel_id):
+        seen.append(ref)
+        return video_build.Earlier(package_id="prev", package=package)
+
+    monkeypatch.setattr(video_build, "fetch_earlier", fetch)
+    return seen
+
+
+def _report_stub(monkeypatch, content, kind="validation_report"):
+    monkeypatch.setattr(video_build, "artifact_details", lambda ref, *a: {"content": content, "kind": kind, "id": ref})
+
+
+FINDING = {"id": "Q1", "severity": "major", "fix_owner": "video", "scene_id": "S2"}
+
+
+def test_a_rework_report_finds_the_package_and_redraws_what_it_rejects(tmp_path, monkeypatch):
+    seen = _earlier_stub(monkeypatch, script=str(tmp_path / "script.json"))
+    _report_stub(monkeypatch, {"video_package": "prev", "issues": [FINDING]})
+    code, _, runs, _ = _rebuild_run(tmp_path, monkeypatch, rework="report")
+    assert code == 0 and seen == ["prev"]
+    build = runs[1][0]
+    assert build[build.index("--redraw") + 1] == "S2"
+
+
+def test_a_finding_with_no_picture_means_a_full_rebuild(tmp_path, monkeypatch):
+    seen = _earlier_stub(monkeypatch)
+    _report_stub(monkeypatch, {"video_package": "prev", "issues": [{**FINDING, "scene_id": ""}]})
+    code, _, runs, _ = _rebuild_run(tmp_path, monkeypatch, rework="report")
+    assert code == 0 and seen == [] and "--redraw" not in runs[1][0] and "--reuse-from" not in runs[1][0]
+
+
+def test_a_review_of_the_script_has_no_package_so_the_build_is_a_first_one(tmp_path, monkeypatch):
+    seen = _earlier_stub(monkeypatch)
+    _report_stub(monkeypatch, {"mode": "script", "issues": [{**FINDING, "where": "S2"}]}, "legal_review")
+    code, _, runs, _ = _rebuild_run(tmp_path, monkeypatch, rework="report")
+    assert code == 0 and seen == [] and "--redraw" not in runs[1][0]
+
+
+def test_a_report_that_cannot_be_read_stops_the_build(tmp_path, monkeypatch):
+    def broken(*a):
+        raise SystemExit("no such artifact")
+
+    monkeypatch.setattr(video_build, "artifact_details", broken)
+    with pytest.raises(video_build.Failure) as e:
+        _rebuild_run(tmp_path, monkeypatch, rework="report")
+    assert e.value.code == video_build.EXIT_ERROR
+
+
+def test_another_artifact_is_not_a_report(tmp_path, monkeypatch):
+    _report_stub(monkeypatch, {}, "video_package")
+    with pytest.raises(video_build.Failure) as e:
+        _rebuild_run(tmp_path, monkeypatch, rework="report")
+    assert e.value.code == video_build.EXIT_ARGS
+
+
+def test_a_rebuild_that_would_change_nothing_is_refused(tmp_path, monkeypatch):
+    _earlier_stub(monkeypatch, script=str(tmp_path / "script.json"))
+    with pytest.raises(video_build.Failure) as e:
+        _rebuild_run(tmp_path, monkeypatch, reuse="prev")
+    assert e.value.code == video_build.EXIT_ARGS and "ничего не изменит" in str(e.value)
+
+
+def test_a_changed_script_or_a_failed_build_may_rebuild_with_nothing_named(tmp_path, monkeypatch):
+    _earlier_stub(monkeypatch, script="another-script")
+    assert _rebuild_run(tmp_path, monkeypatch, reuse="prev")[0] == 0
+
+
+def test_a_rebuild_after_a_failed_check_is_not_refused(tmp_path, monkeypatch):
+    _earlier_stub(monkeypatch, script=str(tmp_path / "script.json"), passed=False)
+    assert _rebuild_run(tmp_path, monkeypatch, reuse="prev")[0] == 0
+
+
+def test_an_earlier_card_is_asked_for_again_so_a_second_card_goes_to_script(tmp_path, monkeypatch):
+    _earlier_stub(monkeypatch, script=str(tmp_path / "script.json"), passed=False,
+                     scenes=[{"id": "S3", "fallback": True}, {"id": "S1", "fallback": False}])
+    code, _, runs, _ = _rebuild_run(tmp_path, monkeypatch, reuse="prev")
+    build = runs[1][0]
+    assert code == 0 and build[build.index("--redraw") + 1] == "S3"
+

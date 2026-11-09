@@ -26,7 +26,7 @@ def build_report(result_id: str, delegation: dict, fetch=artifact, fetch_details
     kind = {"Research": "research_dossier", "Script": "script", "Video": "video_package",
             "QA": "validation_report", "Legal": "legal_review"}[team]
     if kind not in ids:
-        if team == "Video" and delegation.get("summary", "").startswith(SCRIPT_PROBLEM_PREFIX):
+        if team == "Video" and delegation.get("summary", "").strip().lstrip("\"'«`* ").startswith(SCRIPT_PROBLEM_PREFIX):
             report.update(verdict="fail", fix_owners={"script": ["studio"]}, notes=[delegation["summary"]])
         return report
     if team in ("Research", "Script"):

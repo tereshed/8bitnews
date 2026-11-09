@@ -4,7 +4,7 @@ developer, tester, merger, reviewer) в команде нет — не вызы�
 
 Порядок:
 1. Нет `video_package` → video_producer. В input — всё из постановки: id артефактов `script` и `story_brief`
-   (или id `delegation_result` с видом), channel_id, а при доработке — id прошлого `video_package` и замечания QA,
+   (или id `delegation_result` с видом), channel_id, а при доработке — строку `rework_report` или `previous_video_package` из постановки и замечания QA,
    Legal или студии для Video.
 2. video_producer сдал `video_package` → DONE outcome=done. В reason — его summary: собран ли ролик, прошли ли
    проверки студии, что выбрано (шаблон, ведущий, трек), стоимость картинок. Проверки студии не прошли — это тоже

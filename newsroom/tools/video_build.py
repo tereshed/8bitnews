@@ -13,7 +13,11 @@
 5. Файлы пакета уходят в хранилище через hub (`media_upload_url`); в stdout — `video_package` (`package.json` студии,
    ключи файлов в `media`, выбор в `pick`), его агент сдаёт результатом; копия — `<out>/video_package.json`.
 
-Доработка — `--reuse-package <id video_package или путь> [--redraw S3,S7,cover]`: тот же ролик, кроме того, о чём просили.
+Доработка — `--rework-report <id validation_report или legal_review>`: инструмент сам берёт из отчёта прошлый пакет и картинки,
+которые отвергли, потому что повторно показать проверяющим отвергнутую картинку нельзя, а человек после них ролик не смотрит.
+Замечание Video, которое не привязать к сцене, значит полную пересборку, если оно не про `--exclude`. Без отчёта (причина в
+проверке студии) — `--reuse-package <id video_package или путь> [--redraw S3,S7,cover]`. Сборку, которая ничего не изменит,
+инструмент отказывается запускать (код 2). Тот же ролик, кроме того, о чём просили:
 Принятые картинки берутся из прошлого пакета (`media.package_archive`) без вызова генератора, кроме названных в `--redraw`
 и тех, чей промпт изменился (`studio/studio/scene_images.py`); `pick` остаётся прошлым, кроме видов из `--exclude` и того,
 что больше не годится (`studio/studio/pick.py`, заметка в `notes`). Прошлый пакет не читается — обычная полная сборка с
@@ -56,7 +60,7 @@ import uuid
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "newsroom" / "tools"))
 
-from hublib import SCRIPT_PROBLEM_PREFIX, Hub, artifact_with_id, load_keys  # noqa: E402
+from hublib import SCRIPT_PROBLEM_PREFIX, Hub, artifact_details, artifact_with_id, load_keys  # noqa: E402
 
 RUN_ID = uuid.uuid4().hex
 IMAGE = f"8bitnews-studio:video-{RUN_ID}"
@@ -73,6 +77,8 @@ SCRIPT_PROBLEMS = ("does not fit its plate", "cover text", "failed script.schema
 EXIT_OK, EXIT_ERROR, EXIT_ARGS, EXIT_CHECKS, EXIT_SCRIPT = 0, 1, 2, 3, 4
 # `--redraw` items: a scene id, a keyframe name (what QA's findings carry), or the cover.
 REDRAW_ITEM = re.compile(r"(S[0-9]+)(?:_(?:first|mid))?|cover")
+FINDING_SCENE = re.compile(r"(?<![A-Za-z0-9])(S[0-9]+)(?![0-9])")
+FINDING_COVER = re.compile(r"\bcover\b|обложк", re.IGNORECASE)
 # What a rebuild takes from an earlier package's archive; everything else in it is ignored, whatever it claims to be.
 PICTURES_IN_ARCHIVE = re.compile(r"package/(package\.json|images/(?:attempts/)?[A-Za-z0-9_-]+\.png)")
 MAX_PICTURES_BYTES = 512 * 1024 * 1024
@@ -275,6 +281,30 @@ def earlier_choices(package: dict) -> dict:
             "package_archive": (package.get("media") or {}).get("package_archive")}
 
 
+def redraw_from_report(report: dict) -> tuple[list[str], list[str]]:
+    """(the pictures a QA or Legal report rejects for Video, the ids of its Video findings no picture can be read from)."""
+    names, unbound = [], []
+    for issue in report.get("issues") or []:
+        if issue.get("fix_owner") != "video" or issue.get("resolved_by_exclusion") is True \
+                or issue.get("severity") not in ("blocker", "major", "high"):
+            continue
+        text = " ".join(str(issue.get(field) or "") for field in ("scene_id", "keyframe", "where"))
+        found = FINDING_SCENE.findall(text) + (["cover"] if FINDING_COVER.search(text) else [])
+        if found:
+            names += found
+        else:
+            unbound.append(str(issue.get("id")))
+    return list(dict.fromkeys(names)), unbound
+
+
+def merged_excludes(excludes: dict, earlier_pick: dict) -> dict:
+    """This rebuild's excludes and those of the build it continues: what a reviewer rejected must not come back."""
+    merged = {kind: list(values) for kind, values in (earlier_pick.get("excluded") or {}).items()}
+    for kind, values in excludes.items():
+        merged[kind] = list(dict.fromkeys(merged.get(kind, []) + list(values)))
+    return merged
+
+
 def check_redraw_names(redraw: list[str], script: dict, earlier: Earlier) -> None:
     """A wrong name in `--redraw` would keep the very picture it was meant to replace, and QA pays again to find
     that out. A name may be from the earlier package: that is what the findings it answers were about. Without
@@ -301,6 +331,8 @@ def main() -> int:
                     help="leave a choice out of studio pick: anchor=<id>, template=<id>, music_track=<id> (repeatable)")
     ap.add_argument("--reuse-package", metavar="ID_OR_PATH",
                     help="rebuild: keep this earlier video_package's pick and accepted pictures")
+    ap.add_argument("--rework-report", metavar="ID",
+                    help="rebuild after this validation_report or legal_review: finds the earlier package and the rejected pictures")
     ap.add_argument("--redraw", metavar="S3,S7,cover",
                     help="with --reuse-package: the pictures QA or Legal rejected, to draw again")
     ap.add_argument("--upload-only", action="store_true",
@@ -361,6 +393,25 @@ def redact(text: str, keys: dict) -> str:
 def build(args, excludes: dict, keys: dict, out: pathlib.Path, work: pathlib.Path, step, report: dict) -> int:
     reuse_package = getattr(args, "reuse_package", None)
     redraw = parse_redraw(getattr(args, "redraw", None))
+    rework_notes = []
+    rework_report = getattr(args, "rework_report", None)
+    if rework_report:
+        if reuse_package:
+            raise Failure(EXIT_ARGS, "--rework-report сам находит прошлый пакет: --reuse-package с ним не нужен")
+        try:
+            details = artifact_details(rework_report)
+        except (Exception, SystemExit) as e:  # noqa: BLE001 - reading it blind would reuse what was rejected
+            raise Failure(EXIT_ERROR, f"--rework-report {rework_report}: отчёт не читается ({e})") from e
+        if details.get("kind") not in (None, "validation_report", "legal_review"):
+            raise Failure(EXIT_ARGS, f"--rework-report {rework_report}: это {details.get('kind')}, нужен validation_report или legal_review")
+        found, unbound = redraw_from_report(details.get("content") or {})
+        reuse_package = (details.get("content") or {}).get("video_package")
+        redraw = list(dict.fromkeys(redraw + found))
+        if unbound and not excludes:
+            rework_notes.append(f"findings {', '.join(unbound)} name no picture: a full rebuild")
+            reuse_package = None
+        if not reuse_package:
+            redraw = []
     if redraw and not reuse_package:
         raise Failure(EXIT_ARGS, "--redraw нужен вместе с --reuse-package: без него рисуются все картинки")
     hub = Hub(keys["HUB_URL"], keys["HUB_API_KEY"])
@@ -390,6 +441,15 @@ def build(args, excludes: dict, keys: dict, out: pathlib.Path, work: pathlib.Pat
             earlier = fetch_earlier(hub, reuse_package, work / "earlier", channel_id)
             earlier.notes = [redact(note, keys) for note in earlier.notes]
             check_redraw_names(redraw, script, earlier)
+            if earlier.package is not None:
+                earlier_images = earlier.package.get("images") or {}
+                # a card is never reused: it is drawn again, and asked for, so a second card sends the visual to Script
+                redraw = list(dict.fromkeys(redraw + [s.get("id") for s in earlier_images.get("scenes") or [] if s.get("fallback")]))
+                validation = earlier.package.get("validate") or {}
+                if not redraw and not excludes and earlier.package.get("script") == script_id and validation.get("passed") is True:
+                    raise Failure(EXIT_ARGS, "пересборка ничего не изменит: сценарий тот же, замечаний к картинкам нет, студия прошла. "
+                                             "Нужен отчёт с замечаниями для Video (--rework-report) или --redraw/--exclude")
+                excludes = merged_excludes(excludes, earlier.package.get("pick") or {})
             step("reuse", package=earlier.package_id, pictures=earlier.pictures is not None, redraw=redraw,
                  notes=earlier.notes)
         recent = retry("hub releases_recent", lambda: hub.recent(channel_id))
@@ -430,7 +490,7 @@ def build(args, excludes: dict, keys: dict, out: pathlib.Path, work: pathlib.Pat
         if earlier.pictures is not None:
             inputs["/work/reuse"] = earlier.pictures
             build_cmd += ["--reuse-from", "/work/reuse", "--reuse-package-id", earlier.package_id]
-        for note in earlier.notes + pick.get("notes", []):
+        for note in rework_notes + earlier.notes + pick.get("notes", []):
             build_cmd += ["--note", note]
         if pick["music_track"]:
             key = pick["music_key"]
@@ -466,7 +526,7 @@ def build(args, excludes: dict, keys: dict, out: pathlib.Path, work: pathlib.Pat
 
     package["script"] = script_id  # the studio saw a copy at /work/script.json
     package["media"] = media
-    package["pick"] = pick
+    package["pick"] = {**pick, "excluded": excludes} if excludes else pick
     (out / "video_package.json").write_text(json.dumps(package, indent=2, ensure_ascii=False))
     print(json.dumps(package, ensure_ascii=False))
     return EXIT_CHECKS if failed else EXIT_OK

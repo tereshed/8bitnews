@@ -55,7 +55,7 @@ tester, merger, reviewer) в команде нет — не вызывай их.
     summary. editor не смог сдать (hub отказал) → DONE outcome=needs_human с ответом hub.
 12. **Лимит кругов.** Не больше двух доработок на всю задачу после первой проверки каждого вида (Legal script,
     Video, QA, Legal final): третий раз `fix_required` или `fail` от одной и той же команды → DONE
-    outcome=needs_human, в reason — что осталось. Всего за задачу не больше 4 делегирований Video.
+    outcome=needs_human, в reason — что осталось. Всего за задачу не больше 5 делегирований Video.
 13. `stage_report` с state failed, expired, needs_human или cancelled, либо `not_approved` (Research, Script)
     или `missing` (любая команда) → не делегируй повторно: DONE outcome=needs_human, в reason — какая команда
     и что она ответила.
@@ -66,14 +66,17 @@ tester, merger, reviewer) в команде нет — не вызывай их.
 - в description: `channel_id`; `mode: script` или `mode: final` для Legal; по строке на каждый входной артефакт
   с готовой командой (из корня репозитория) `python3 newsroom/tools/pm_artifact.py <id> > /tmp/<kind>.json`:
   - `story_brief` — свой артефакт, всем командам;
-  - `research_dossier` у Script и Legal; `script` у Legal, Video и QA; `video_package` у QA, у Legal `mode: final` и
-    у Video при доработке (последний: `--reuse-package` возьмёт из него принятые картинки);
+  - `research_dossier` у Script и Legal; `script` у Legal, Video и QA; `video_package` у QA и у Legal `mode: final`;
     `validation_report` и последний `legal_review` по сценарию (его `final_checks`) у Legal `mode: final`; при
     доработке — прошлые артефакты и замечания: полные id из summary `stage_report` (часть `ids:`);
   - `video_package` у QA и у Legal `mode: final` — другой командой: `python3 newsroom/tools/video_review_kit.py <id> --out /tmp/review`
     (кадры и сокращённый пакет; полный пакет этим командам не нужен);
 - там же строка: «Не скачивается — заверши прогон с ошибкой, не пиши по памяти»;
 - при доработке — замечания, которые надо исправить, с id их отчёта (часть `fix:` из `stage_report`);
+- у Video при пересборке — отдельной строкой, без команды скачивания: `rework_report: <полный id validation_report или
+  legal_review с замечаниями, из-за которых пересборка>`, в том числе если до неё сценарий дорабатывал Script. Причина в
+  проверке студии (`stage_report` Video `fail`) — `previous_video_package: <полный id>`. Инструмент сам найдёт, что
+  перерисовать;
 - у Legal `mode: script` после любой доработки сценария — ещё две строки: `previous_script: <полный id script, который
   проверял прошлый Legal mode: script>` и `previous_legal_review: <полный id его legal_review>`. Тогда Legal проверяет только
   правку, а если она вышла за рамки точечной, сам зовёт всю команду. У первой проверки сценария этих строк нет. После
