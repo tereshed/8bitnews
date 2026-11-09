@@ -174,8 +174,8 @@ func (s *Store) SetSlot(ctx context.Context, releaseID, channelID string, at tim
 	return nil
 }
 
-// ForgetPublication drops a release's link on a platform and its slot: the
-// video is off the schedule.
+// ForgetPublication drops a release's link on a platform, its slot and hub's
+// upload job: the video is off the schedule, and the next upload starts afresh.
 func (s *Store) ForgetPublication(ctx context.Context, releaseID, platform string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -187,6 +187,9 @@ func (s *Store) ForgetPublication(ctx context.Context, releaseID, platform strin
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM release_slots WHERE release_id = $1`, releaseID); err != nil {
 		return fmt.Errorf("freeing the slot of release %s: %w", releaseID, err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM publish_jobs WHERE release_id = $1`, releaseID); err != nil {
+		return fmt.Errorf("forgetting the upload of release %s: %w", releaseID, err)
 	}
 	return tx.Commit(ctx)
 }
@@ -258,6 +261,7 @@ func (s *Store) PublicationsToCheck(ctx context.Context) ([]PublicationCheck, er
 // held (Hold says why), or it has waited too long for its upload.
 type UploadAlert struct {
 	ReleaseID     string
+	ChannelID     string
 	CardMessageID *int64
 	ApprovedAt    time.Time
 	Hold          string
@@ -270,7 +274,7 @@ type UploadAlert struct {
 // held back, and those not held and with no link since before `before`.
 func (s *Store) UploadAlerts(ctx context.Context, before time.Time) ([]UploadAlert, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, moderation_message_id, moderated_at, publish_hold,
+		SELECT id, channel_id, moderation_message_id, moderated_at, publish_hold,
 		       EXISTS (SELECT 1 FROM release_publications p WHERE p.release_id = releases.id AND p.platform = $2)
 		       OR EXISTS (SELECT 1 FROM release_slots sl WHERE sl.release_id = releases.id)
 		FROM releases
@@ -287,7 +291,7 @@ func (s *Store) UploadAlerts(ctx context.Context, before time.Time) ([]UploadAle
 	var out []UploadAlert
 	for rows.Next() {
 		var u UploadAlert
-		if err := rows.Scan(&u.ReleaseID, &u.CardMessageID, &u.ApprovedAt, &u.Hold, &u.MayBeScheduled); err != nil {
+		if err := rows.Scan(&u.ReleaseID, &u.ChannelID, &u.CardMessageID, &u.ApprovedAt, &u.Hold, &u.MayBeScheduled); err != nil {
 			return nil, fmt.Errorf("scanning an upload alert: %w", err)
 		}
 		out = append(out, u)

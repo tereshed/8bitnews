@@ -615,3 +615,175 @@ func TestPublishingMigrationKeepsAModeratorsTakeBack(t *testing.T) {
 		}
 	}
 }
+
+func TestConnectedChannelsLeaveTheQueueForTheUploader(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "conn-a")
+	approve(t, st, r.ID, store.AutoApprover)
+	on := service.New(service.Deps{Store: st, Media: newTestMedia(t), UploaderOn: true})
+	off := service.New(service.Deps{Store: st, Media: newTestMedia(t)})
+	listed := func(svc *service.Service) bool {
+		t.Helper()
+		q, err := svc.PublishQueue(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(q.Upload) == 1 && q.Upload[0].ReleaseID == r.ID
+	}
+	if !listed(on) {
+		t.Error("a channel not connected isn't in the queue")
+	}
+	sealed := "sealed-not-the-token"
+	if err := st.SetPlatformAccount(ctx, store.PlatformAccount{ChannelID: r.ChannelID, Platform: store.PlatformYouTube, ExternalID: "UC1",
+		Tokens: store.AccountTokens{RefreshSealed: sealed, Title: "T", ConnectedBy: "Kostya", ConnectedAt: time.Now()}}); err != nil {
+		t.Fatal(err)
+	}
+	if listed(on) {
+		t.Error("a connected channel is still in the browser queue")
+	}
+	if !listed(off) {
+		t.Error("with the uploader off, the queue must keep it")
+	}
+	items, err := on.UploadItems(ctx)
+	if err != nil || len(items) != 1 || items[0].ReleaseID != r.ID {
+		t.Errorf("the uploader's own list: %+v, %v", items, err)
+	}
+
+	// Taking down follows the same line.
+	if err := st.SetSlot(ctx, r.ID, r.ChannelID, time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.WithdrawRelease(ctx, r.ID, "Kostya"); err != nil {
+		t.Fatal(err)
+	}
+	if q, err := on.PublishQueue(ctx); err != nil || len(q.Unschedule) != 0 {
+		t.Errorf("a connected channel's take-down in the browser queue: %+v, %v", q.Unschedule, err)
+	}
+
+	// A lost access hands the channel back.
+	if err := st.MarkAccountAlerted(ctx, r.ChannelID, store.PlatformYouTube); err != nil {
+		t.Fatal(err)
+	}
+	if q, err := on.PublishQueue(ctx); err != nil || len(q.Unschedule) != 1 {
+		t.Errorf("after a lost access: %+v, %v", q.Unschedule, err)
+	}
+	if accounts, err := st.ConnectedAccounts(ctx, store.PlatformYouTube); err != nil || len(accounts) != 0 {
+		t.Errorf("a lost account still counts as connected: %+v, %v", accounts, err)
+	}
+	// Connecting again clears it.
+	if err := st.SetPlatformAccount(ctx, store.PlatformAccount{ChannelID: r.ChannelID, Platform: store.PlatformYouTube, ExternalID: "UC1",
+		Tokens: store.AccountTokens{RefreshSealed: sealed}}); err != nil {
+		t.Fatal(err)
+	}
+	accounts, err := st.ConnectedAccounts(ctx, store.PlatformYouTube)
+	if err != nil || len(accounts) != 1 || accounts[0].Tokens.RefreshSealed != sealed || accounts[0].ExternalID != "UC1" {
+		t.Errorf("after reconnecting: %+v, %v", accounts, err)
+	}
+	if err := st.DeletePlatformAccount(ctx, r.ChannelID, store.PlatformYouTube); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.PlatformAccountOf(ctx, r.ChannelID, store.PlatformYouTube); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("after disconnecting: %v", err)
+	}
+}
+
+func TestPublishJobsKeepHowFarAnUploadGot(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "job-a")
+	approve(t, st, r.ID, store.AutoApprover)
+	blank, err := st.PublishJobOf(ctx, r.ID)
+	if err != nil || blank.ReleaseID != r.ID || blank.SessionURI != "" || !blank.NextAttemptAt.IsZero() {
+		t.Fatalf("no job yet: %+v, %v", blank, err)
+	}
+	at := time.Now().Add(time.Hour).Truncate(time.Second)
+	job := store.PublishJob{ReleaseID: r.ID, SessionURI: "https://x/session", VideoSize: 123, PublishAt: &at, NextAttemptAt: at, Attempts: 2, LastError: "boom"}
+	if err := st.SavePublishJob(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	job.VideoID, job.ThumbnailSet, job.ThumbnailAttempts = "vid", true, 1
+	if err := st.SavePublishJob(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.PublishJobOf(ctx, r.ID)
+	if err != nil || got.SessionURI != "https://x/session" || got.VideoSize != 123 || got.PublishAt == nil || !got.PublishAt.Equal(at) ||
+		got.VideoID != "vid" || !got.ThumbnailSet || got.ThumbnailAttempts != 1 || got.Attempts != 2 || got.LastError != "boom" {
+		t.Errorf("job: %+v, %v", got, err)
+	}
+	// Forgetting a publication starts the next upload afresh.
+	if err := st.ForgetPublication(ctx, r.ID, store.PlatformYouTube); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := st.PublishJobOf(ctx, r.ID); err != nil || got.VideoID != "" {
+		t.Errorf("after forgetting: %+v, %v", got, err)
+	}
+	if err := st.SavePublishJob(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeletePublishJob(ctx, r.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := st.PublishJobOf(ctx, r.ID); err != nil || got.VideoID != "" {
+		t.Errorf("after deleting: %+v, %v", got, err)
+	}
+}
+
+func TestAStopNoteTakesTheSoonestSlotAndBlackoutDatesAreSkipped(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	hour := func(d time.Duration) string { return time.Now().UTC().Add(d).Format("15:04") }
+	// Two slots ahead, the later one listed first as the main one.
+	soon, later := hour(2*time.Hour), hour(5*time.Hour)
+	// Near midnight the two would swap days and prove nothing.
+	if later < soon {
+		t.Skip("the two slots fall on different days at this hour")
+	}
+	slots := `["` + later + `", "` + soon + `"]`
+
+	plain := seedRelease(t, st, "stop-a")
+	svc := publishingService(t, st, "stop-a", slots)
+	approve(t, st, plain.ID, store.AutoApprover)
+	got, err := svc.ReserveReleaseSlot(ctx, plain.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PublishAt.UTC().Format("15:04") != later {
+		t.Errorf("no stop note: %s, want the main slot %s", got.PublishAt.UTC().Format("15:04"), later)
+	}
+	if err := st.ForgetPublication(ctx, plain.ID, store.PlatformYouTube); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := sql.Open("pgx", testDSN())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err := db.ExecContext(ctx, `UPDATE releases SET legal_review = '{"publish_notes":["Set flags","СТОП: if the vote has happened, check X"]}' WHERE id = $1`, plain.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, err = svc.ReserveReleaseSlot(ctx, plain.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PublishAt.UTC().Format("15:04") != soon {
+		t.Errorf("a stop note: %s, want the soonest %s", got.PublishAt.UTC().Format("15:04"), soon)
+	}
+
+	// Today and tomorrow blacked out: the slot lands the day after.
+	other := seedRelease(t, st, "stop-b")
+	if err := st.UpsertChannel(ctx, store.Channel{ID: "stop-b", CountryCC: "zz", Name: "T", Language: "en-US", Timezone: "UTC",
+		Platforms: []byte(`{}`), Format: []byte(`{}`), FormatMD: "# T",
+		Data: []byte(`{"schedule":{"publish_slots":["` + soon + `"],"publish_blackout":["` + time.Now().UTC().Format(time.DateOnly) + `","` + time.Now().UTC().Add(24*time.Hour).Format(time.DateOnly) + `"]}}`)}); err != nil {
+		t.Fatal(err)
+	}
+	approve(t, st, other.ID, store.AutoApprover)
+	got, err = svc.ReserveReleaseSlot(ctx, other.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := time.Now().UTC().Add(48 * time.Hour).Format(time.DateOnly); got.PublishAt.UTC().Format(time.DateOnly) != want {
+		t.Errorf("blackout: %s, want %s", got.PublishAt.UTC().Format(time.DateOnly), want)
+	}
+}

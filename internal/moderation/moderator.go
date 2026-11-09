@@ -103,6 +103,7 @@ type Moderator struct {
 	adminLogin func(userID int64, who string) string // nil: no admin page
 
 	videoVisible func(ctx context.Context, url string) (visible, known bool) // nil: hub doesn't look
+	uploads      func(ctx context.Context, channelID string) bool            // nil: hub uploads nothing itself
 }
 
 // New builds the bot for the group chatID, looking for new releases every
@@ -410,7 +411,7 @@ func (m *Moderator) withdraw(ctx context.Context, q CallbackQuery, releaseID, wh
 	m.answer(ctx, q.ID, "Записано: релиз "+statusText(r.Status)+".", false)
 	m.event(ctx, map[string]any{"release_id": r.ID, "action": "withdrawn", "by": who, "telegram_user_id": q.From.ID})
 	m.setKeyboard(ctx, r.ID, q.Message.MessageID, &Keyboard{InlineKeyboard: [][]Button{}})
-	if _, err := m.tg.SendMessage(ctx, m.chatID, withdrawnReply(who), q.Message.MessageID, nil); err != nil {
+	if _, err := m.tg.SendMessage(ctx, m.chatID, withdrawnReply(who, m.hubUploads(ctx, r.ChannelID)), q.Message.MessageID, nil); err != nil {
 		m.log.Error("moderation: confirming the withdrawal failed", "release_id", releaseID, "error", err)
 	}
 }
@@ -422,8 +423,12 @@ func publishedReply(who string, published bool) string {
 	return "↩️ Не выложено — " + who + ". Ролик уйдёт из списка канала за несколько минут, страница источников остаётся открытой."
 }
 
-func withdrawnReply(who string) string {
-	return "🚫 Страница источников закрыта — " + who + ". Несколько минут она ещё может открываться из кэша. Сам ролик на площадках снимите вручную; если он стоит в расписании, то до слота, иначе он выйдет."
+func withdrawnReply(who string, hubUploads bool) string {
+	opening := "🚫 Страница источников закрыта — " + who + ". Несколько минут она ещё может открываться из кэша."
+	if hubUploads {
+		return opening + " Если ролик стоит в расписании YouTube, hub снимет его сам за пару минут; на других площадках снимите вручную."
+	}
+	return opening + " Сам ролик на площадках снимите вручную; если он стоит в расписании, то до слота, иначе он выйдет."
 }
 
 // Act applies a moderator's decision made on the admin page: the same status
@@ -481,7 +486,7 @@ func (m *Moderator) Act(ctx context.Context, releaseID, action, who string, user
 			event["action"] = "unpublished"
 		}
 	case actionWithdraw:
-		reply = withdrawnReply(who)
+		reply = withdrawnReply(who, m.hubUploads(ctx, r.ChannelID))
 		event["action"] = "withdrawn"
 	}
 	if note != "" {

@@ -54,8 +54,8 @@ purpose: Инструкция владельцу: как настроить ка
   > Independent: no funding from parties, campaigns or governments. Corrections: {corrections email}
 
 **Настройки → Параметры загрузки по умолчанию**
-Ролики будет загружать hub через API и сам ставить нужные поля. Значения по умолчанию нужны на случай ручной
-загрузки:
+На подключённом канале (раздел 4) ролики загружает hub через API и сам ставит нужные поля. Значения по умолчанию нужны на
+случай ручной загрузки:
 - категория — News & Politics;
 - язык названия и описания, язык видео — English (United States) (для ES — Spanish (Spain));
 - лицензия — стандартная лицензия YouTube;
@@ -80,7 +80,7 @@ purpose: Инструкция владельцу: как настроить ка
 
 Один проект на все каналы. Оплата в Google Cloud для YouTube API не нужна.
 
-1. [console.cloud.google.com](https://console.cloud.google.com) → создайте проект `8bitnews-publisher`.
+1. Проект Google Cloud: название `8bitnews-publisher`, id `bitnews-publisher` (id не может начинаться с цифры).
 2. **APIs & Services → Library** → включите **YouTube Data API v3** и **YouTube Analytics API**.
 3. **Google Auth Platform** (в старом интерфейсе — OAuth consent screen):
    - **Branding:** название `8bitnews publisher`, email поддержки — ваш. Логотип не ставьте: с логотипом Google
@@ -88,8 +88,8 @@ purpose: Инструкция владельцу: как настроить ка
    - **Audience:** тип пользователей — External.
    - **Data access → Add scopes:**
      - `https://www.googleapis.com/auth/youtube.upload` — загрузка;
-     - `https://www.googleapis.com/auth/youtube.force-ssl` — смена видимости и удаление: это кнопка
-       «Снять с публикации»;
+     - `https://www.googleapis.com/auth/youtube.force-ssl` — смена видимости и чтение своего ролика: так hub проверяет
+       загрузку и снимает ролик с расписания;
      - `https://www.googleapis.com/auth/yt-analytics.readonly` — статистика для DataLens.
    - **Audience → Publish app → In production.** Важно: у приложения в статусе Testing refresh token (токен, по которому hub входит
      без вас) живёт 7 дней, и hub пришлось бы заново авторизовывать каждую неделю
@@ -97,18 +97,25 @@ purpose: Инструкция владельцу: как настроить ка
      Проверку приложения Google не проходим. При входе вы увидите экран «Google hasn't verified this app» →
      Advanced → перейти в приложение. Непроверенному приложению доступны 100 пользователей
      ([unverified apps](https://support.google.com/cloud/answer/7454865)); нам нужен один — вы.
-4. **Clients** — OAuth-клиент создадим, когда у hub будет адрес: тип Web application, redirect URI
-   `https://<адрес hub>/oauth/youtube/callback`. Каждый канал вы авторизуете отдельно: при входе выбираете нужный
-   канал в списке аккаунтов.
-5. **Секреты.** Client secret и JSON клиента не присылайте в чат и не кладите в репозиторий. Храните их
-   в менеджере паролей; в hub они попадут через переменные окружения.
-6. **Квота.** Ничего не запрашивайте: у загрузки отдельный лимит — 100 вызовов в день на проект
+4. **Clients** — OAuth-клиент: тип Web application, redirect URI `https://hub.8bitlang.org/admin/youtube/callback`
+   (`{HUB_PUBLIC_URL}/admin/youtube/callback`).
+5. **Секреты.** Client secret и JSON клиента не присылайте в чат и не кладите в репозиторий. В hub они попадают через
+   `~/.config/8bitnews/deploy.env`: `HUB_YOUTUBE_CLIENT_ID`, `HUB_YOUTUBE_CLIENT_SECRET` и `HUB_YOUTUBE_TOKEN_KEY`
+   (`openssl rand -hex 32`, им шифруются токены каналов).
+6. **Согласие по каждому каналу.** После деплоя: `/admin` боту в личку → страница админки → «Подключение каналов YouTube».
+   Там написано, на что вы соглашаетесь: hub загружает каждый готовый ролик, не спрашивая о каждом, как Private с расписанием,
+   с меткой AI и «не для детей». Нажмите «Подключить», в списке аккаунтов выберите именно этот канал, разрешите. Hub сверит
+   канал с `platforms.youtube.account` в профиле и откажет, если выбран другой. Отключить можно там же или на
+   [странице разрешений Google](https://myaccount.google.com/permissions).
+7. **Квота.** Ничего не запрашивайте: у загрузки отдельный лимит — 100 вызовов в день на проект
    (`rules.md`, раздел 8). Двум каналам по 1–3 ролика в день хватает.
 
-**Открытый вопрос, проверим вместе.** Справка YouTube противоречит сама себе: видео, загруженные через
+**API не всё умеет.** «Allow automatic concepts» и ремиксы Shorts через API не выставить: они остаются такими, какие стоят на канале.
+Поставьте их один раз в Studio (раздел 2).
+
+**Открытый вопрос, проверим на первом ролике.** Справка YouTube противоречит сама себе: видео, загруженные через
 непроверенный API-проект, то ли публикуются как обычно, то ли запираются в private до аудита (`rules.md`,
-раздел 8). Когда будет клиент, загрузим один ролик со статусом unlisted, посмотрим, что поставит YouTube,
-и удалим его.
+раздел 8). Hub после загрузки читает ролик обратно. Если YouTube снял расписание, релиз задерживается, и группа видит причину.
 
 ## 5. Монетизация: чего ждать
 

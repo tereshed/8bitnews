@@ -17,10 +17,12 @@ import (
 	"github.com/tereshed/8bitnews/internal/observability"
 	"github.com/tereshed/8bitnews/internal/polymaths"
 	"github.com/tereshed/8bitnews/internal/publish"
+	"github.com/tereshed/8bitnews/internal/publisher"
 	"github.com/tereshed/8bitnews/internal/service"
 	"github.com/tereshed/8bitnews/internal/sources"
 	"github.com/tereshed/8bitnews/internal/storage"
 	"github.com/tereshed/8bitnews/internal/store"
+	"github.com/tereshed/8bitnews/internal/youtube"
 )
 
 // readHeaderTimeout, readTimeout and idleTimeout harden the HTTP server
@@ -61,6 +63,8 @@ func runServe(_ []string) {
 	availability := sources.NewAvailabilityClient(cfg.WaybackAvailabilityBaseURL, cfg.SourceCheckTimeout, cfg.SourceAllowPrivate)
 
 	pub := publish.Config{PublicURL: cfg.PublicURL, CorrectionsContact: cfg.CorrectionsContact}
+	// hub uploads to YouTube itself only with the bot: approvals and alerts go through it.
+	uploaderOn := cfg.YouTube.Enabled() && cfg.Moderation.BotToken != ""
 	svc := service.New(service.Deps{
 		Store:                           st,
 		Media:                           media,
@@ -72,6 +76,7 @@ func runServe(_ []string) {
 		SourcesCheckDeadline:            cfg.SourcesCheckDeadline,
 		SourcesBackgroundArchiveTimeout: cfg.SourcesBackgroundArchiveTimeout,
 		Publish:                         pub,
+		UploaderOn:                      uploaderOn,
 	})
 	if cfg.PolymathsWriteAPIKey != "" {
 		go polymaths.Run(ctx, st, &polymaths.Client{URL: cfg.PolymathsURL, APIKey: cfg.PolymathsWriteAPIKey}, logger)
@@ -86,13 +91,44 @@ func runServe(_ []string) {
 		bot := moderation.New(tg, st, media, cfg.Moderation.ChatID, cfg.Moderation.PollInterval, pub, logger)
 		videos := admin.NewVideoChecker()
 		bot.SetVideoCheck(videos.Visible)
+		var (
+			yt     *youtube.Client
+			sealer *youtube.Sealer
+		)
+		if uploaderOn {
+			yt = youtube.New(youtube.Config{ClientID: cfg.YouTube.ClientID, ClientSecret: cfg.YouTube.ClientSecret,
+				RedirectURL: cfg.PublicURL + admin.YouTubeCallbackPath})
+			if sealer, err = youtube.NewSealer(cfg.YouTube.TokenKey); err != nil {
+				fatal(err)
+			}
+			bot.SetUploaderCheck(func(ctx context.Context, channelID string) bool {
+				accounts, err := st.ConnectedAccounts(ctx, store.PlatformYouTube)
+				if err != nil {
+					logger.Error("reading the connected YouTube accounts", "error", err)
+					return false
+				}
+				for _, a := range accounts {
+					if a.ChannelID == channelID {
+						return true
+					}
+				}
+				return false
+			})
+			go publisher.New(st, svc, yt, media, bot, sealer, logger).Run(ctx)
+		} else {
+			logger.Info("YouTube uploader off: uploads stay with the publishing API")
+		}
 		if cfg.PublicURL != "" {
 			auth := admin.NewAuth(cfg.Moderation.BotToken)
 			bot.SetAdminLogin(func(userID int64, who string) string {
 				return cfg.PublicURL + "/admin/login?t=" + auth.LoginToken(admin.Identity{UserID: userID, Name: who})
 			})
-			adminPage = admin.New(admin.Deps{Store: st, Moderator: bot, Media: media, Auth: auth, Videos: videos, Publish: pub,
-				MediaOrigin: cfg.S3.Endpoint, Log: logger})
+			deps := admin.Deps{Store: st, Moderator: bot, Media: media, Auth: auth, Videos: videos, Publish: pub,
+				MediaOrigin: cfg.S3.Endpoint, Log: logger}
+			if uploaderOn { // a nil *youtube.Client in the interface would look like one that's there
+				deps.YouTube, deps.Sealer = yt, sealer
+			}
+			adminPage = admin.New(deps)
 		}
 		go bot.Run(ctx)
 	} else {

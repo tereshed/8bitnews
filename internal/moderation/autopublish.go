@@ -62,14 +62,19 @@ func (m *Moderator) AutoApprove(ctx context.Context) {
 		}
 		cardID := *approved.Moderation.MessageID
 		m.setKeyboard(ctx, r.ID, cardID, autoKeyboard(r.ID))
-		if _, err := m.tg.SendMessage(ctx, m.chatID, autoApprovedReply, cardID, nil); err != nil {
+		if _, err := m.tg.SendMessage(ctx, m.chatID, autoApprovedReply(m.hubUploads(ctx, r.ChannelID)), cardID, nil); err != nil {
 			m.log.Error("moderation: telling the group about an automatic approval failed", "release_id", r.ID, "error", err)
 		}
 	}
 }
 
-const autoApprovedReply = "🤖 Одобрено автоматически: на этом канале подтверждение выключено. Ролик встанет в ближайший слот. " +
-	"Чтобы он не вышел — «🚫 Закрыть страницу источников»; если он уже в расписании, его ещё надо снять в Studio."
+func autoApprovedReply(hubUploads bool) string {
+	const opening = "🤖 Одобрено автоматически: на этом канале подтверждение выключено. Ролик встанет в ближайший слот. "
+	if hubUploads {
+		return opening + "Чтобы он не вышел — «🚫 Закрыть страницу источников»: hub снимет его с расписания сам."
+	}
+	return opening + "Чтобы он не вышел — «🚫 Закрыть страницу источников»; если он уже в расписании, его ещё надо снять в Studio."
+}
 
 // CheckPublications moves a release to "published" once its video is up, and
 // tells the group once if a video hasn't gone up after its slot.
@@ -158,7 +163,7 @@ func (m *Moderator) CheckUploads(ctx context.Context) {
 		}
 		text, action, mark := fmt.Sprintf("⚠️ Ролик ждёт загрузки с %s UTC. Похоже, загрузчик не работает.", u.ApprovedAt.UTC().Format("02.01 15:04")), "upload_stalled", m.store.MarkUploadAlerted
 		if u.Hold != "" {
-			text, action, mark = holdText(u), "held", m.store.MarkHoldAlerted
+			text, action, mark = holdText(u, m.hubUploads(ctx, u.ChannelID)), "held", m.store.MarkHoldAlerted
 		}
 		if _, err := m.tg.SendMessage(ctx, m.chatID, text, cardID, nil); err != nil {
 			m.log.Error("moderation: telling the group about an upload failed", "release_id", u.ReleaseID, "error", err)
@@ -172,12 +177,35 @@ func (m *Moderator) CheckUploads(ctx context.Context) {
 }
 
 // holdText says what a hold means for this video: one that may stand in
-// YouTube's schedule goes out at its slot unless someone takes it down.
-func holdText(u store.UploadAlert) string {
+// YouTube's schedule goes out at its slot unless it is taken down.
+func holdText(u store.UploadAlert, hubUploads bool) string {
 	next := "Сам он не выйдет."
 	if u.MayBeScheduled {
 		next = "Он может уже стоять в расписании: снимите его в Studio, иначе он выйдет."
+		if hubUploads {
+			next = "Если он уже в расписании, hub снимет его сам за пару минут."
+		}
 	}
 	const opening = "⏸ Ролик задержан. "
 	return opening + next + " Причина: " + truncate(u.Hold, messageLimit-utf16Len(opening+next+" Причина: "))
+}
+
+// SetUploaderCheck says which channels hub uploads to by itself, for what the
+// group is told about taking a video down.
+func (m *Moderator) SetUploaderCheck(check func(ctx context.Context, channelID string) bool) {
+	m.uploads = check
+}
+
+func (m *Moderator) hubUploads(ctx context.Context, channelID string) bool {
+	return m.uploads != nil && m.uploads(ctx, channelID)
+}
+
+// Notify tells the group something, on a release's card if it has one.
+func (m *Moderator) Notify(ctx context.Context, cardID *int64, text string) error {
+	var replyTo int64
+	if cardID != nil {
+		replyTo = *cardID
+	}
+	_, err := m.tg.SendMessage(ctx, m.chatID, truncate(text, messageLimit), replyTo, nil)
+	return err
 }

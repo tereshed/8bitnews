@@ -63,9 +63,10 @@ type outletFlags struct {
 }
 
 type countryOutlet struct {
-	Domain    string `json:"domain"`
-	Ownership string `json:"ownership"`
-	Paywall   bool   `json:"paywall"`
+	Domain    string   `json:"domain"`
+	Ownership string   `json:"ownership"`
+	Paywall   bool     `json:"paywall"`
+	Aka       []string `json:"aka"`
 }
 
 // outletsOf reads a country's sources.yaml (stored as countries.data):
@@ -101,6 +102,41 @@ func outletsOf(countryData json.RawMessage) map[string]outletFlags {
 		}
 	}
 	return out
+}
+
+// stateMediaNames lists the names state media go by on other sites: a wire's
+// story on Infobae is "EFE (via Infobae)", and its domain says nothing.
+func stateMediaNames(countryData json.RawMessage) []string {
+	var doc struct {
+		Local []countryOutlet `json:"local"`
+		World []struct {
+			Outlets []countryOutlet `json:"outlets"`
+		} `json:"world"`
+	}
+	_ = json.Unmarshal(countryData, &doc)
+	all := doc.Local
+	for _, region := range doc.World {
+		all = append(all, region.Outlets...)
+	}
+	var names []string
+	for _, o := range all {
+		if o.Ownership == "state_controlled" || o.Ownership == "state_funded" {
+			names = append(names, o.Aka...)
+		}
+	}
+	return names
+}
+
+// goesBy says whether an outlet's name is one of names, alone or followed by
+// more words: "EFE", "EFE (via Infobae)", not "EFEMÉRIDES".
+func goesBy(outlet string, names []string) bool {
+	outlet = strings.TrimSpace(outlet)
+	for _, n := range names {
+		if outlet == n || strings.HasPrefix(outlet, n+" ") {
+			return true
+		}
+	}
+	return false
 }
 
 func flagsFor(rawURL string, outlets map[string]outletFlags) outletFlags {
@@ -156,6 +192,7 @@ func parseDate(s string) (time.Time, bool) {
 // sourcesOf turns a release's checked sources into what readers see.
 func sourcesOf(rows []store.ReleaseSource, countryData json.RawMessage, language string) map[string]Source {
 	outlets := outletsOf(countryData)
+	stateNames := stateMediaNames(countryData)
 	words := wordsFor(language)
 	out := make(map[string]Source, len(rows))
 	for _, r := range rows {
@@ -167,7 +204,7 @@ func sourcesOf(rows []store.ReleaseSource, countryData json.RawMessage, language
 			ArchiveURL: r.ArchiveURL,
 			Gone:       r.CheckStatus == "dead" || r.CheckStatus == "soft_404" || r.CheckStatus == "unreachable",
 			Paywall:    flags.paywall || r.Paywall,
-			StateMedia: flags.stateMedia || r.StateMedia,
+			StateMedia: flags.stateMedia || r.StateMedia || goesBy(r.Outlet, stateNames),
 			Primary:    flags.primary || r.IsPrimary,
 			Facts:      len(r.FactIDs),
 			words:      words,

@@ -40,6 +40,7 @@ type Service struct {
 	availability *sources.AvailabilityClient
 	log          *slog.Logger
 	publish      publish.Config
+	uploaderOn   bool
 
 	sourcesConcurrency              int
 	sourcesCheckDeadline            time.Duration
@@ -70,6 +71,9 @@ type Deps struct {
 
 	// Publish is what the upload packages of the publish queue link to.
 	Publish publish.Config
+	// UploaderOn: hub uploads to YouTube itself (internal/publisher), so the
+	// queue leaves out the channels connected to it.
+	UploaderOn bool
 }
 
 // New builds a Service from deps, filling in defaults for any zero-valued
@@ -99,6 +103,7 @@ func New(deps Deps) *Service {
 		availability: deps.Availability,
 		log:          log,
 		publish:      deps.Publish,
+		uploaderOn:   deps.UploaderOn,
 
 		sourcesConcurrency:              concurrency,
 		sourcesCheckDeadline:            deadline,

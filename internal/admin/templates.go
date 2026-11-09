@@ -50,6 +50,7 @@ form { margin: 0; }
 form.inline { display: inline; }
 button { font: inherit; font-size: 14px; padding: 7px 12px; min-height: 36px; border-radius: 8px; border: 1px solid var(--rule); background: var(--panel); color: var(--fg); cursor: pointer; }
 button.go { background: var(--accent); border-color: var(--accent); color: #fff; }
+a.go { font-weight: 600; }
 @media (prefers-color-scheme: dark) { button.go { color: #10131a; } }
 button.link { border: 0; background: none; color: var(--accent); padding: 0; min-height: 0; text-decoration: underline; }
 input[type=text], input[type=url], textarea { font: inherit; font-size: 16px; width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--rule); background: var(--bg); color: var(--fg); }
@@ -120,6 +121,7 @@ var listTemplate = template.Must(template.New("list").Parse(rowCard + head + `<t
 <body><main>
 {{with .Data}}` + topBar + `
 <nav class="tabs" aria-label="Каналы">{{range .Tabs}}<a href="{{.URL}}"{{if .Active}} class="on" aria-current="page"{{end}}>{{.Label}}</a>{{end}}</nav>
+{{if .YouTubeOn}}<p class="hint"><a href="/admin/youtube">Подключение каналов YouTube</a></p>{{end}}
 {{if .Empty}}<p>Роликов пока нет.</p>{{end}}
 {{range .Sections}}<h2>{{.Title}} · {{len .Rows}}</h2>
 {{with .Hint}}<p class="hint">{{.}}</p>{{end}}

@@ -32,6 +32,9 @@ type fakeStore struct {
 	setBy    string
 	epoch    int
 	story    string
+	account  *store.PlatformAccount
+	// channelPlatforms replaces the channel's platforms; empty: YouTube on.
+	channelPlatforms string
 }
 
 func (f *fakeStore) AdminSessionEpoch(context.Context, int64) (int, error) { return f.epoch, nil }
@@ -70,7 +73,10 @@ func (f *fakeStore) ListReleaseSources(context.Context, string) ([]store.Release
 	return []store.ReleaseSource{{URL: "https://example.com/a", Outlet: "Example", ArchiveURL: "https://web.archive.org/a"}, {URL: "https://example.com/b", Outlet: "Other"}}, nil
 }
 
-func (f *fakeStore) GetChannel(context.Context, string) (store.Channel, error) {
+func (f *fakeStore) GetChannel(_ context.Context, id string) (store.Channel, error) {
+	if f.channelPlatforms != "" {
+		return store.Channel{ID: id, Name: "8BitNewsUS", Platforms: json.RawMessage(f.channelPlatforms)}, nil
+	}
 	return store.Channel{ID: "8bitnews-es", MetadataMD: "## YouTube Shorts\n\n```\n{summary}\n\n{sources_block}\n\n{hashtags}\n```\n\n**Настройки:**\n- категория News\n",
 		Platforms: json.RawMessage(`{"youtube":{"enabled":true}}`)}, nil
 }
@@ -97,13 +103,14 @@ type fakeModerator struct {
 	moderators map[int64]bool
 	unchanged  bool
 	calls      []actCall
+	channel    string // of the release Act answers with
 }
 
 func (f *fakeModerator) IsModerator(_ context.Context, id int64) bool { return f.moderators[id] }
 
 func (f *fakeModerator) Act(_ context.Context, release, action, who string, id int64, note string) (store.Release, bool, error) {
 	f.calls = append(f.calls, actCall{release, action, who, note, id})
-	return store.Release{ID: release}, !f.unchanged, nil
+	return store.Release{ID: release, ChannelID: f.channel}, !f.unchanged, nil
 }
 
 type fakeMedia struct{}

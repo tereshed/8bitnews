@@ -4,6 +4,7 @@
 package config
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"os"
@@ -91,6 +92,7 @@ type Config struct {
 	MetricsAddr string
 
 	Moderation           ModerationConfig
+	YouTube              YouTubeConfig
 	PolymathsURL         string
 	PolymathsWriteAPIKey string
 
@@ -117,6 +119,20 @@ type CostsConfig struct {
 	// NewsroomTeamID tells a video's run from the project's other tasks.
 	NewsroomTeamID string
 	Interval       time.Duration
+}
+
+// YouTubeConfig is hub's OAuth client for uploading to YouTube itself, and the
+// key its refresh tokens are encrypted under. All three or none: with none, hub
+// leaves uploads to the publishing API.
+type YouTubeConfig struct {
+	ClientID     string
+	ClientSecret string
+	TokenKey     string // 64 hex digits
+}
+
+// Enabled says whether hub uploads to YouTube itself.
+func (c YouTubeConfig) Enabled() bool {
+	return c.ClientID != ""
 }
 
 // ModerationConfig is the Telegram moderation bot (E4). With no BotToken
@@ -167,6 +183,11 @@ func Load() (Config, error) {
 		CorrectionsContact:              strings.TrimSpace(getEnv("HUB_CORRECTIONS_CONTACT", "")),
 		PolymathsURL:                    getEnv("HUB_POLYMATHS_URL", "https://polymaths.work/api/v1"),
 		PolymathsWriteAPIKey:            getEnv("HUB_POLYMATHS_WRITE_API_KEY", ""),
+		YouTube: YouTubeConfig{
+			ClientID:     strings.TrimSpace(getEnv("HUB_YOUTUBE_CLIENT_ID", "")),
+			ClientSecret: strings.TrimSpace(getEnv("HUB_YOUTUBE_CLIENT_SECRET", "")),
+			TokenKey:     strings.TrimSpace(getEnv("HUB_YOUTUBE_TOKEN_KEY", "")),
+		},
 		Moderation: ModerationConfig{
 			BotToken:     strings.TrimSpace(getEnv("TELEGRAM_BOT_TOKEN", "")),
 			PollInterval: getDuration("HUB_MODERATION_POLL_INTERVAL", 20*time.Second),
@@ -217,6 +238,18 @@ func Load() (Config, error) {
 
 	if cfg.S3.Bucket == "" {
 		return Config{}, fmt.Errorf("HUB_S3_BUCKET must not be empty")
+	}
+
+	if y := cfg.YouTube; y.ClientID != "" || y.ClientSecret != "" || y.TokenKey != "" {
+		if y.ClientID == "" || y.ClientSecret == "" || y.TokenKey == "" {
+			return Config{}, fmt.Errorf("HUB_YOUTUBE_CLIENT_ID, HUB_YOUTUBE_CLIENT_SECRET and HUB_YOUTUBE_TOKEN_KEY go together: all three or none")
+		}
+		if key, err := hex.DecodeString(y.TokenKey); err != nil || len(key) != 32 {
+			return Config{}, fmt.Errorf("HUB_YOUTUBE_TOKEN_KEY must be 64 hex digits (openssl rand -hex 32)")
+		}
+		if cfg.PublicURL == "" {
+			return Config{}, fmt.Errorf("HUB_YOUTUBE_CLIENT_ID is set but HUB_PUBLIC_URL is not: Google has nowhere to send the owner back")
+		}
 	}
 
 	if cfg.Costs.APIKey != "" && (cfg.Costs.ProjectID == "" || cfg.Costs.NewsroomTeamID == "") {
