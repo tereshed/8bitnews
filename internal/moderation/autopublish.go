@@ -156,17 +156,28 @@ func (m *Moderator) CheckUploads(ctx context.Context) {
 		if u.CardMessageID != nil {
 			cardID = *u.CardMessageID
 		}
-		text, action := fmt.Sprintf("⚠️ Ролик ждёт загрузки с %s UTC. Похоже, загрузчик не работает.", u.ApprovedAt.UTC().Format("02.01 15:04")), "upload_stalled"
+		text, action, mark := fmt.Sprintf("⚠️ Ролик ждёт загрузки с %s UTC. Похоже, загрузчик не работает.", u.ApprovedAt.UTC().Format("02.01 15:04")), "upload_stalled", m.store.MarkUploadAlerted
 		if u.Hold != "" {
-			text, action = truncate("⏸ Ролик задержан и сам не выйдет. Причина: "+u.Hold, messageLimit), "held"
+			text, action, mark = holdText(u), "held", m.store.MarkHoldAlerted
 		}
 		if _, err := m.tg.SendMessage(ctx, m.chatID, text, cardID, nil); err != nil {
 			m.log.Error("moderation: telling the group about an upload failed", "release_id", u.ReleaseID, "error", err)
 			continue
 		}
-		if err := m.store.MarkUploadAlerted(ctx, u.ReleaseID); err != nil {
-			m.log.Error("moderation: recording an upload alert failed", "release_id", u.ReleaseID, "error", err)
+		if err := mark(ctx, u.ReleaseID); err != nil {
+			m.log.Error("moderation: recording an upload alert failed", "release_id", u.ReleaseID, "action", action, "error", err)
 		}
 		m.event(ctx, map[string]any{"release_id": u.ReleaseID, "action": action})
 	}
+}
+
+// holdText says what a hold means for this video: one that may stand in
+// YouTube's schedule goes out at its slot unless someone takes it down.
+func holdText(u store.UploadAlert) string {
+	next := "Сам он не выйдет."
+	if u.MayBeScheduled {
+		next = "Он может уже стоять в расписании: снимите его в Studio, иначе он выйдет."
+	}
+	const opening = "⏸ Ролик задержан. "
+	return opening + next + " Причина: " + truncate(u.Hold, messageLimit-utf16Len(opening+next+" Причина: "))
 }

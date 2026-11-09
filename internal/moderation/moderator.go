@@ -44,6 +44,7 @@ type Store interface {
 	MarkPublicationClosedAlerted(ctx context.Context, releaseID, platform string) error
 	UploadAlerts(ctx context.Context, before time.Time) ([]store.UploadAlert, error)
 	MarkUploadAlerted(ctx context.Context, releaseID string) error
+	MarkHoldAlerted(ctx context.Context, releaseID string) error
 }
 
 // Media opens a release's video in the object store (internal/storage).

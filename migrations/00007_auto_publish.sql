@@ -40,12 +40,14 @@ WHERE p.live_at IS NULL AND EXISTS (
 -- +goose StatementBegin
 ALTER TABLE releases
     ADD COLUMN publish_hold      text NOT NULL DEFAULT '',
-    ADD COLUMN upload_alerted_at timestamptz;
+    ADD COLUMN upload_alerted_at timestamptz,
+    ADD COLUMN hold_alerted_at   timestamptz;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 ALTER TABLE releases
+    DROP COLUMN IF EXISTS hold_alerted_at,
     DROP COLUMN IF EXISTS upload_alerted_at,
     DROP COLUMN IF EXISTS publish_hold;
 -- +goose StatementEnd

@@ -368,6 +368,40 @@ func TestStalledUploadsAndClosedVideosAfterTheirSlot(t *testing.T) {
 		t.Errorf("told twice: %+v, %v", again, err)
 	}
 
+	// Told it stalled, then held: the hold is news of its own, and so is a new reason.
+	if err := st.SetPublishHold(ctx, r.ID, "too old"); err != nil {
+		t.Fatal(err)
+	}
+	held, err := st.UploadAlerts(ctx, time.Now().Add(time.Minute))
+	if err != nil || len(held) != 1 || held[0].Hold != "too old" || held[0].MayBeScheduled {
+		t.Fatalf("a hold after a stall alert: %+v, %v", held, err)
+	}
+	if err := st.MarkHoldAlerted(ctx, r.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetPublishHold(ctx, r.ID, "too old"); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := st.UploadAlerts(ctx, time.Now().Add(time.Minute)); err != nil || len(again) != 0 {
+		t.Errorf("the same reason, told again: %+v, %v", again, err)
+	}
+	if err := st.SetPublishHold(ctx, r.ID, "the vote is out"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetSlot(ctx, r.ID, r.ChannelID, time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	held, err = st.UploadAlerts(ctx, time.Now().Add(time.Minute))
+	if err != nil || len(held) != 1 || held[0].Hold != "the vote is out" || !held[0].MayBeScheduled {
+		t.Errorf("a new reason, with a slot booked: %+v, %v", held, err)
+	}
+	if err := st.SetPublishHold(ctx, r.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if lifted, err := st.UploadAlerts(ctx, time.Now().Add(time.Minute)); err != nil || len(lifted) != 0 {
+		t.Errorf("a lifted hold, already told it stalled: %+v, %v", lifted, err)
+	}
+
 	// A closed release's video is watched after its slot, and once alerted, no more.
 	if err := st.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, "https://www.youtube.com/shorts/abcdefghijk", "api"); err != nil {
 		t.Fatal(err)

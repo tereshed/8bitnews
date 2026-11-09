@@ -53,6 +53,14 @@ func (s *fakeStore) MarkUploadAlerted(_ context.Context, id string) error {
 	return nil
 }
 
+func (s *fakeStore) MarkHoldAlerted(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.holdAlerted = append(s.holdAlerted, id)
+	s.uploadAlerts = nil
+	return nil
+}
+
 const autoChannel = `{"moderation":{"approval_required":false}}`
 
 func cardID(id int64) *int64 { return &id }
@@ -238,26 +246,45 @@ func TestCheckPublicationsAlertsWhenAClosedOrHeldVideoGoesOut(t *testing.T) {
 
 func TestCheckUploadsTellsTheGroupOnce(t *testing.T) {
 	for name, c := range map[string]struct {
-		alert store.UploadAlert
-		want  string
+		alert              store.UploadAlert
+		want, not          string
+		uploadMark, holdMk int
 	}{
-		"stalled": {store.UploadAlert{ReleaseID: release, CardMessageID: cardID(77), ApprovedAt: time.Now().Add(-7 * time.Hour)}, "загрузчик"},
-		"held":    {store.UploadAlert{ReleaseID: release, CardMessageID: cardID(77), ApprovedAt: time.Now(), Hold: "the vote is out"}, "the vote is out"},
+		"stalled": {alert: store.UploadAlert{ReleaseID: release, CardMessageID: cardID(77), ApprovedAt: time.Now().Add(-7 * time.Hour)},
+			want: "загрузчик", uploadMark: 1},
+		"held, nothing on YouTube": {alert: store.UploadAlert{ReleaseID: release, CardMessageID: cardID(77), ApprovedAt: time.Now(), Hold: "the vote is out"},
+			want: "Сам он не выйдет", not: "Studio", holdMk: 1},
+		"held, maybe scheduled": {alert: store.UploadAlert{ReleaseID: release, CardMessageID: cardID(77), ApprovedAt: time.Now(), Hold: "the vote is out", MayBeScheduled: true},
+			want: "Studio", not: "Сам он не выйдет", holdMk: 1},
 	} {
 		m, tg, st, _ := newBot(t, "approved")
 		st.uploadAlerts = []store.UploadAlert{c.alert}
 		m.CheckUploads(context.Background())
 		sent := tg.byMethod("sendMessage")
-		if len(sent) != 1 || !strings.Contains(sent[0].params["text"].(string), c.want) {
+		if len(sent) != 1 {
 			t.Fatalf("%s: alert: %+v", name, sent)
 		}
-		if len(st.uploadAlerted) != 1 {
-			t.Errorf("%s: not recorded: %v", name, st.uploadAlerted)
+		text := sent[0].params["text"].(string)
+		if !strings.Contains(text, c.want) || (c.not != "" && strings.Contains(text, c.not)) {
+			t.Errorf("%s: %q", name, text)
+		}
+		if c.alert.Hold != "" && !strings.Contains(text, c.alert.Hold) {
+			t.Errorf("%s: no reason in %q", name, text)
+		}
+		if len(st.uploadAlerted) != c.uploadMark || len(st.holdAlerted) != c.holdMk {
+			t.Errorf("%s: recorded stalls %v, holds %v", name, st.uploadAlerted, st.holdAlerted)
 		}
 		m.CheckUploads(context.Background())
 		if sent := tg.byMethod("sendMessage"); len(sent) != 1 {
 			t.Errorf("%s: told twice: %d", name, len(sent))
 		}
+	}
+}
+
+func TestAHoldReasonFitsATelegramMessageWhateverItsLength(t *testing.T) {
+	text := holdText(store.UploadAlert{Hold: strings.Repeat("🗳", 5000), MayBeScheduled: true})
+	if utf16Len(text) > messageLimit || !strings.Contains(text, "Studio") {
+		t.Errorf("%d units, limit %d", utf16Len(text), messageLimit)
 	}
 }
 

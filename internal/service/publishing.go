@@ -267,7 +267,7 @@ func (s *Service) SetYouTubePublication(ctx context.Context, releaseID string, r
 	}
 	err = s.store.SetSlot(ctx, r.ID, r.ChannelID, *req.PublishAt)
 	if errors.Is(err, store.ErrSlotTaken) {
-		return conflictf("another release of channel %s holds %s", r.ChannelID, req.PublishAt.UTC().Format(time.RFC3339))
+		return conflictf("the link is recorded, but another release of channel %s holds %s", r.ChannelID, req.PublishAt.UTC().Format(time.RFC3339))
 	}
 	return err
 }

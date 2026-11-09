@@ -114,6 +114,7 @@ type fakeStore struct {
 	overdue       []string
 	uploadAlerts  []store.UploadAlert
 	closedAlerted []string
+	holdAlerted   []string
 	uploadAlerted []string
 	carded        int64
 	note          string

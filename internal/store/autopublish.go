@@ -192,9 +192,14 @@ func (s *Store) ForgetPublication(ctx context.Context, releaseID, platform strin
 }
 
 // SetPublishHold keeps a release out of the queue for a reason; an empty
-// reason lets it back in.
+// reason lets it back in. A new reason is news to the group again.
 func (s *Store) SetPublishHold(ctx context.Context, releaseID, reason string) error {
-	tag, err := s.pool.Exec(ctx, `UPDATE releases SET publish_hold = $2, updated_at = now() WHERE id = $1`, releaseID, reason)
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE releases
+		SET publish_hold = $2, updated_at = now(),
+		    hold_alerted_at = CASE WHEN publish_hold = $2 THEN hold_alerted_at END
+		WHERE id = $1
+	`, releaseID, reason)
 	if err != nil {
 		return fmt.Errorf("holding release %s: %w", releaseID, err)
 	}
@@ -256,16 +261,23 @@ type UploadAlert struct {
 	CardMessageID *int64
 	ApprovedAt    time.Time
 	Hold          string
+	// MayBeScheduled: a link or a booked time exists, so the video may stand in
+	// YouTube's schedule and go out in spite of the hold.
+	MayBeScheduled bool
 }
 
 // UploadAlerts returns what the group hasn't been told yet: automatic approvals
-// held back, and those with no link since before `before`.
+// held back, and those not held and with no link since before `before`.
 func (s *Store) UploadAlerts(ctx context.Context, before time.Time) ([]UploadAlert, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, moderation_message_id, moderated_at, publish_hold FROM releases
-		WHERE status = 'approved' AND moderated_by = $1 AND upload_alerted_at IS NULL AND $2 = ANY (allowed_platforms)
-		  AND (publish_hold <> '' OR (moderated_at < $3
-		       AND NOT EXISTS (SELECT 1 FROM release_publications p WHERE p.release_id = releases.id AND p.platform = $2)))
+		SELECT id, moderation_message_id, moderated_at, publish_hold,
+		       EXISTS (SELECT 1 FROM release_publications p WHERE p.release_id = releases.id AND p.platform = $2)
+		       OR EXISTS (SELECT 1 FROM release_slots sl WHERE sl.release_id = releases.id)
+		FROM releases
+		WHERE status = 'approved' AND moderated_by = $1 AND $2 = ANY (allowed_platforms)
+		  AND ((publish_hold <> '' AND hold_alerted_at IS NULL)
+		       OR (publish_hold = '' AND upload_alerted_at IS NULL AND moderated_at < $3
+		           AND NOT EXISTS (SELECT 1 FROM release_publications p WHERE p.release_id = releases.id AND p.platform = $2)))
 		ORDER BY created_at ASC
 	`, AutoApprover, PlatformYouTube, before)
 	if err != nil {
@@ -275,7 +287,7 @@ func (s *Store) UploadAlerts(ctx context.Context, before time.Time) ([]UploadAle
 	var out []UploadAlert
 	for rows.Next() {
 		var u UploadAlert
-		if err := rows.Scan(&u.ReleaseID, &u.CardMessageID, &u.ApprovedAt, &u.Hold); err != nil {
+		if err := rows.Scan(&u.ReleaseID, &u.CardMessageID, &u.ApprovedAt, &u.Hold, &u.MayBeScheduled); err != nil {
 			return nil, fmt.Errorf("scanning an upload alert: %w", err)
 		}
 		out = append(out, u)
@@ -283,10 +295,18 @@ func (s *Store) UploadAlerts(ctx context.Context, before time.Time) ([]UploadAle
 	return out, rows.Err()
 }
 
-// MarkUploadAlerted records that the group has been told about a release's upload.
+// MarkUploadAlerted records that the group has been told a release's upload stalled.
 func (s *Store) MarkUploadAlerted(ctx context.Context, releaseID string) error {
 	if _, err := s.pool.Exec(ctx, `UPDATE releases SET upload_alerted_at = now() WHERE id = $1`, releaseID); err != nil {
 		return fmt.Errorf("marking the upload alert of release %s: %w", releaseID, err)
+	}
+	return nil
+}
+
+// MarkHoldAlerted records that the group has been told a release is held.
+func (s *Store) MarkHoldAlerted(ctx context.Context, releaseID string) error {
+	if _, err := s.pool.Exec(ctx, `UPDATE releases SET hold_alerted_at = now() WHERE id = $1`, releaseID); err != nil {
+		return fmt.Errorf("marking the hold alert of release %s: %w", releaseID, err)
 	}
 	return nil
 }
