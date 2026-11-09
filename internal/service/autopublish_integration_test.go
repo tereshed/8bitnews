@@ -985,15 +985,42 @@ func TestForgettingChecksTheReleaseIsOutOfPlay(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Hold and forget as one step.
+	// Refused, with only hub's link: held and forgotten as one step.
 	seedRecord()
-	if err := st.HoldAndForget(ctx, r.ID, store.PlatformYouTube, "rejected"); err != nil {
-		t.Fatal(err)
+	if held, err := st.ForgetRefused(ctx, r.ID, store.PlatformYouTube, link, "rejected"); err != nil || !held {
+		t.Fatalf("refused: %v, %v", held, err)
 	}
 	if hold, err := st.PublishHold(ctx, r.ID); err != nil || hold != "rejected" || kept() {
 		t.Errorf("hold %q, %v, kept %v", hold, err, kept())
 	}
-	if err := st.HoldAndForget(ctx, "00000000-0000-0000-0000-000000000000", store.PlatformYouTube, "x"); !errors.Is(err, store.ErrNotFound) {
+	if err := st.SetPublishHold(ctx, r.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	// Refused, with a moderator's link in its place: that stays, with its slot.
+	seedRecord()
+	theirs := "https://www.youtube.com/shorts/moderators1"
+	if err := st.SetPublicationURL(ctx, r.ID, store.PlatformYouTube, theirs, "Kostya"); err != nil {
+		t.Fatal(err)
+	}
+	if held, err := st.ForgetRefused(ctx, r.ID, store.PlatformYouTube, link, "rejected"); err != nil || held {
+		t.Fatalf("with another link: %v, %v", held, err)
+	}
+	if url, err := st.PublicationURL(ctx, r.ID, store.PlatformYouTube); err != nil || url != theirs {
+		t.Errorf("their link: %q, %v", url, err)
+	}
+	if at, err := st.SlotOf(ctx, r.ID); err != nil || at == nil {
+		t.Errorf("their slot: %v, %v", at, err)
+	}
+	if hold, err := st.PublishHold(ctx, r.ID); err != nil || hold != "" {
+		t.Errorf("held: %q, %v", hold, err)
+	}
+	if job, err := st.PublishJobOf(ctx, r.ID); err != nil || job.Saved {
+		t.Errorf("hub's job stayed: %+v, %v", job, err)
+	}
+	if err := st.ForgetPublication(ctx, r.ID, store.PlatformYouTube); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ForgetRefused(ctx, "00000000-0000-0000-0000-000000000000", store.PlatformYouTube, link, "x"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("a release that doesn't exist: %v", err)
 	}
 	// Closed: it goes.
@@ -1009,5 +1036,20 @@ func TestForgettingChecksTheReleaseIsOutOfPlay(t *testing.T) {
 	}
 	if _, err := st.ForgetIfOutOfPlay(ctx, "00000000-0000-0000-0000-000000000000", store.PlatformYouTube); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("a release that doesn't exist: %v", err)
+	}
+}
+
+func TestTheAdminListCarriesTheSlot(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	r := seedRelease(t, st, "adminslot")
+	approve(t, st, r.ID, store.AutoApprover)
+	at := time.Now().Add(time.Hour).Truncate(time.Second)
+	if err := st.SetSlot(ctx, r.ID, r.ChannelID, at); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := st.AdminReleases(ctx, 10)
+	if err != nil || len(rows) != 1 || rows[0].SlotAt == nil || !rows[0].SlotAt.Equal(at) {
+		t.Errorf("rows: %+v, %v", rows, err)
 	}
 }

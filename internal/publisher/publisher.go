@@ -55,8 +55,16 @@ const (
 var backoff = []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute, time.Hour}
 
 // takeDownBackoff is the same for a take-down, where time matters more. A
-// videos.update costs 50 of 10,000 quota units a day, so not every pass.
+// videos.update costs 50 of 10,000 quota units a day, so not every pass, and with
+// the slot far off hardly at all: one stuck take-down mustn't use up the quota
+// that other take-downs and uploads need.
 var takeDownBackoff = []time.Duration{time.Minute, 5 * time.Minute}
+
+const (
+	// With the slot further off than this, a take-down is tried once an hour.
+	slowTakeDownBefore = 2 * time.Hour
+	slowTakeDownEvery  = time.Hour
+)
 
 var (
 	errStillScheduled = errors.New("YouTube оставил расписание")
@@ -78,7 +86,7 @@ type Store interface {
 	SetPublicationURLIfNone(ctx context.Context, releaseID, platform, url, by string) error
 	ReleasesToUnschedule(ctx context.Context) ([]store.ToUnschedule, error)
 	ForgetIfOutOfPlay(ctx context.Context, releaseID, platform string) (bool, error)
-	HoldAndForget(ctx context.Context, releaseID, platform, reason string) error
+	ForgetRefused(ctx context.Context, releaseID, platform, ownURL, reason string) (bool, error)
 	SlotsToRecheck(ctx context.Context, before time.Time) ([]store.RecheckDue, error)
 	MarkSlotRechecked(ctx context.Context, releaseID string) error
 }
@@ -132,6 +140,7 @@ type Publisher struct {
 	alerted   map[string]bool      // take-downs the group has heard about
 	nextTry   map[string]time.Time // take-downs waiting out their backoff
 	tries     map[string]int       // and how many have failed in a row
+	lastFail  map[string]downFailure
 	goneSince map[string]time.Time // videos YouTube doesn't show, since when
 
 	// alertMu keeps the two loops from both telling the group about one channel.
@@ -145,7 +154,7 @@ type Publisher struct {
 // New builds the worker.
 func New(st Store, q Queue, yt YouTube, media Media, notify Notifier, sealer Sealer, log *slog.Logger) *Publisher {
 	return &Publisher{store: st, queue: q, yt: yt, media: media, notify: notify, sealer: sealer, log: log, now: time.Now,
-		failing: map[string]time.Time{}, alerted: map[string]bool{}, nextTry: map[string]time.Time{}, tries: map[string]int{},
+		failing: map[string]time.Time{}, alerted: map[string]bool{}, nextTry: map[string]time.Time{}, tries: map[string]int{}, lastFail: map[string]downFailure{},
 		goneSince: map[string]time.Time{}, clientAlerted: map[string]bool{}}
 }
 
@@ -703,9 +712,23 @@ func (p *Publisher) stillThere(ctx context.Context, releaseID, refresh string, j
 	}
 	p.seen(job.VideoID)
 	if reason := v.Refused(); reason != "" {
-		return v, false, p.store.HoldAndForget(ctx, releaseID, store.PlatformYouTube, "YouTube не принял ролик "+job.VideoID+": "+reason)
+		return v, false, p.forgetRefused(ctx, releaseID, shortsURL(job.VideoID), "YouTube не принял ролик "+job.VideoID+": "+reason)
 	}
 	return v, true, nil
+}
+
+// forgetRefused drops a video YouTube refused, which can't go out. Hub holds the
+// release, and a lift uploads afresh. If a moderator's link stands in its place,
+// that video is what goes out, so there's nothing to hold: the group hears.
+func (p *Publisher) forgetRefused(ctx context.Context, releaseID, ownURL, reason string) error {
+	held, err := p.store.ForgetRefused(ctx, releaseID, store.PlatformYouTube, ownURL, reason)
+	if err != nil {
+		return err
+	}
+	if !held {
+		p.tellOnCard(ctx, releaseID, "⚠️ "+reason+". За релизом остаётся ссылка, которую поставили вручную: выйдет этот ролик.")
+	}
+	return nil
 }
 
 // notShown says what hub knows about videos YouTube doesn't show, and what it
@@ -890,7 +913,7 @@ func (p *Publisher) recheckOne(ctx context.Context, d store.RecheckDue, refresh 
 		p.markAlerted(d.ReleaseID)
 	default:
 		id := refused[0]
-		return p.store.HoldAndForget(ctx, d.ReleaseID, store.PlatformYouTube, "YouTube не принял ролик "+id+", и в свой слот он не выйдет: "+reasons[id])
+		return p.forgetRefused(ctx, d.ReleaseID, d.URL, "YouTube не принял ролик "+id+", и в свой слот он не выйдет: "+reasons[id])
 	}
 	return p.store.MarkSlotRechecked(ctx, d.ReleaseID)
 }
@@ -910,7 +933,11 @@ func (p *Publisher) takeDown(ctx context.Context, tokens map[string]string) {
 	p.pruneTakeDowns(list)
 	for _, u := range list {
 		refresh, connected := tokens[u.ChannelID]
-		if !connected || p.isUploading(u.ReleaseID) || p.waiting(u) {
+		if !connected || p.isUploading(u.ReleaseID) {
+			continue
+		}
+		if p.waiting(u) {
+			p.alertWhileWaiting(ctx, u)
 			continue
 		}
 		err := p.takeDownOne(ctx, u, refresh)
@@ -945,6 +972,7 @@ func (p *Publisher) pruneTakeDowns(list []store.ToUnschedule) {
 		if !on[id] {
 			delete(p.nextTry, id)
 			delete(p.tries, id)
+			delete(p.lastFail, id)
 		}
 	}
 }
@@ -960,11 +988,39 @@ func (p *Publisher) waiting(u store.ToUnschedule) bool {
 	return ok && next.After(p.now())
 }
 
-func (p *Publisher) tryAgainLater(releaseID string) {
+// downFailure is the last attempt's trouble: the group may be due to hear of it
+// before the next attempt.
+type downFailure struct {
+	videos []string
+	err    error // nil: YouTube doesn't show them
+}
+
+func (p *Publisher) tryAgainLater(u store.ToUnschedule, f downFailure) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.nextTry[releaseID] = p.now().Add(takeDownBackoff[min(p.tries[releaseID], len(takeDownBackoff)-1)])
-	p.tries[releaseID]++
+	now := p.now()
+	wait := takeDownBackoff[min(p.tries[u.ReleaseID], len(takeDownBackoff)-1)]
+	if away := u.PublishAt.Sub(now) - slowTakeDownBefore; away > 0 {
+		// Hourly, but back to the usual pace as soon as the slot gets close.
+		wait = max(wait, min(slowTakeDownEvery, away))
+	}
+	p.nextTry[u.ReleaseID] = now.Add(wait)
+	p.tries[u.ReleaseID]++
+	p.lastFail[u.ReleaseID] = f
+}
+
+// alertWhileWaiting lets the group hear on time, whatever the attempts' pace.
+func (p *Publisher) alertWhileWaiting(ctx context.Context, u store.ToUnschedule) {
+	p.mu.Lock()
+	f, known := p.lastFail[u.ReleaseID]
+	p.mu.Unlock()
+	switch {
+	case !known:
+	case f.err == nil:
+		p.notShownAlert(ctx, u, f.videos)
+	default:
+		p.takeDownFailed(ctx, u, f.videos, f.err)
+	}
 }
 
 // videosBehind lists what hub knows of on YouTube for a release: the link and
@@ -1032,12 +1088,13 @@ func (p *Publisher) takeDownOne(ctx context.Context, u store.ToUnschedule, refre
 		return firstErr
 	}
 	if firstErr != nil {
-		p.tryAgainLater(u.ReleaseID)
+		p.log.Warn("publisher: taking a video down, trying again", "release_id", u.ReleaseID, "error", firstErr)
+		p.tryAgainLater(u, downFailure{videos: failed, err: firstErr})
 		p.takeDownFailed(ctx, u, failed, firstErr)
 		return nil
 	}
 	if len(notThere) > 0 {
-		p.tryAgainLater(u.ReleaseID)
+		p.tryAgainLater(u, downFailure{videos: notThere})
 		p.notShownAlert(ctx, u, notThere)
 		return nil
 	}
@@ -1121,7 +1178,6 @@ func (p *Publisher) notShownAlert(ctx context.Context, u store.ToUnschedule, vid
 // tried again: at once if YouTube refuses or the slot is near, and otherwise if
 // it's still failing after a while. videos are the ones that failed.
 func (p *Publisher) takeDownFailed(ctx context.Context, u store.ToUnschedule, videos []string, err error) {
-	p.log.Warn("publisher: taking a video down, trying again", "release_id", u.ReleaseID, "error", err)
 	now := p.now()
 	p.mu.Lock()
 	since, counting := p.failing[u.ReleaseID]

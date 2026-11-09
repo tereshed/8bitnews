@@ -395,7 +395,10 @@ func (h *Handler) rowOf(rel store.AdminRelease) row {
 	}
 	x.Barred = !contains(rel.AllowedPlatforms, store.PlatformYouTube)
 	x.Allowed = strings.Join(rel.AllowedPlatforms, ", ")
-	x.AutoPublishes = rel.Status == "approved" && rel.ModeratedBy == store.AutoApprover && rel.PublishHold == "" && !x.Barred
+	// Once its slot has passed a video that should have gone out is a person's to
+	// look at, in the sections with the buttons.
+	slotPassed := rel.SlotAt != nil && !rel.SlotAt.After(h.now())
+	x.AutoPublishes = rel.Status == "approved" && rel.ModeratedBy == store.AutoApprover && rel.PublishHold == "" && !x.Barred && !slotPassed
 	x.NeedsLink = (rel.Status == "approved" || rel.Status == "published") && rel.YouTubeURL == "" && !x.Barred && !x.AutoPublishes
 	if rel.Status == "approved" || rel.Status == "published" {
 		x.Sources = h.Publish.SourcesPageURL(rel.ID)

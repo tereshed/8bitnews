@@ -297,13 +297,17 @@ func (s *fakeStore) ForgetIfOutOfPlay(_ context.Context, id, _ string) (bool, er
 	return true, nil
 }
 
-func (s *fakeStore) HoldAndForget(_ context.Context, id, _, reason string) error {
+func (s *fakeStore) ForgetRefused(_ context.Context, id, _, ownURL, reason string) (bool, error) {
 	if s.holdErr != nil {
-		return s.holdErr
+		return false, s.holdErr
+	}
+	if s.link != "" && s.link != ownURL {
+		s.job = store.PublishJob{ReleaseID: rel}
+		return false, nil
 	}
 	s.hold = reason
 	s.forget(id)
-	return nil
+	return true, nil
 }
 
 // fakeQueue is the service's side: one item, and a slot.
@@ -758,7 +762,7 @@ func TestATakeDownThatFailsKeepsTryingAndTellsOnceAfterTenMinutes(t *testing.T) 
 		reason string
 	}{{403, "quotaExceeded"}, {500, "backendError"}, {503, ""}} {
 		f := newFixture(t)
-		at := f.now.Add(3 * time.Hour)
+		at := f.now.Add(90 * time.Minute)
 		f.yt.videos["abcdefghijk"] = scheduled(at)
 		f.closeIt("https://www.youtube.com/shorts/abcdefghijk", at)
 		calls := 0
@@ -819,7 +823,7 @@ func TestATakeDownYouTubeRefusesTellsOnceAndKeepsTrying(t *testing.T) {
 
 func TestAScheduleThatSurvivesTheUpdateIsToldAboutAndKept(t *testing.T) {
 	f := newFixture(t)
-	at := f.now.Add(3 * time.Hour)
+	at := f.now.Add(90 * time.Minute)
 	f.yt.videos["abcdefghijk"] = scheduled(at)
 	f.closeIt("https://www.youtube.com/shorts/abcdefghijk", at)
 	f.yt.unschedErr = func(http.ResponseWriter) bool { return true } // answers 200, changes nothing
@@ -859,7 +863,7 @@ func TestAnUpdateThatCantFindAVideoStillOnTheScheduleIsNotBelieved(t *testing.T)
 // A listing can lag behind a video that is scheduled: "not found" drops nothing.
 func TestAVideoNotShownOnATakeDownIsTriedAndNeverForgotten(t *testing.T) {
 	f := newFixture(t)
-	at := f.now.Add(3 * time.Hour)
+	at := f.now.Add(110 * time.Minute)
 	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, VideoID: "abcdefghijk", PublishAt: &at}
 	f.closeIt("https://www.youtube.com/shorts/abcdefghijk", at)
 	f.pass()
@@ -1024,7 +1028,7 @@ func TestAPassingRateLimitKeepsTheSession(t *testing.T) {
 
 func TestAPassingRateLimitOnATakeDownForgetsNothing(t *testing.T) {
 	f := newFixture(t)
-	at := f.q.slot
+	at := f.now.Add(90 * time.Minute)
 	f.yt.uploads["/session/1"] = &upload{size: len(videoBytes), received: len(videoBytes), videoID: "video000042"}
 	f.yt.videos["video000042"] = scheduled(at)
 	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, SessionURI: f.yt.base + "/session/1", VideoSize: int64(len(videoBytes)), PublishAt: &at}
@@ -1396,6 +1400,7 @@ func TestATakeDownWaitsForAnUploadInProgress(t *testing.T) {
 
 func TestAModeratorsReplacedLinkTakesDownBothVideos(t *testing.T) {
 	f := newFixture(t)
+	f.q.slot = f.now.Add(90 * time.Minute).UTC()
 	f.pass()
 	hubs := f.st.job.VideoID
 	theirs := "video00000X"
@@ -1656,6 +1661,123 @@ func TestAJobPickedUpAfterItsTimeIsRecordedNotHeld(t *testing.T) {
 		t.Errorf("hold %q, link %q", f.st.hold, f.st.link)
 	}
 	if len(f.say.said) != 1 || strings.Contains(f.say.said[0], "выйдет") {
+		t.Errorf("told %q", f.say.said)
+	}
+}
+
+// One stuck take-down mustn't eat the quota others need.
+func TestAStuckTakeDownFarFromItsSlotIsHourly(t *testing.T) {
+	for name, stick := range map[string]func(*fixture){
+		"not shown": func(*fixture) {},
+		"failing": func(f *fixture) {
+			f.yt.videos["abcdefghijk"] = scheduled(f.now.Add(24 * time.Hour))
+			f.yt.unschedErr = func(w http.ResponseWriter) bool { writeErr(w, 503, ""); return true }
+		},
+	} {
+		f := newFixture(t)
+		at := f.now.Add(24 * time.Hour)
+		f.closeIt(shortsURL("abcdefghijk"), at)
+		stick(f)
+		updates := 0
+		f.p.yt = countingUnschedule{YouTube: f.p.yt, n: &updates}
+		for at.Sub(f.now) > 2*time.Hour {
+			f.pass()
+			f.now = f.now.Add(time.Minute)
+		}
+		if updates < 20 || updates > 24 {
+			t.Errorf("%s: %d updates in 22 hours, want about one an hour", name, updates)
+		}
+		far := updates
+		for f.now.Before(at) {
+			f.pass()
+			f.now = f.now.Add(time.Minute)
+		}
+		// Quota: 10,000 units a day at 50 an update.
+		if updates > 80 || updates-far < 30 {
+			t.Errorf("%s: %d updates in all, %d in the last two hours", name, updates, updates-far)
+		}
+		if len(f.st.forgot) != 0 {
+			t.Errorf("%s: forgot %v", name, f.st.forgot)
+		}
+	}
+}
+
+// The pace changes, not the promise: the group still hears within minutes.
+func TestAHourlyTakeDownStillTellsOnTime(t *testing.T) {
+	f := newFixture(t)
+	at := f.now.Add(24 * time.Hour)
+	f.yt.videos["abcdefghijk"] = scheduled(at)
+	f.closeIt(shortsURL("abcdefghijk"), at)
+	f.yt.unschedErr = func(w http.ResponseWriter) bool { writeErr(w, 503, ""); return true }
+	f.pass()
+	f.now = f.now.Add(9 * time.Minute)
+	f.pass()
+	if len(f.say.said) != 0 {
+		t.Fatalf("too soon: %q", f.say.said)
+	}
+	f.now = f.now.Add(2 * time.Minute)
+	f.pass()
+	f.pass()
+	if len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "abcdefghijk") {
+		t.Errorf("told %q", f.say.said)
+	}
+
+	g := newFixture(t)
+	at = g.now.Add(24 * time.Hour)
+	g.closeIt(shortsURL("abcdefghijk"), at)
+	g.pass()
+	g.now = g.now.Add(goneConfirmAfter)
+	g.pass()
+	if len(g.say.said) != 1 || !strings.Contains(g.say.said[0], "не показывает") {
+		t.Errorf("not shown: told %q", g.say.said)
+	}
+}
+
+func TestAHourlyWaitEndsWhenTheSlotGetsClose(t *testing.T) {
+	f := newFixture(t)
+	at := f.now.Add(2*time.Hour + 10*time.Minute)
+	f.closeIt(shortsURL("abcdefghijk"), at)
+	updates := 0
+	f.p.yt = countingUnschedule{YouTube: f.p.yt, n: &updates}
+	f.pass()
+	f.now = f.now.Add(9 * time.Minute)
+	f.pass()
+	if updates != 1 {
+		t.Errorf("before the two hours: %d updates", updates)
+	}
+	f.now = f.now.Add(2 * time.Minute)
+	f.pass()
+	if updates != 2 {
+		t.Errorf("inside the two hours, it should try again: %d updates", updates)
+	}
+}
+
+type countingUnschedule struct {
+	YouTube
+	n *int
+}
+
+func (c countingUnschedule) Unschedule(ctx context.Context, refresh, id string) error {
+	*c.n++
+	return c.YouTube.Unschedule(ctx, refresh, id)
+}
+
+// A moderator's video stands in for hub's: it goes out, and it stays on record.
+func TestARefusedUploadKeepsAModeratorsLink(t *testing.T) {
+	f := newFixture(t)
+	f.yt.afterUpload = func(v *video) { v.UploadStatus, v.RejectionReason = "rejected", "duplicate" }
+	f.st.link = shortsURL("moderators1")
+	at := f.q.slot
+	f.yt.videos["hubsvideo01"] = &video{UploadStatus: "rejected", RejectionReason: "duplicate", Privacy: "private"}
+	f.st.job = store.PublishJob{Saved: true, ReleaseID: rel, VideoID: "hubsvideo01", PublishAt: &at}
+	f.pass()
+	if f.st.link != shortsURL("moderators1") || len(f.st.forgot) != 0 || f.st.hold != "" {
+		t.Fatalf("link %q, forgot %v, hold %q", f.st.link, f.st.forgot, f.st.hold)
+	}
+	if f.st.job.VideoID != "" {
+		t.Errorf("hub's refused upload is still on: %+v", f.st.job)
+	}
+	if len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "duplicate") || !strings.Contains(f.say.said[0], "вручную") {
 		t.Errorf("told %q", f.say.said)
 	}
 }

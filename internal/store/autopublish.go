@@ -226,25 +226,41 @@ func (s *Store) ForgetIfOutOfPlay(ctx context.Context, releaseID, platform strin
 	return true, tx.Commit(ctx)
 }
 
-// HoldAndForget holds a release and forgets its publication as one step: a hold
-// that failed after a forget would have the release uploaded again.
-func (s *Store) HoldAndForget(ctx context.Context, releaseID, platform, reason string) error {
+// ForgetRefused forgets an upload YouTube refused, in one step with what follows
+// from it. Hub's own link goes, ownURL. If that leaves no link, the release is
+// held and its slot freed, since a hold that failed after a forget would have it
+// uploaded again. If a link someone else put there remains, its video is what
+// goes out: its slot stays, no hold, and it reports false.
+func (s *Store) ForgetRefused(ctx context.Context, releaseID, platform, ownURL, reason string) (bool, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	tag, err := tx.Exec(ctx, setHoldSQL, releaseID, reason)
-	if err != nil {
-		return fmt.Errorf("holding release %s: %w", releaseID, err)
+	if _, err := tx.Exec(ctx, `DELETE FROM release_publications WHERE release_id = $1 AND platform = $2 AND url = $3`, releaseID, platform, ownURL); err != nil {
+		return false, fmt.Errorf("forgetting the %s link of release %s: %w", platform, releaseID, err)
 	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("holding release %s: %w", releaseID, ErrNotFound)
+	if _, err := tx.Exec(ctx, `DELETE FROM publish_jobs WHERE release_id = $1`, releaseID); err != nil {
+		return false, fmt.Errorf("forgetting the upload of release %s: %w", releaseID, err)
+	}
+	var another bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM release_publications WHERE release_id = $1 AND platform = $2)`, releaseID, platform).Scan(&another); err != nil {
+		return false, fmt.Errorf("reading the %s link of release %s: %w", platform, releaseID, err)
+	}
+	if another {
+		return false, tx.Commit(ctx)
 	}
 	if err := forgetPublicationIn(ctx, tx, releaseID, platform); err != nil {
-		return err
+		return false, err
 	}
-	return tx.Commit(ctx)
+	tag, err := tx.Exec(ctx, setHoldSQL, releaseID, reason)
+	if err != nil {
+		return false, fmt.Errorf("holding release %s: %w", releaseID, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return false, fmt.Errorf("holding release %s: %w", releaseID, ErrNotFound)
+	}
+	return true, tx.Commit(ctx)
 }
 
 const setHoldSQL = `

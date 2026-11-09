@@ -679,3 +679,32 @@ func TestStrayTrailingSlash(t *testing.T) {
 		t.Errorf("%d %s", rec.Code, rec.Header().Get("Location"))
 	}
 }
+
+// After its slot a video that should have gone out is a person's to look at.
+func TestAnAutomaticVideoPastItsSlotGoesToTheSectionWithButtons(t *testing.T) {
+	f := newFixture("approved")
+	past, future := time.Now().Add(-time.Hour), time.Now().Add(time.Hour)
+	row := func(id, title string, slot *time.Time) store.AdminRelease {
+		return store.AdminRelease{ID: id, ChannelID: "8bitnews-es", Status: "approved", Title: title, CreatedAt: time.Now(),
+			ModeratedBy: store.AutoApprover, AllowedPlatforms: []string{"youtube"}, YouTubeURL: "https://www.youtube.com/shorts/abcdefghijk", SlotAt: slot}
+	}
+	f.store.rows = []store.AdminRelease{
+		row(rel1, "Still waiting", &future),
+		row("b7f01440-4314-4406-9667-7b9c49d4d973", "Slot gone by", &past),
+	}
+	body := f.get("/admin", true).Body.String()
+	auto, confirm := strings.Index(body, "Уходят сами"), strings.Index(body, "Подтвердить выход")
+	if auto < 0 || confirm < auto {
+		t.Fatalf("sections: auto %d, confirm %d: %s", auto, confirm, body)
+	}
+	waiting, gone := strings.Index(body, "Still waiting"), strings.Index(body, "Slot gone by")
+	if waiting < auto || waiting > confirm {
+		t.Errorf("a video before its slot isn't in «Уходят сами»: %d, %d, %d", auto, waiting, confirm)
+	}
+	if gone < confirm {
+		t.Errorf("a video past its slot isn't in the normal section: %d, %d", gone, confirm)
+	}
+	if strings.Count(body, "🟢 Вышел") != 1 {
+		t.Errorf("buttons: %d", strings.Count(body, "🟢 Вышел"))
+	}
+}
