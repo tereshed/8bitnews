@@ -65,6 +65,8 @@ def read_png(path: Path) -> tuple[int, int, int, list[bytes]]:
         length, name = struct.unpack(">I4s", data[pos:pos + 8])
         chunk = data[pos + 8:pos + 8 + length]
         if name == b"IHDR":
+            if len(chunk) != 13:
+                raise Unsupported("malformed PNG header")
             header = struct.unpack(">IIBBBBB", chunk)
         elif name == b"IDAT":
             idat.append(chunk)
@@ -78,7 +80,10 @@ def read_png(path: Path) -> tuple[int, int, int, list[bytes]]:
         raise Unsupported(f"PNG depth {depth}, color {color}, interlace {interlace}")
     channels = CHANNELS[color]
     stride = width * channels
-    raw = zlib.decompress(b"".join(idat))
+    try:
+        raw = zlib.decompress(b"".join(idat))
+    except zlib.error as err:
+        raise Unsupported(f"broken PNG data: {err}") from err
     if len(raw) != height * (stride + 1):
         raise Unsupported("PNG data size does not match its header")
     rows, previous = [], bytes(stride)

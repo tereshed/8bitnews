@@ -22,3 +22,15 @@ def test_only_review_of_current_artifact_can_approve(team, kind, parent, decisio
         "parent_id": parent, "content": {"decision": decision},
     })
     assert report["verdict"] == expected
+
+
+@pytest.mark.parametrize("platforms,verdict,owners", [
+    ({"youtube": {"verdict": "exclude"}}, "fix_required", {"editor": ["no_platform"]}),
+    ({"youtube": {"verdict": "pass"}, "tiktok": {"verdict": "exclude"}}, "pass", {}),
+])
+def test_a_legal_pass_needs_a_platform_to_publish_on(platforms, verdict, owners):
+    delegation = {"team": "Legal", "state": "done", "artifacts": [{"kind": "legal_review", "id": "r"}]}
+    doc = {"mode": "script", "verdict": "pass", "platforms": platforms, "issues": []}
+    report = build_report("d", delegation, fetch=lambda _id, _kind: doc)
+    assert report["verdict"] == verdict and report["fix_owners"] == owners
+

@@ -95,6 +95,17 @@ def test_unsupported_png_is_an_error_not_a_guess(tmp_path):
         read_png(tmp_path / "a.png")
 
 
+@pytest.mark.parametrize("body", [
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\x02IHDR\x00\x00\x00\x00\x00\x00",  # short header
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x00\x00\x00\x00"
+    b"\x00\x00\x00\x01IDATx\x00\x00\x00\x00",  # broken data
+])
+def test_a_malformed_png_is_unsupported_not_a_crash(tmp_path, body):
+    (tmp_path / "a.png").write_bytes(body)
+    with pytest.raises(Unsupported):
+        read_png(tmp_path / "a.png")
+
+
 def test_thumbnail_averages_blocks_and_keeps_proportions(tmp_path):
     rows = [bytes((0, 0, 0, 200, 100, 50)) * 4 for _ in range(16)]  # alternating columns average to half
     filtered_png(tmp_path / "a.png", 8, rows, [0])
