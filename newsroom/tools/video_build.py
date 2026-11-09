@@ -13,14 +13,21 @@
 5. Файлы пакета уходят в хранилище через hub (`media_upload_url`); в stdout — `video_package` (`package.json` студии,
    ключи файлов в `media`, выбор в `pick`), его агент сдаёт результатом; копия — `<out>/video_package.json`.
 
+Доработка — `--reuse-package <id video_package или путь> [--redraw S3,S7,cover]`: тот же ролик, кроме того, о чём просили.
+Принятые картинки берутся из прошлого пакета (`media.package_archive`) без вызова генератора, кроме названных в `--redraw`
+и тех, чей промпт изменился (`studio/studio/scene_images.py`); `pick` остаётся прошлым, кроме видов из `--exclude` и того,
+что больше не годится (`studio/studio/pick.py`, заметка в `notes`). Прошлый пакет не читается — обычная полная сборка с
+заметкой в `notes`, а не сбой. Без `--reuse-package` всё как обычно.
+
 Код выхода — итог, он же в `<out>/video_build.json` (шаг `done`) и в `<out>/exit_code`:
 - 0 — ролик собран, проверки студии прошли, файлы в хранилище;
 - 3 — ролик собран и загружен, но часть проверок студии не прошла (`failed_checks`);
 - 4 — сценарий в таком виде не собирается (текст не влезает в плашку или обложку, «AI text» в заголовке обложки,
-  у `cover.frame` нет картинки, сценарий не по контракту): это работа Script, пакета нет, причина — `script_problem`;
+  у `cover.frame` нет картинки, сценарий не по контракту): это работа Script, пакета нет, причина — `script_problem`,
+  а весь финальный ответ агента, дословно, — в `<out>/final_message.txt`;
 - 1 — сбой (hub, хранилище, Docker, генератор): пакета нет, причина — `error`; повтор с `--upload-only` догружает
   уже собранный пакет, если сбой был на загрузке;
-- 2 — неверные аргументы.
+- 2 — неверные аргументы (причина — `error`).
 
 Docker в песочнице — отдельный сайдкар, поэтому файлы туда и обратно едут через `docker cp`, а не монтированием;
 контейнеры и образы принадлежат своему run_id; каждый запуск удаляет только свои контейнеры. Таймер внутри
@@ -49,7 +56,7 @@ import uuid
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "newsroom" / "tools"))
 
-from hublib import Hub, artifact_with_id, load_keys  # noqa: E402
+from hublib import SCRIPT_PROBLEM_PREFIX, Hub, artifact_with_id, load_keys  # noqa: E402
 
 RUN_ID = uuid.uuid4().hex
 IMAGE = f"8bitnews-studio:video-{RUN_ID}"
@@ -63,7 +70,12 @@ UPLOAD = ("video", "video_no_music", "subtitles", "cover", "timeline", "script")
 # `studio build` errors that only a different script fixes (BuildError texts, studio/studio/build.py, cover_title.py).
 SCRIPT_PROBLEMS = ("does not fit its plate", "cover text", "failed script.schema.json validation",
                    "does not match any scene id", "no picture for the cover", "is not valid JSON")
-EXIT_OK, EXIT_ERROR, EXIT_CHECKS, EXIT_SCRIPT = 0, 1, 3, 4
+EXIT_OK, EXIT_ERROR, EXIT_ARGS, EXIT_CHECKS, EXIT_SCRIPT = 0, 1, 2, 3, 4
+# `--redraw` items: a scene id, a keyframe name (what QA's findings carry), or the cover.
+REDRAW_ITEM = re.compile(r"(S[0-9]+)(?:_(?:first|mid))?|cover")
+# What a rebuild takes from an earlier package's archive; everything else in it is ignored, whatever it claims to be.
+PICTURES_IN_ARCHIVE = re.compile(r"package/(package\.json|images/(?:attempts/)?[A-Za-z0-9_-]+\.png)")
+MAX_PICTURES_BYTES = 512 * 1024 * 1024
 
 
 class Failure(Exception):
@@ -184,6 +196,97 @@ def parse_excludes(values: list[str]) -> dict:
     return out
 
 
+def parse_redraw(value: str | None) -> list[str]:
+    """`S3,S7_mid,cover` -> ["S3", "S7", "cover"]."""
+    names = []
+    for item in filter(None, (part.strip() for part in (value or "").split(","))):
+        found = REDRAW_ITEM.fullmatch(item)
+        if not found:
+            raise Failure(EXIT_ARGS, f"--redraw {item!r}: ожидается id сцены (S3), ключевой кадр (S3_mid) или cover")
+        names.append(found.group(1) or item)
+    return list(dict.fromkeys(names))
+
+
+class Earlier:
+    """What a rebuild could get of `--reuse-package`: `package` for its pick, `pictures` (a directory of
+    package.json and images/) for the studio, `notes` on what it couldn't."""
+
+    def __init__(self, package_id: str | None = None, package: dict | None = None, notes: list[str] | None = None):
+        self.package_id, self.package, self.notes = package_id, package, notes or []
+        self.pictures: pathlib.Path | None = None
+
+
+def unpack_pictures(archive: pathlib.Path, dest: pathlib.Path) -> None:
+    """Only `PICTURES_IN_ARCHIVE`, as regular files, to names made here: the archive was uploaded by an agent."""
+    total = 0
+    with tarfile.open(archive, "r:gz") as tar:
+        for member in tar:
+            if not (member.isreg() and PICTURES_IN_ARCHIVE.fullmatch(member.name)):
+                continue
+            total += member.size
+            if total > MAX_PICTURES_BYTES:
+                raise ValueError(f"more than {MAX_PICTURES_BYTES} bytes of pictures")
+            target = dest / member.name.removeprefix("package/")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with tar.extractfile(member) as src, open(target, "wb") as out:
+                shutil.copyfileobj(src, out)
+
+
+def fetch_earlier(hub: Hub, ref: str, dest: pathlib.Path, channel_id: str) -> Earlier:
+    """The package `--reuse-package` names and its pictures. Whatever goes wrong costs a normal rebuild and a
+    note, never the build: nothing here raises."""
+    try:
+        package, package_id = retry("fetch the earlier video_package", lambda: artifact_with_id(ref, "video_package"))
+        if not isinstance(package, dict):
+            raise ValueError("it is not a JSON object")
+        if package.get("channel_id") != channel_id:
+            raise ValueError(f"it belongs to channel {package.get('channel_id')!r}, not {channel_id!r}")
+    except Exception as e:  # noqa: BLE001 - Failure from retry, a broken file, anything: see the docstring
+        return Earlier(notes=[f"--reuse-package {ref}: the earlier package can't be read ({e}): a full rebuild, with "
+                              "a fresh pick and every picture drawn"])
+    earlier = Earlier(package_id=package_id, package=package)
+    try:
+        scenes = (package.get("images") or {}).get("scenes")
+        if not scenes:
+            raise ValueError("it has no drawn pictures")
+        key = (package.get("media") or {}).get("package_archive")
+        if not key:
+            raise ValueError("it has no media.package_archive")
+        archive = retry("download the earlier package", lambda: hub.download(key, dest / "package.tar.gz"))
+        unpack_pictures(archive, dest / "pictures")
+        archive.unlink()
+        built = json.loads((dest / "pictures" / "package.json").read_text())
+        if (built.get("images") or {}).get("scenes") != scenes:
+            raise ValueError("the pictures in its archive are not the ones the package records")
+        earlier.pictures = dest / "pictures"
+    except Exception as e:  # noqa: BLE001 - as above; tarfile, gzip, zlib and PIL each have errors of their own
+        earlier.notes.append(f"--reuse-package {package_id}: its pictures can't be reused ({e}): every picture is drawn")
+    return earlier
+
+
+def earlier_choices(package: dict) -> dict:
+    """What `studio pick --keep` takes: the earlier package's `pick`, or what it says it was made with."""
+    pick = package.get("pick") or {}
+    music = package.get("music") or {}
+    return {"template": pick.get("template") or package.get("template"),
+            "anchor": pick.get("anchor") or (package.get("anchor") or {}).get("id"),
+            "music_track": pick["music_track"] if "music_track" in pick else (music.get("track_id") if music.get("enabled") else None),
+            "cover_layout": pick.get("cover_layout") or (package.get("cover") or {}).get("layout"),
+            "package_archive": (package.get("media") or {}).get("package_archive")}
+
+
+def check_redraw_names(redraw: list[str], script: dict, earlier: Earlier) -> None:
+    """A wrong name in `--redraw` would keep the very picture it was meant to replace, and QA pays again to find
+    that out. A name may be from the earlier package: that is what the findings it answers were about. Without
+    the earlier package every picture is drawn anyway."""
+    if earlier.package is None:
+        return
+    known = {"cover"} | {s.get("id") for s in script.get("scenes", [])} | {s.get("id") for s in earlier.package.get("scenes", [])}
+    unknown = [name for name in redraw if name not in known]
+    if unknown:
+        raise Failure(EXIT_ARGS, f"--redraw {', '.join(unknown)}: таких сцен нет ни в сценарии, ни в прошлом пакете")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     src = ap.add_mutually_exclusive_group(required=True)
@@ -196,6 +299,10 @@ def main() -> int:
     ap.add_argument("--out", default="/tmp/video")
     ap.add_argument("--exclude", action="append", default=[], metavar="KIND=ID",
                     help="leave a choice out of studio pick: anchor=<id>, template=<id>, music_track=<id> (repeatable)")
+    ap.add_argument("--reuse-package", metavar="ID_OR_PATH",
+                    help="rebuild: keep this earlier video_package's pick and accepted pictures")
+    ap.add_argument("--redraw", metavar="S3,S7,cover",
+                    help="with --reuse-package: the pictures QA or Legal rejected, to draw again")
     ap.add_argument("--upload-only", action="store_true",
                     help="upload the package an earlier run already built in --out (after a failed upload)")
     ap.add_argument("--no-upload", action="store_true", help="build and check only (testing)")
@@ -220,7 +327,7 @@ def main() -> int:
         code = build(args, excludes, keys, out, work, step, report)
     except Failure as e:
         code = e.code
-        report["error" if code == EXIT_ERROR else "script_problem"] = redact(str(e), keys)
+        report["script_problem" if code == EXIT_SCRIPT else "error"] = redact(str(e), keys)
     except SystemExit as e:  # load_keys, hub HTTP errors, artifact fetch
         code = EXIT_ERROR
         report["error"] = redact(str(e.code), keys)
@@ -232,8 +339,16 @@ def main() -> int:
         shutil.rmtree(work, ignore_errors=True)
     report["ok"] = code == EXIT_OK
     step("done", exit_code=code, **{k: report[k] for k in ("error", "script_problem") if k in report})
+    if code == EXIT_SCRIPT:  # before exit_code: the agent reads it as soon as it sees the build has ended
+        (out / "final_message.txt").write_text(final_message(report["script_problem"]) + "\n")
     (out / "exit_code").write_text(f"{code}\n")
     return code
+
+
+def final_message(script_problem: str) -> str:
+    """The agent's whole final answer on exit 4, one line: Newsroom sends the script back to Script only if it starts
+    with exactly this prefix, and the agent's own wording has missed it before."""
+    return f"{SCRIPT_PROBLEM_PREFIX} {' '.join(script_problem.split())}"
 
 
 def redact(text: str, keys: dict) -> str:
@@ -244,6 +359,10 @@ def redact(text: str, keys: dict) -> str:
 
 
 def build(args, excludes: dict, keys: dict, out: pathlib.Path, work: pathlib.Path, step, report: dict) -> int:
+    reuse_package = getattr(args, "reuse_package", None)
+    redraw = parse_redraw(getattr(args, "redraw", None))
+    if redraw and not reuse_package:
+        raise Failure(EXIT_ARGS, "--redraw нужен вместе с --reuse-package: без него рисуются все картинки")
     hub = Hub(keys["HUB_URL"], keys["HUB_API_KEY"])
     if args.script_artifact:
         script, script_id = artifact_with_id(args.script_artifact, "script")
@@ -266,6 +385,13 @@ def build(args, excludes: dict, keys: dict, out: pathlib.Path, work: pathlib.Pat
         package = json.loads(package_path.read_text())
         pick = json.loads((out / "pick.json").read_text())
     else:
+        earlier = Earlier()
+        if reuse_package:
+            earlier = fetch_earlier(hub, reuse_package, work / "earlier", channel_id)
+            earlier.notes = [redact(note, keys) for note in earlier.notes]
+            check_redraw_names(redraw, script, earlier)
+            step("reuse", package=earlier.package_id, pictures=earlier.pictures is not None, redraw=redraw,
+                 notes=earlier.notes)
         recent = retry("hub releases_recent", lambda: hub.recent(channel_id))
         (work / "script.json").write_text(json.dumps(script, ensure_ascii=False, indent=2))
         (work / "recent.json").write_text(json.dumps(recent))
@@ -275,10 +401,16 @@ def build(args, excludes: dict, keys: dict, out: pathlib.Path, work: pathlib.Pat
         build_image(work)
         step("image", image=IMAGE)
 
+        pick_inputs = ["script.json", "recent.json", "exclude.json"]
+        keep = ""
+        if earlier.package is not None:
+            (work / "keep.json").write_text(json.dumps(earlier_choices(earlier.package)))
+            pick_inputs.append("keep.json")
+            keep = "--keep /work/keep.json "
         code = run_studio([["sh", "-c", "python -m studio pick --script /work/script.json --channel \"$0\" "
-                                        "--recent /work/recent.json --exclude /work/exclude.json > /work/pick.json "
+                                        f"--recent /work/recent.json --exclude /work/exclude.json {keep}> /work/pick.json "
                                         "2> /work/pick.err", channel_id]],
-                          {f"/work/{n}": work / n for n in ("script.json", "recent.json", "exclude.json")},
+                          {f"/work/{n}": work / n for n in pick_inputs},
                           {"/work/pick.json": work / "pick.json", "/work/pick.err": work / "pick.err"})
         if code != 0:
             err = (work / "pick.err").read_text().strip() if (work / "pick.err").is_file() else ""
@@ -287,12 +419,19 @@ def build(args, excludes: dict, keys: dict, out: pathlib.Path, work: pathlib.Pat
         shutil.copy2(work / "pick.json", out / "pick.json")
         cover_layout = pick.get("cover_layout") or "bottom"  # a pick.json without the field (older studio): bottom
         step("pick", **{k: pick[k] for k in ("template", "anchor", "music_track")}, cover_layout=cover_layout,
-             reasons=pick["reasons"])
+             reasons=pick["reasons"], **({"notes": pick["notes"]} if pick.get("notes") else {}))
 
         inputs = {"/work/script.json": work / "script.json"}
         build_cmd = ["python", "-m", "studio", "build", "--script", "/work/script.json", "--channel", channel_id,
                      "--template", pick["template"], "--anchor", pick["anchor"], "--cover-layout", cover_layout,
                      "--images", "openrouter", "--out", "/work/out"]
+        if redraw:
+            build_cmd += ["--redraw", ",".join(redraw)]
+        if earlier.pictures is not None:
+            inputs["/work/reuse"] = earlier.pictures
+            build_cmd += ["--reuse-from", "/work/reuse", "--reuse-package-id", earlier.package_id]
+        for note in earlier.notes + pick.get("notes", []):
+            build_cmd += ["--note", note]
         if pick["music_track"]:
             key = pick["music_key"]
             retry("download the track", lambda: hub.download(key, work / "music" / key))

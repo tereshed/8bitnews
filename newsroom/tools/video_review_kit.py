@@ -11,7 +11,7 @@
 просмотр нужно вчетверо меньше. Инструмент проверяет это на каждом кадре; кадр вне сетки остаётся как есть
 (`full_size_images` в сводке).
 В stdout — `video_package_id` (id артефакта, который ты смотришь: впиши его в свой отчёт), список скачанного и короткая
-сводка пакета: длительность, шаблон, ведущий, трек, проверки студии, заметки. Папка `--out` очищается перед скачиванием.
+сводка пакета: длительность, шаблон, ведущий, трек, проверки студии, заметки, картинки из прошлой сборки. Папка `--out` очищается перед скачиванием.
 Открывай картинки инструментом чтения файлов: так ты их видишь.
 """
 from __future__ import annotations
@@ -103,6 +103,8 @@ def main() -> int:
         "studio_checks_passed": package.get("validate", {}).get("passed"),
         "failed_checks": failed,
         "notes": package.get("notes", []),
+        "reused_pictures": {s["id"]: s["reused_from"] for s in (package.get("images") or {}).get("scenes", [])
+                            if s.get("reused_from")},
         "scenes": [{"id": s["id"], "keyframes": [k["path"] for k in s.get("keyframes", [])],
                     "real_people": s.get("real_people", []), "ai_label_shown": s.get("ai_label_shown")}
                    for s in package.get("scenes", [])],

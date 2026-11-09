@@ -23,6 +23,7 @@ from .constants import FONT_PX, FPS, LOGICAL_H, LOGICAL_W, OUTPUT_H, OUTPUT_W, S
 from .engine import _compose_anchor_sprite, active_plates, ai_label_text, draw_ai_label, scene_transition_duration
 from .errors import TemplateValidationError
 from .palette import hex_to_rgb
+from .scene_images import attempt_findings
 from .srt import parse_srt
 from .template_pkg import load_template
 from .timeline import load_timeline
@@ -492,6 +493,33 @@ def _check_disclosures(package_dir: Path, package: dict, channel_profile: dict) 
         if d.get("platforms", {}).get(platform, {}).get("ai_label") is not True:
             problems.append(f"disclosures.platforms.{platform}.ai_label is not true")
     return _result("disclosures", problems, f"AI voice and visuals disclosed; ai_label on {', '.join(enabled)}")
+
+
+def _picture_cards(package: dict, redrawn: bool) -> list[str]:
+    """Each neutral card standing in for a picture (`images.scenes`), with what its attempts found: all of
+    them in the note, Video and Script act on the list. `redrawn`: those `--redraw` named, or those it didn't."""
+    cards = [s for s in (package.get("images") or {}).get("scenes", []) if s.get("fallback")]
+    return [f"{s['id']} ({len(s.get('attempts', []))} attempt(s): {', '.join(attempt_findings(s.get('attempts', []))) or 'nothing on record'})"
+            for s in cards if bool(s.get("redraw_requested")) == redrawn]
+
+
+@register("picture_fallback")
+def _check_picture_fallback(package_dir: Path, package: dict, channel_profile: dict) -> dict:
+    """A neutral card in place of a picture never gets past QA, so it stops here (at about $0.78 less). The
+    answer is a rebuild that draws the picture again; fix owner Video (newsroom/tools/stage_report.py)."""
+    cards = _picture_cards(package, redrawn=False)
+    note = f"neutral card instead of a picture, redraw these: {'; '.join(cards)}" if cards else "no neutral card"
+    return {"id": "picture_fallback", "ok": not cards, "value": len(cards), "expected": 0, "note": note}
+
+
+@register("picture_fallback_redrawn")
+def _check_picture_fallback_redrawn(package_dir: Path, package: dict, channel_profile: dict) -> dict:
+    """A neutral card again on a picture `--redraw` named: drawing it once more won't help, its `visual` has
+    to change; fix owner Script (newsroom/tools/stage_report.py)."""
+    cards = _picture_cards(package, redrawn=True)
+    note = (f"redrawing did not help, the scene's visual has to change to avoid what was found: {'; '.join(cards)}"
+            if cards else "no neutral card on a redrawn picture")
+    return {"id": "picture_fallback_redrawn", "ok": not cards, "value": len(cards), "expected": 0, "note": note}
 
 
 def _audio_files(package_dir: Path, package: dict) -> list[tuple[str, Path]]:

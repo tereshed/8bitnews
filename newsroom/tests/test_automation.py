@@ -60,6 +60,33 @@ def test_video_checks_override_an_inconsistent_pass():
     assert "video_package=video-id" in summary(result)
 
 
+def _video_report(*checks):
+    delegation = {"team": "Video", "state": "done", "artifacts": [{"kind": "video_package", "id": "video-id"}]}
+    return build_report("delegation", delegation, lambda *_: {"validate": {"passed": False, "checks": list(checks)}})
+
+
+def test_a_neutral_card_goes_back_to_video_without_qa():
+    result = _video_report({"id": "format", "ok": True},
+                           {"id": "picture_fallback", "ok": False, "note": "neutral card: S2 (3 attempt(s): text)"})
+    assert result["verdict"] == "fail" and result["fix_owners"] == {"video": ["picture_fallback"]}
+    assert "fix: video=[picture_fallback]" in summary(result)
+
+
+def test_a_card_on_a_redrawn_picture_goes_to_script_and_the_router_sees_the_scene_and_the_finding():
+    """The router sees the summary alone, and rule 8 hands Script the notes."""
+    note = "redrawing did not help: S5 (3 attempt(s): flags_or_seals, extra_people)"
+    result = _video_report({"id": "picture_fallback_redrawn", "ok": False, "note": note})
+    assert result["verdict"] == "fail" and result["fix_owners"] == {"script": ["picture_fallback_redrawn"]}
+    assert "fix: script=[picture_fallback_redrawn]" in summary(result)
+    assert "S5 (3 attempt(s): flags_or_seals, extra_people)" in summary(result)
+
+
+def test_a_built_video_keeps_its_summary_short():
+    delegation = {"team": "Video", "state": "done", "artifacts": [{"kind": "video_package", "id": "video-id"}]}
+    result = build_report("delegation", delegation, lambda *_: {"validate": {"passed": True, "checks": [{"id": "format", "ok": True, "note": "ok"}]}})
+    assert result["verdict"] == "built" and "notes:" not in summary(result)
+
+
 def test_legal_exclusion_is_not_an_open_fix_and_mode_is_preserved():
     delegation = {"team": "Legal", "state": "done", "artifacts": [{"kind": "legal_review", "id": "legal-id"}]}
     result = build_report("delegation", delegation, lambda *_: {"mode": "final", "verdict": "pass", "platforms": {"youtube": {"verdict": "pass"}}, "issues": [{"id": "P1", "fix_owner": "video", "resolved_by_exclusion": True}]})

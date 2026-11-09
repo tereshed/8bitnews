@@ -11,7 +11,15 @@ from conftest import FIXTURES_DIR
 from studio.build import build_package
 from studio.openrouter import ImageReply, JsonReply, NoImageError
 from studio.paths import TEMPLATES_DIR
-from studio.scene_images import FINDINGS, check_findings, generate_scene_images, load_style
+from studio.scene_images import (
+    FINDINGS,
+    MAX_REDRAWS,
+    EarlierPictures,
+    check_findings,
+    generate_scene_images,
+    load_earlier_pictures,
+    load_style,
+)
 from studio.template_pkg import load_template
 
 CLEAN = (FIXTURES_DIR / "images" / "clean.png").read_bytes()
@@ -145,7 +153,6 @@ def test_build_with_generated_pictures_records_them(generated_build):
     assert package["images"]["provider"] == "openrouter" and package["images"]["cost_usd"] > 0
     assert [s["id"] for s in package["images"]["scenes"]] == ["S2", "S3", "cover"]
     assert any(n.startswith("S2: no generated picture passed") for n in package["notes"])
-    assert package["validate"]["passed"], [c for c in package["validate"]["checks"] if not c["ok"]]
     for s in package["images"]["scenes"]:
         assert (generated_build["out_dir"] / s["file"]).is_file()
 
@@ -408,3 +415,361 @@ def test_scene_and_screen_pictures_leave_room_for_the_plates(template):
     style = load_style("8bitnews-us")
     assert style["top_room"] in scene_prompt(style, template, "a ballot box")
     assert style["top_room"] in scene_prompt(style, template, "a ballot box", screen=True, aspect="5:4")
+
+
+def test_a_neutral_card_fails_the_package_and_nothing_else_does(generated_build):
+    """S2 never passes in this build: QA would only fail it for $0.78, so it stops at the studio's checks."""
+    failed = [c for c in generated_build["package"]["validate"]["checks"] if not c["ok"]]
+    assert [c["id"] for c in failed] == ["picture_fallback"]
+    assert "S2 (3 attempt(s): text)" in failed[0]["note"]
+
+
+# --- a rebuild takes the accepted pictures of the earlier package -----------------
+
+class NoCalls(Client):
+    """A rebuild that reuses everything must not reach the provider, not even for the check."""
+
+    def __init__(self):
+        super().__init__([])
+
+    def generate_image(self, *args, **kwargs):
+        raise AssertionError("a paid call to draw a picture")
+
+    def ask_json(self, *args, **kwargs):
+        raise AssertionError("a paid call to check a picture")
+
+
+class Recording(Client):
+    def __init__(self, pictures=()):
+        super().__init__(pictures)
+        self.variants = []
+
+    def generate_image(self, model, prompt, aspect_ratio, images=(), variant=0):
+        self.variants.append(variant)
+        return super().generate_image(model, prompt, aspect_ratio, images, variant)
+
+
+def _picture(color) -> bytes:
+    """A usable picture of its own color: tells which build drew it."""
+    return _skin_picture(color)
+
+
+def _earlier(tmp_path, template, script, pictures=(), package_id="pkg-1", name="earlier") -> EarlierPictures:
+    """An earlier build as `studio build` leaves it: images/ and package.json with its images report."""
+    out = tmp_path / name
+    out.mkdir()
+    _, report = generate_scene_images(script, template, "8bitnews-us", out, Client(pictures))
+    (out / "package.json").write_text(json.dumps({"images": report.to_package()}))
+    return EarlierPictures(out, package_id, report.to_package()["scenes"])
+
+
+def _rebuild(tmp_path, template, script, earlier, client=None, redraw=(), name="rebuilt"):
+    out = tmp_path / name
+    out.mkdir()
+    images_dir, report = generate_scene_images(script, template, "8bitnews-us", out, client or NoCalls(), earlier=earlier,
+                                               redraw=redraw)
+    return images_dir, report, {s["id"]: s for s in report.scenes}
+
+
+def _two_scene_pictures(script):
+    ids = _scene_ids(script)
+    return ids, {sid: _picture((10 * (i + 1), 80, 120)) for i, sid in enumerate(ids)}
+
+
+def test_a_rebuild_with_nothing_changed_reuses_every_picture_and_pays_nothing(tmp_path, template):
+    script = _script()
+    ids, pictures = _two_scene_pictures(script)
+    earlier = _earlier(tmp_path, template, script, [pictures[sid] for sid in ids])
+    images_dir, report, scenes = _rebuild(tmp_path, template, script, earlier)
+    assert report.cost_usd == 0 and report.to_package()["cost_usd"] == 0
+    for sid in ids:
+        assert (images_dir / f"{sid}.png").read_bytes() == pictures[sid]
+        assert scenes[sid]["reused_from"]["package"] == "pkg-1" and scenes[sid]["reused_from"]["scene"] == sid
+        assert scenes[sid]["attempts"] == [] and scenes[sid]["fallback"] is False and "redraw_requested" not in scenes[sid]
+    assert f"{len(ids)} of {len(ids)} picture(s) reused from pkg-1" in report.notes[-1] and "drawn again: none" in report.notes[-1]
+
+
+def test_only_the_scene_named_in_redraw_is_drawn_again(tmp_path, template):
+    script = _script()
+    ids, pictures = _two_scene_pictures(script)
+    earlier = _earlier(tmp_path, template, script, [pictures[sid] for sid in ids])
+    new = _picture((200, 10, 10))
+    client = Recording([new])
+    images_dir, report, scenes = _rebuild(tmp_path, template, script, earlier, client, redraw={ids[0]})
+    assert len(client.prompts) == 1 and client.checked == 1
+    assert (images_dir / f"{ids[0]}.png").read_bytes() == new
+    assert scenes[ids[0]]["redraw_requested"] is True and "reused_from" not in scenes[ids[0]]
+    assert report.cost_usd == pytest.approx(0.068)
+    for sid in ids[1:]:
+        assert (images_dir / f"{sid}.png").read_bytes() == pictures[sid] and "reused_from" in scenes[sid]
+    assert f"{ids[0]} (named in --redraw)" in report.notes[-1]
+
+
+def test_a_redraw_never_gets_the_rejected_picture_back_from_the_providers_cache(tmp_path, template):
+    """The cache is keyed by request and variant: the same prompt at variant 0 is the same picture."""
+    script = _script()
+    ids, pictures = _two_scene_pictures(script)
+    earlier = _earlier(tmp_path, template, script, [WITH_TEXT, _picture((1, 2, 3))] + [pictures[sid] for sid in ids[1:]])
+    client = Recording([])
+    _, _, scenes = _rebuild(tmp_path, template, script, earlier, client, redraw={ids[0]})
+    assert client.variants == [2]  # its earlier attempts used 0 and 1
+    assert scenes[ids[0]]["attempts"][0]["variant"] == 2
+
+
+def test_a_changed_visual_is_drawn_again_and_the_rest_stays(tmp_path, template):
+    script = _script()
+    ids, pictures = _two_scene_pictures(script)
+    earlier = _earlier(tmp_path, template, script, [pictures[sid] for sid in ids])
+    changed = json.loads(json.dumps(script))
+    next(s for s in changed["scenes"] if s["id"] == ids[0])["visual"] = "An empty stadium at night, rows of plain seats."
+    client = Recording([])
+    _, report, scenes = _rebuild(tmp_path, template, changed, earlier, client)
+    assert client.variants == [0] and "empty stadium" in client.prompts[0]
+    assert "reused_from" not in scenes[ids[0]] and "redraw_requested" not in scenes[ids[0]]
+    assert all("reused_from" in scenes[sid] for sid in ids[1:])
+    assert f"{ids[0]} (its prompt changed)" in report.notes[-1]
+
+
+def test_scene_ids_can_shift_the_picture_follows_its_content(tmp_path, template):
+    script = _script()
+    ids, pictures = _two_scene_pictures(script)
+    earlier = _earlier(tmp_path, template, script, [pictures[sid] for sid in ids])
+    shifted = json.loads(json.dumps(script))
+    for s in reversed(shifted["scenes"]):
+        s["id"] = f"S{int(s['id'][1:]) + 1}"
+    shifted["cover"]["frame"] = f"S{int(shifted['cover']['frame'][1:]) + 1}"
+    images_dir, _, scenes = _rebuild(tmp_path, template, shifted, earlier)
+    for sid in ids:
+        new_id = f"S{int(sid[1:]) + 1}"
+        assert scenes[new_id]["reused_from"]["scene"] == sid
+        assert (images_dir / f"{new_id}.png").read_bytes() == pictures[sid]
+
+
+def test_redraw_names_the_earlier_scene_even_when_ids_shifted(tmp_path, template):
+    """QA's finding is about the package it looked at: its S3 may be S4 by now."""
+    script = _script()
+    ids, pictures = _two_scene_pictures(script)
+    earlier = _earlier(tmp_path, template, script, [pictures[sid] for sid in ids])
+    shifted = json.loads(json.dumps(script))
+    for s in reversed(shifted["scenes"]):
+        s["id"] = f"S{int(s['id'][1:]) + 1}"
+    shifted["cover"]["frame"] = f"S{int(shifted['cover']['frame'][1:]) + 1}"
+    last = ids[-1]
+    _, _, scenes = _rebuild(tmp_path, template, shifted, earlier, Recording([]), redraw={last})
+    moved = f"S{int(last[1:]) + 1}"
+    assert "reused_from" not in scenes[moved] and scenes[moved]["redraw_requested"] is True
+
+
+def test_a_neutral_card_is_never_reused_and_draws_past_what_was_tried(tmp_path, template):
+    script = _script()
+    ids, pictures = _two_scene_pictures(script)
+    earlier = _earlier(tmp_path, template, script, [WITH_TEXT] * (1 + MAX_REDRAWS) + [pictures[sid] for sid in ids[1:]])
+    assert next(s for s in earlier.scenes if s["id"] == ids[0])["fallback"] is True
+    client = Recording([])
+    _, report, scenes = _rebuild(tmp_path, template, script, earlier, client)
+    assert client.variants == [1 + MAX_REDRAWS]
+    assert "reused_from" not in scenes[ids[0]] and not scenes[ids[0]]["fallback"]
+    assert f"{ids[0]} (it was a neutral card)" in report.notes[-1]
+
+
+def test_someone_new_in_the_script_changes_the_prompt_of_a_scene_that_names_them(tmp_path, template):
+    """Every scene is cleaned of everyone in the script, so a scene's prompt also hangs on the others'."""
+    script = _script()
+    ids = _scene_ids(script)
+    next(s for s in script["scenes"] if s["id"] == ids[0])["visual"] = "A letter from Weber's office lands on a desk."
+    earlier = _earlier(tmp_path, template, script)
+    changed = json.loads(json.dumps(script))
+    next(s for s in changed["scenes"] if s["id"] == ids[1])["real_people"] = ["Shirley Weber"]
+    client = Recording([])
+    _, _, scenes = _rebuild(tmp_path, template, changed, earlier, client)
+    assert "reused_from" not in scenes[ids[0]] and "Weber" not in client.prompts[0]
+    assert "reused_from" in scenes[ids[1]]
+
+
+def test_serious_mode_changes_every_prompt(tmp_path, template):
+    script = _script()
+    earlier = _earlier(tmp_path, template, script)
+    client = Recording([])
+    _, report, scenes = _rebuild(tmp_path, template, dict(script, serious_mode=True), earlier, client)
+    assert len(client.prompts) == len(_scene_ids(script)) and not any("reused_from" in s for s in scenes.values())
+
+
+def test_another_templates_look_changes_the_prompt(tmp_path, template):
+    script = _script()
+    earlier = _earlier(tmp_path, template, script)
+    night = load_template(TEMPLATES_DIR / "night-report")
+    client = Recording([])
+    _, _, scenes = _rebuild(tmp_path, night, script, earlier, client)
+    assert len(client.prompts) == len(_scene_ids(script)) and not any("reused_from" in s for s in scenes.values())
+
+
+def test_a_picture_kept_with_extra_people_stays_kept_and_says_so(tmp_path, template):
+    script = _script(real_people=[])
+    first = _scene_ids(script)[0]
+    earlier = _earlier(tmp_path, template, script, [WITH_PEOPLE] * 3)
+    images_dir, report, scenes = _rebuild(tmp_path, template, script, earlier)
+    assert scenes[first]["kept_with"] == ["extra_people"] and (images_dir / f"{first}.png").read_bytes() == WITH_PEOPLE
+    assert any(n.startswith(f"{first}: the reused picture was kept") for n in report.notes)
+    _, _, scenes = _rebuild(tmp_path, template, script, earlier, Recording([]), redraw={first}, name="redrawn")
+    assert "reused_from" not in scenes[first]
+
+
+@pytest.mark.parametrize("damage,why", [
+    (lambda d, s: (d / s["file"]).write_bytes(b"not a png"), "not the accepted attempt"),
+    (lambda d, s: ((d / s["file"]).write_bytes(b"not a png"), (d / s["accepted"]).write_bytes(b"not a png")), "unusable"),
+    (lambda d, s: (d / s["file"]).unlink(), "missing"),
+    (lambda d, s: s.update(file="../../outside.png"), "outside the package"),
+    (lambda d, s: s.update(fallback=None), "neutral card"),
+    (lambda d, s: s.update(accepted=None), "no accepted picture"),
+    (lambda d, s: s["attempts"][0].update(file="images/attempts/other.png"), "not on record"),
+    (lambda d, s: s["attempts"][0].update(check={}), "its check found"),
+    (lambda d, s: s["attempts"][0]["check"].update(text=True), "its check found text"),
+    (lambda d, s: s["attempts"][0]["check"].update(extra_people=True), "its check found extra_people"),
+])
+def test_a_picture_in_doubt_is_drawn_again(tmp_path, template, damage, why):
+    script = _script()
+    ids, pictures = _two_scene_pictures(script)
+    earlier = _earlier(tmp_path, template, script, [pictures[sid] for sid in ids])
+    (tmp_path / "outside.png").write_bytes(pictures[ids[0]])
+    damage(earlier.dir, next(s for s in earlier.scenes if s["id"] == ids[0]))
+    client = Recording([])
+    _, report, scenes = _rebuild(tmp_path, template, script, earlier, client)
+    assert len(client.prompts) == 1 and "reused_from" not in scenes[ids[0]]
+    assert all("reused_from" in scenes[sid] for sid in ids[1:])
+    assert f"{ids[0]} (" in report.notes[-1] and why in report.notes[-1]
+
+
+def test_a_rebuild_of_a_rebuild_reuses_and_redraws_past_all_of_them(tmp_path, template):
+    script = _script()
+    ids, pictures = _two_scene_pictures(script)
+    first = _earlier(tmp_path, template, script, [pictures[sid] for sid in ids])
+    _, report, _ = _rebuild(tmp_path, template, script, first)
+    second_dir = tmp_path / "rebuilt"
+    (second_dir / "package.json").write_text(json.dumps({"images": report.to_package()}))
+    second, why = load_earlier_pictures(second_dir, "pkg-2")
+    assert why is None
+    images_dir, _, scenes = _rebuild(tmp_path, template, script, second, name="third")
+    assert all((images_dir / f"{sid}.png").read_bytes() == pictures[sid] for sid in ids)
+    assert scenes[ids[0]]["reused_from"]["package"] == "pkg-2"
+    client = Recording([])
+    _rebuild(tmp_path, template, script, second, client, redraw={ids[0]}, name="fourth")
+    assert client.variants == [1]  # pkg-1 used variant 0 and pkg-2 asked nothing
+
+
+def test_a_custom_cover_is_reused_and_redrawn_like_a_scene(tmp_path, template):
+    script = _script()
+    script["cover"] = {"frame": "custom", "visual": "A county office with a ballot box on the desk", "text": script["cover"]["text"]}
+    earlier = _earlier(tmp_path, template, script)
+    assert next(s for s in earlier.scenes if s["id"] == "cover")["accepted"]
+    _, _, scenes = _rebuild(tmp_path, template, script, earlier)
+    assert scenes["cover"]["reused_from"]["scene"] == "cover"
+    client = Recording([])
+    _, _, scenes = _rebuild(tmp_path, template, script, earlier, client, redraw={"cover"}, name="redrawn")
+    assert len(client.prompts) == 1 and "reused_from" not in scenes["cover"] and scenes["cover"]["redraw_requested"] is True
+
+
+def test_a_cover_only_matches_a_cover(tmp_path, template):
+    script = _script()
+    ids = _scene_ids(script)
+    visual = next(s for s in script["scenes"] if s["id"] == ids[0])["visual"]
+    earlier = _earlier(tmp_path, template, script)
+    with_cover = json.loads(json.dumps(script))
+    with_cover["cover"] = {"frame": "custom", "visual": visual, "text": script["cover"]["text"]}
+    client = Recording([])
+    _, _, scenes = _rebuild(tmp_path, template, with_cover, earlier, client)
+    assert "reused_from" not in scenes["cover"] and len(client.prompts) == 1
+
+
+def test_a_prompt_that_still_names_someone_stops_a_rebuild_too(tmp_path, template, monkeypatch):
+    import studio.scene_images as si
+    from studio.errors import BuildError
+
+    script = _script()
+    earlier = _earlier(tmp_path, template, script)
+    monkeypatch.setattr(si, "clean_visual", lambda visual, people: visual)
+    named = _script(visual="Secretary Weber signs a letter", real_people=["Shirley Weber"])
+    with pytest.raises(BuildError, match="still names Weber"):
+        _rebuild(tmp_path, template, named, earlier)
+
+
+@pytest.mark.parametrize("package_json", [None, "not json", "{}", '{"images": {"scenes": [1]}}', '{"images": {"scenes": 3}}'])
+def test_an_unreadable_earlier_package_is_reported_not_raised(tmp_path, package_json):
+    if package_json is not None:
+        (tmp_path / "package.json").write_text(package_json)
+    earlier, why = load_earlier_pictures(tmp_path, "pkg")
+    assert earlier is None and why
+
+
+def test_redraw_names_resolve_to_the_picture_they_show():
+    from studio.build import resolve_redraw
+
+    script = {"cover": {"frame": "S2", "text": "x"}, "scenes": [
+        {"id": "S1", "shot": "anchor", "visual": "The anchor at the desk."},
+        {"id": "S2", "shot": "scene", "visual": "A ballot box."},
+        {"id": "S3", "shot": "anchor", "visual": "The anchor at the desk."},
+    ]}
+    assert resolve_redraw(script, ["S2"]) == ({"S2"}, [])
+    names, notes = resolve_redraw(script, ["cover"])
+    assert names == {"cover", "S2"} and "it shows S2's picture" in notes[0]
+    names, notes = resolve_redraw(script, ["S1"])  # no picture of its own: its screen shows the next scene shot's
+    assert names == {"S1", "S2"} and "it shows S2's picture" in notes[0]
+    names, notes = resolve_redraw(script, ["S3"])  # the last anchor shot's screen is the channel logo
+    assert names == {"S3"} and "nothing to draw again" in notes[0]
+    assert resolve_redraw(script, ["S9"]) == ({"S9"}, [])  # may be a scene id of the earlier package
+
+
+def test_reuse_and_redraw_need_drawn_pictures(tmp_path):
+    from studio.errors import BuildError
+
+    with pytest.raises(BuildError, match="need --images"):
+        build_package(script_path=FIXTURES_DIR / "scripts" / "short.json", channel_id="8bitnews-us", out_dir=tmp_path,
+                      channels_dir=FIXTURES_DIR / "channels", tts_name="stub", redraw=["S2"])
+
+
+@pytest.fixture(scope="module")
+def clean_build(tmp_path_factory):
+    """short.json with every picture passing, then a rebuild of it that reuses them all."""
+    tmp_path = tmp_path_factory.mktemp("rebuild")
+    script = json.loads((FIXTURES_DIR / "scripts" / "short.json").read_text())
+    script_path = tmp_path / "script.json"
+    script_path.write_text(json.dumps(script))
+    common = dict(script_path=script_path, channel_id="8bitnews-us", channels_dir=FIXTURES_DIR / "channels", tts_name="stub",
+                  images="openrouter")
+    first = build_package(out_dir=tmp_path / "first", image_client=Client([_skin_picture()] * 10), **common)
+    return {"tmp": tmp_path, "first": tmp_path / "first", "common": common,
+            "first_package": json.loads(first.read_text())}
+
+
+def test_a_full_reuse_build_makes_the_same_frames_at_no_cost(clean_build):
+    built = build_package(out_dir=clean_build["tmp"] / "second", image_client=NoCalls(), reuse_from=clean_build["first"],
+                          reuse_package_id="pkg-1", notes=["a note from the pick"], **clean_build["common"])
+    package = json.loads(built.read_text())
+    assert package["validate"]["passed"], [c for c in package["validate"]["checks"] if not c["ok"]]
+    assert package["images"]["cost_usd"] == 0
+    assert all(s["reused_from"]["package"] == "pkg-1" for s in package["images"]["scenes"])
+    assert "a note from the pick" in package["notes"]
+    first_dir, second_dir = clean_build["first"], built.parent
+    for scene in clean_build["first_package"]["scenes"]:
+        for kf in scene["keyframes"]:
+            assert (first_dir / kf["path"]).read_bytes() == (second_dir / kf["path"]).read_bytes(), kf["path"]
+    assert (first_dir / "cover.png").read_bytes() == (second_dir / "cover.png").read_bytes()
+
+
+def test_a_card_on_a_redrawn_picture_is_scripts_to_fix(clean_build):
+    sid = clean_build["first_package"]["images"]["scenes"][0]["id"]
+    client = Client([WITH_TEXT] * (1 + MAX_REDRAWS))
+    built = build_package(out_dir=clean_build["tmp"] / "card", image_client=client, reuse_from=clean_build["first"],
+                          reuse_package_id="pkg-1", redraw=[sid], **clean_build["common"])
+    package = json.loads(built.read_text())
+    failed = [c for c in package["validate"]["checks"] if not c["ok"]]
+    assert [c["id"] for c in failed] == ["picture_fallback_redrawn"]
+    assert f"{sid} (3 attempt(s): text)" in failed[0]["note"]
+
+
+def test_an_unreadable_earlier_package_means_a_full_rebuild_with_a_note(clean_build):
+    client = Client([_skin_picture()] * 10)
+    built = build_package(out_dir=clean_build["tmp"] / "full", image_client=client, reuse_from=clean_build["tmp"] / "nowhere",
+                          reuse_package_id="pkg-1", **clean_build["common"])
+    package = json.loads(built.read_text())
+    assert package["validate"]["passed"] and package["images"]["cost_usd"] > 0
+    assert any("the earlier package's pictures can't be reused" in n for n in package["notes"])
