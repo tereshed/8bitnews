@@ -132,6 +132,13 @@ func (c *VideoChecker) State(ctx context.Context, link string) string {
 	return state
 }
 
+// Visible is State for the bot: whether anyone with the link can watch, and
+// whether YouTube answered at all.
+func (c *VideoChecker) Visible(ctx context.Context, link string) (visible, known bool) {
+	state := c.State(ctx, link)
+	return state == videoVisible, state != videoUnknown
+}
+
 // Forget drops a link's answer: the moderator just changed it, or wants to
 // see the change now.
 func (c *VideoChecker) Forget(link string) {

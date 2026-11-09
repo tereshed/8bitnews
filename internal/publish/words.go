@@ -24,6 +24,8 @@ type pageWords struct {
 	How             string
 	HowDossier      string
 	HowAI           string
+	HowReviewHuman  string // a person approved this video
+	HowReviewAuto   string // nobody reviewed this video first
 	Corrections     string
 	NoCorrections   string
 	WriteTo         string
@@ -104,7 +106,9 @@ var english = pageWords{
 	Others:          "Other sources",
 	How:             "How we make these videos",
 	HowDossier:      "Every video starts from a research dossier: what is new, what is already known, how positions split at home and how the press abroad covers the story. Each line of the video is traced to the sources above, primary sources first. When a video is released, we check every source and save a copy to the Internet Archive's Wayback Machine where it lets us; the archived copy is linked next to the source, and a source whose page was gone when we checked it links to its archived copy.",
-	HowAI:           "The narration is a synthetic voice and the pictures are AI-generated pixel art; real people are shown as stylized illustrations, not photographs. A human editor approves every video before it is published.",
+	HowAI:           "The narration is a synthetic voice and the pictures are AI-generated pixel art; real people are shown as stylized illustrations, not photographs.",
+	HowReviewHuman:  "A human editor approved this video before it was published.",
+	HowReviewAuto:   "AI agents write each script and check the video against its sources and our legal rules; no person reviews it before it is published. The channel's owner is responsible for what goes out.",
 	Corrections:     "Corrections",
 	NoCorrections:   "No corrections to this video so far.",
 	WriteTo:         "Spotted an error? Write to",
@@ -180,7 +184,9 @@ var spanish = pageWords{
 	Others:          "Otras fuentes",
 	How:             "Cómo hacemos estos vídeos",
 	HowDossier:      "Cada vídeo parte de un dosier de investigación: qué hay de nuevo, qué se sabe ya, cómo se reparten las posiciones en España y cómo cuenta la historia la prensa extranjera. Cada frase del vídeo remite a las fuentes de arriba, primero las fuentes primarias. Al publicar un vídeo comprobamos todas las fuentes y guardamos una copia en la Wayback Machine de Internet Archive cuando lo permite; la copia archivada aparece junto a la fuente, y si la página ya no existía al comprobarla, el enlace lleva a su copia archivada.",
-	HowAI:           "La narración es una voz sintética y las imágenes son pixel art generado con IA; las personas reales aparecen como ilustraciones estilizadas, no como fotografías. Una persona de la redacción aprueba cada vídeo antes de publicarlo.",
+	HowAI:           "La narración es una voz sintética y las imágenes son pixel art generado con IA; las personas reales aparecen como ilustraciones estilizadas, no como fotografías.",
+	HowReviewHuman:  "Una persona de la redacción aprobó este vídeo antes de publicarlo.",
+	HowReviewAuto:   "Agentes de IA escriben cada guion y cotejan el vídeo con sus fuentes y nuestras normas legales; ninguna persona lo revisa antes de publicarlo. El titular del canal responde de lo que se publica.",
 	Corrections:     "Correcciones",
 	NoCorrections:   "Este vídeo no tiene correcciones por ahora.",
 	WriteTo:         "¿Has visto un error? Escribe a",

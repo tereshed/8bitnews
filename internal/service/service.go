@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/tereshed/8bitnews/internal/publish"
 	"github.com/tereshed/8bitnews/internal/sources"
 	"github.com/tereshed/8bitnews/internal/storage"
 	"github.com/tereshed/8bitnews/internal/store"
@@ -38,6 +39,7 @@ type Service struct {
 	wayback      *sources.WaybackClient
 	availability *sources.AvailabilityClient
 	log          *slog.Logger
+	publish      publish.Config
 
 	sourcesConcurrency              int
 	sourcesCheckDeadline            time.Duration
@@ -65,6 +67,9 @@ type Deps struct {
 	// archives "ok" sources after a release has been created. Zero uses
 	// defaultSourcesBackgroundArchiveTimeout.
 	SourcesBackgroundArchiveTimeout time.Duration
+
+	// Publish is what the upload packages of the publish queue link to.
+	Publish publish.Config
 }
 
 // New builds a Service from deps, filling in defaults for any zero-valued
@@ -93,6 +98,7 @@ func New(deps Deps) *Service {
 		wayback:      deps.Wayback,
 		availability: deps.Availability,
 		log:          log,
+		publish:      deps.Publish,
 
 		sourcesConcurrency:              concurrency,
 		sourcesCheckDeadline:            deadline,

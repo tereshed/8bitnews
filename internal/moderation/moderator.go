@@ -38,6 +38,9 @@ type Store interface {
 	LogEvent(ctx context.Context, kind string, data any) error
 	GetChannel(ctx context.Context, id string) (store.Channel, error)
 	GetCountry(ctx context.Context, cc string) (store.Country, error)
+	ReleasesAwaitingDecision(ctx context.Context) ([]store.Release, error)
+	PublicationsToCheck(ctx context.Context) ([]store.PublicationCheck, error)
+	MarkPublicationOverdue(ctx context.Context, releaseID, platform string) error
 }
 
 // Media opens a release's video in the object store (internal/storage).
@@ -94,6 +97,8 @@ type Moderator struct {
 	packaged map[string]time.Time // when each release's package last finished going out
 
 	adminLogin func(userID int64, who string) string // nil: no admin page
+
+	videoVisible func(ctx context.Context, url string) (visible, known bool) // nil: hub doesn't look
 }
 
 // New builds the bot for the group chatID, looking for new releases every
@@ -140,8 +145,14 @@ func (m *Moderator) Run(ctx context.Context) {
 	}
 	m.log.Info("moderation bot running", "chat_id", m.chatID, "bot_id", m.botID)
 	go func() {
+		var checked time.Time
 		for {
 			m.PostCards(ctx)
+			m.AutoApprove(ctx)
+			if time.Since(checked) >= publicationCheckEvery {
+				m.CheckPublications(ctx)
+				checked = time.Now()
+			}
 			if !sleep(ctx, m.every) {
 				return
 			}
@@ -407,7 +418,7 @@ func publishedReply(who string, published bool) string {
 }
 
 func withdrawnReply(who string) string {
-	return "🚫 Страница источников закрыта — " + who + ". Несколько минут она ещё может открываться из кэша. Сам ролик на площадках снимите вручную."
+	return "🚫 Страница источников закрыта — " + who + ". Несколько минут она ещё может открываться из кэша. Сам ролик на площадках снимите вручную; если он стоит в расписании, то до слота, иначе он выйдет."
 }
 
 // Act applies a moderator's decision made on the admin page: the same status

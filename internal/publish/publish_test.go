@@ -150,7 +150,7 @@ func TestTheTrialsPackage(t *testing.T) {
 		"A federal grand jury refused to indict former White House aide Cassidy Hutchinson",
 		"\n\nSources:\n• ",
 		"All sources and archived copies: https://hub.example.org/s/f874ebb1a0",
-		"AI disclosure: synthetic narration",
+		"AI disclosure: AI-written script, synthetic narration",
 		"Corrections: corrections@example.org",
 		"#8BitNews #DOJ #Jan6 #GrandJury #Politics",
 	} {

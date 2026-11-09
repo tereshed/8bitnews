@@ -44,6 +44,11 @@ func NewRouter(svc *service.Service, mcpHandler, pages, admin http.Handler, metr
 	mux.HandleFunc("POST /api/v1/media/download-url", h.handleMediaDownloadURL)
 	mux.HandleFunc("POST /api/v1/releases", h.handleReleaseSubmit)
 	mux.HandleFunc("GET /api/v1/releases/{release_id}", h.handleReleaseGet)
+	mux.HandleFunc("GET /api/v1/publishing/queue", h.handlePublishQueue)
+	mux.HandleFunc("POST /api/v1/releases/{release_id}/slot", h.handleReleaseSlot)
+	mux.HandleFunc("PUT /api/v1/releases/{release_id}/youtube", h.handleYouTubePublicationSet)
+	mux.HandleFunc("DELETE /api/v1/releases/{release_id}/youtube", h.handleYouTubePublicationForget)
+	mux.HandleFunc("POST /api/v1/releases/{release_id}/hold", h.handleReleaseHold)
 	mux.Handle("/mcp", mcpHandler)
 
 	authed := requireAPIKey(apiKeys, mux, "/healthz")

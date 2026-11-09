@@ -122,7 +122,9 @@ func (s *Store) SetPublicationURL(ctx context.Context, releaseID, platform, url,
 		INSERT INTO release_publications (release_id, platform, url, set_by)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (release_id, platform) DO UPDATE
-		SET url = EXCLUDED.url, set_by = EXCLUDED.set_by, set_at = now()
+		SET url = EXCLUDED.url, set_by = EXCLUDED.set_by, set_at = now(),
+		    live_at = CASE WHEN release_publications.url = EXCLUDED.url THEN release_publications.live_at END,
+		    overdue_alerted_at = CASE WHEN release_publications.url = EXCLUDED.url THEN release_publications.overdue_alerted_at END
 	`, releaseID, platform, url, by)
 	if err != nil {
 		return fmt.Errorf("recording the %s link of release %s: %w", platform, releaseID, err)

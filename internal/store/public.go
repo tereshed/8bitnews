@@ -73,7 +73,8 @@ func (s *Store) PublicReleases(ctx context.Context, channelID string, n int) ([]
 // says the video is up), or, with published false, a published one back to
 // "approved" (a mistaken press; it leaves the channel's list, its sources page stays). It
 // reports false, with the release as it is, if the release wasn't in the
-// status to move from.
+// status to move from. Either way the question of whether the video is up is
+// settled: hub no longer changes it on what it sees on the platform.
 func (s *Store) SetPublished(ctx context.Context, releaseID string, published bool) (Release, bool, error) {
 	from, to := "approved", "published"
 	if !published {
@@ -81,6 +82,10 @@ func (s *Store) SetPublished(ctx context.Context, releaseID string, published bo
 	}
 	var r Release
 	err := scanRelease(s.pool.QueryRow(ctx, `
+		WITH settled AS (
+			UPDATE release_publications SET live_at = COALESCE(live_at, now())
+			WHERE release_id = $1 AND EXISTS (SELECT 1 FROM releases WHERE id = $1 AND status = $2)
+		)
 		UPDATE releases SET status = $3, updated_at = now()
 		WHERE id = $1 AND status = $2
 		RETURNING `+releaseColumns, releaseID, from, to), &r)
