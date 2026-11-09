@@ -101,8 +101,10 @@ def main():
         body = {"system_prompt": prompt_text(team_dir, agent)}
         if agent.get("role_description"):
             body["role_description"] = agent["role_description"]
-        if agent.get("model"):  # без поля модель агента не трогаем: остаётся та, что задана в PolyMaths
-            body["model"] = agent["model"]
+        # Keep execution profiles reproducible; omitted fields retain the live value.
+        for field in ("model", "code_backend", "provider_kind", "reasoning_effort"):
+            if agent.get(field):
+                body[field] = agent[field]
         if agent["name"] in existing:
             print(f"  update {agent['name']}")
             agent_id = existing[agent["name"]]["id"]

@@ -17,7 +17,19 @@
       "role_description": "Как юрист возможного истца проверяет сценарий или готовый ролик по праву страны канала (countries/<cc>/legal.md) и редакционным правилам (policy.md): клевета, приватность, несовершеннолетние, уголовные дела, образ и голос, выборы, копирайт и музыка, раскрытие AI. Сдаёт law_report.",
       "skills": [
         "hub-access"
-      ]
+      ],
+      "code_backend": "claude-code",
+      "provider_kind": "anthropic_oauth",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "high",
+      "settings": {
+        "code_backend_settings": {
+          "model": "claude-opus-5-5",
+          "env": {
+            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+          }
+        }
+      }
     },
     {
       "name": "platform_reviewer",
@@ -26,7 +38,19 @@
       "role_description": "Как модератор Trust & Safety и ревьюер монетизации проверяет сценарий или готовый ролик по правилам каждой включённой площадки (platforms/<platform>/rules.md): правила сообщества, маркировка AI, монетизация, охват, копирайт и музыка, метаданные. Сдаёт platform_report.",
       "skills": [
         "hub-access"
-      ]
+      ],
+      "code_backend": "claude-code",
+      "provider_kind": "anthropic_oauth",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "high",
+      "settings": {
+        "code_backend_settings": {
+          "model": "claude-opus-5-5",
+          "env": {
+            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+          }
+        }
+      }
     },
     {
       "name": "legal_lead",
@@ -35,7 +59,19 @@
       "role_description": "Сводит law_report и platform_report в legal_review: ищет пропущенные риски на стыке текста, визуала и музыки, ставит итог по каждой площадке (pass / fix_required / exclude) и общий итог (pass / fix_required / kill), даёт правки с адресатом и сводку для модератора. Итог команды.",
       "skills": [
         "hub-access"
-      ]
+      ],
+      "code_backend": "claude-code",
+      "provider_kind": "anthropic_oauth",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "high",
+      "settings": {
+        "code_backend_settings": {
+          "model": "claude-opus-5-5",
+          "env": {
+            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+          }
+        }
+      }
     }
   ],
   "deactivate": [],

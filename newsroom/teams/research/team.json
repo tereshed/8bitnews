@@ -14,31 +14,91 @@
       "name": "fact_researcher",
       "role": "fact_researcher",
       "prompt": "fact_researcher.md",
-      "role_description": "Устанавливает, что известно по сюжету на текущий момент: атомарные факты F1..Fn со статусом (confirmed/disputed/unverified/false) и источниками, хронология, открытые вопросы. Сдаёт facts_report. Мнений не собирает."
+      "role_description": "Устанавливает, что известно по сюжету на текущий момент: атомарные факты F1..Fn со статусом (confirmed/disputed/unverified/false) и источниками, хронология, открытые вопросы. Сдаёт facts_report. Мнений не собирает.",
+      "code_backend": "claude-code",
+      "provider_kind": "anthropic_oauth",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "high",
+      "settings": {
+        "code_backend_settings": {
+          "model": "claude-opus-5-5",
+          "env": {
+            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+          }
+        }
+      }
     },
     {
       "name": "local_press_analyst",
       "role": "local_press_analyst",
       "prompt": "local_press_analyst.md",
-      "role_description": "Анализирует прессу страны канала по всему политическому спектру и группирует мнения внутри страны в 2–5 групп L1..Ln с представителями, цитатами и опросами. Сдаёт local_press_report."
+      "role_description": "Анализирует прессу страны канала по всему политическому спектру и группирует мнения внутри страны в 2–5 групп L1..Ln с представителями, цитатами и опросами. Сдаёт local_press_report.",
+      "code_backend": "claude-code",
+      "provider_kind": "anthropic_oauth",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "high",
+      "settings": {
+        "code_backend_settings": {
+          "model": "claude-opus-5-5",
+          "env": {
+            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+          }
+        }
+      }
     },
     {
       "name": "world_press_analyst",
       "role": "world_press_analyst",
       "prompt": "world_press_analyst.md",
-      "role_description": "Анализирует мировую прессу (4+ региона) и группирует взгляды на сюжет в 2–5 кластеров W1..Wn с отличием от спора внутри страны канала. Сдаёт world_press_report."
+      "role_description": "Анализирует мировую прессу (4+ региона) и группирует взгляды на сюжет в 2–5 кластеров W1..Wn с отличием от спора внутри страны канала. Сдаёт world_press_report.",
+      "code_backend": "claude-code",
+      "provider_kind": "anthropic_oauth",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "high",
+      "settings": {
+        "code_backend_settings": {
+          "model": "claude-opus-5-5",
+          "env": {
+            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+          }
+        }
+      }
     },
     {
       "name": "analyst",
       "role": "analyst",
       "prompt": "analyst.md",
-      "role_description": "Сводит facts_report, local_press_report и world_press_report в research_dossier и пишет аналитический обзор на языке канала (известно / мнения в стране / мнения в мире / неизвестно) со ссылками на F/L/W. Сдаёт research_dossier — итог команды."
+      "role_description": "Сводит facts_report, local_press_report и world_press_report в research_dossier и пишет аналитический обзор на языке канала (известно / мнения в стране / мнения в мире / неизвестно) со ссылками на F/L/W. Сдаёт research_dossier — итог команды.",
+      "code_backend": "claude-code",
+      "provider_kind": "anthropic_oauth",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "high",
+      "settings": {
+        "code_backend_settings": {
+          "model": "claude-opus-5-5",
+          "env": {
+            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+          }
+        }
+      }
     },
     {
       "name": "fact_checker",
       "role": "reviewer",
       "prompt": "fact_checker.md",
-      "role_description": "Ревьюер команды Research: проверяет research_dossier — опору каждого утверждения обзора, реальность источников и цитат, статусы фактов, баланс мнений, риски. Возвращает approved или changes_requested с замечаниями и адресатом."
+      "role_description": "Ревьюер команды Research: проверяет research_dossier — опору каждого утверждения обзора, реальность источников и цитат, статусы фактов, баланс мнений, риски. Возвращает approved или changes_requested с замечаниями и адресатом.",
+      "code_backend": "claude-code",
+      "provider_kind": "anthropic_oauth",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "high",
+      "settings": {
+        "code_backend_settings": {
+          "model": "claude-opus-5-5",
+          "env": {
+            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+          }
+        }
+      }
     }
   ],
   "deactivate": [

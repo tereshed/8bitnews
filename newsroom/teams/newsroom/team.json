@@ -17,13 +17,37 @@
       "role_description": "Выпускающий редактор: за последние 24 часа находит в источниках страны развивающиеся сюжеты с новым поворотом, отбирает один под редполитику канала (подтверждён, важен, уже есть реакции сторон, допустим по policy.md), сверяет с историей канала в hub, регистрирует поворот в hub и пишет story_brief с seed_sources. Нет подходящего сюжета — честно говорит об этом. В конце запуска сдаёт готовый ролик в hub (release_submit.py → release_receipt).",
       "skills": [
         "hub-access"
-      ]
+      ],
+      "code_backend": "claude-code",
+      "provider_kind": "anthropic_oauth",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "high",
+      "settings": {
+        "code_backend_settings": {
+          "model": "claude-opus-5-5",
+          "env": {
+            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+          }
+        }
+      }
     },
     {
       "name": "producer",
       "role": "producer",
       "prompt": "producer.md",
-      "role_description": "Выпускающий продюсер: запускает stage_report.py по delegation_result команды Research, Script, Legal, Video или QA и сдаёт неизменённые JSON и summary. Код проверяет привязку ревью к последнему артефакту, извлекает вердикты, UUID и адресатов доработок. Сам вердикты не интерпретирует."
+      "role_description": "Выпускающий продюсер: запускает stage_report.py по delegation_result команды Research, Script, Legal, Video или QA и сдаёт неизменённые JSON и summary. Код проверяет привязку ревью к последнему артефакту, извлекает вердикты, UUID и адресатов доработок. Сам вердикты не интерпретирует.",
+      "code_backend": "claude-code",
+      "provider_kind": "anthropic_oauth",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "high",
+      "settings": {
+        "code_backend_settings": {
+          "model": "claude-opus-5-5",
+          "env": {
+            "DEVTEAM_AGENT_REASONING_EFFORT": "high"
+          }
+        }
+      }
     }
   ],
   "deactivate": [],
