@@ -24,6 +24,9 @@ except ImportError:
     SSL_CONTEXT = ssl.create_default_context()
 
 SKILL_FILES = ("skills/hub-access/hub.env", "skills/studio-video/video.env")
+# How a Video run with no package tells Newsroom the script is what has to change: the first words of its final
+# answer. video_build.py writes them (`final_message.txt`), stage_report.py looks for them.
+SCRIPT_PROBLEM_PREFIX = "Сценарий не собирается:"
 
 
 def load_keys(*names: str) -> dict:

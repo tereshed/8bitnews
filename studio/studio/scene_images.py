@@ -5,17 +5,29 @@ For every `shot: scene` (and a `custom` cover): the prompt (`scene_prompt`)
 flags or seals, game elements, photorealism, gore, people the scene doesn't
 describe). A picture that fails is drawn again with the prohibition it broke
 stated harder, at most twice; if none passes, a neutral card (the channel
-logo on the template's colors) stands in and the package's notes say so, for
-QA and Legal. Extra people alone don't make a card: the first picture with
+logo on the template's colors) stands in, the package's notes say so, and the
+package fails its `picture_fallback` check (checks.py), so it goes back to
+Video without paying for QA. Extra people alone don't make a card: the first picture with
 nothing else wrong is kept, with a note. Every picture
 drawn, passed or not, and its check are kept in the package (`images/`).
 The frame engine snaps the accepted picture to the 270x480 grid and the
 template's NES palette like any scene asset.
+
+A rebuild (`--reuse-from`, newsroom/tools/video_build.py --reuse-package) takes
+a picture from the earlier package instead of paying for it when it was
+accepted, isn't named in `--redraw`, and the prompt it would be drawn from is
+word for word the prompt the earlier one was (`_earlier_matches`): that prompt
+holds everything that feeds the picture (the channel's style, the template's
+look, serious mode, the cleaned visual, the shot's frame), so scene ids may
+shift and anything else that changed means a redraw. Its bytes must still
+decode (`_reusable_picture`); the package's own checks run on it as on any.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -122,6 +134,13 @@ def check_findings(answer: dict) -> list[str]:
     return [k for k in FINDINGS if answer.get(k) is not False]
 
 
+def attempt_findings(attempts: list[dict]) -> list[str]:
+    """Why none of a picture's attempts passed: what the checks found, a refusal, an unusable image."""
+    return sorted({k for a in attempts for k in a.get("found", [])}
+                  | {"refused" for a in attempts if "refused" in a}
+                  | {"unusable image" for a in attempts if "unusable" in a})
+
+
 @dataclass
 class ImagesReport:
     model: str
@@ -167,6 +186,118 @@ def picture_jobs(script: dict) -> list[tuple[str, str, str]]:
     return jobs
 
 
+@dataclass
+class EarlierPictures:
+    """An earlier build of the video, for `--reuse-from`: the directory holding its package.json and
+    images/, what the images report calls it, and its `images.scenes`."""
+    dir: Path
+    package_id: str
+    scenes: list[dict]
+
+
+def load_earlier_pictures(directory: Path, package_id: str) -> tuple[EarlierPictures | None, str | None]:
+    """(what can be reused, None), or (None, why nothing can)."""
+    try:
+        scenes = json.loads((Path(directory) / "package.json").read_text())["images"]["scenes"]
+        if not all(isinstance(e, dict) and isinstance(e.get("id"), str) for e in scenes):
+            raise ValueError("a malformed images.scenes entry")
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        return None, f"{type(e).__name__}: {e}"[:200]
+    return EarlierPictures(Path(directory), package_id, scenes), None
+
+
+def _first_prompt(entry: dict) -> str | None:
+    """The prompt an earlier picture was first asked for with, before a redraw stated anything harder."""
+    if isinstance(entry.get("prompt"), str):  # taken from a build before that one: it has no attempts of its own
+        return entry["prompt"]
+    attempts = entry.get("attempts")
+    first = attempts[0] if isinstance(attempts, list) and attempts else None
+    return first.get("prompt") if isinstance(first, dict) else None
+
+
+def _earlier_matches(earlier: EarlierPictures | None, name: str, prompt: str, claimed: set[str]) -> list[dict]:
+    """The earlier pictures drawn from this very `prompt`: the scene's own if its id still holds it, else
+    any not yet taken (scene ids shift). A cover only ever matches a cover."""
+    if earlier is None:
+        return []
+    same = [e for e in earlier.scenes if (e["id"] == "cover") == (name == "cover") and _first_prompt(e) == prompt]
+    return [e for e in same if e["id"] == name] or [e for e in same if e["id"] not in claimed]
+
+
+def _reusable_picture(entry: dict, earlier: EarlierPictures) -> tuple[bytes | None, str | None]:
+    """(the picture's bytes, None), or (None, why it can't stand in this build). A record that can't be
+    read is not a pass: only a picture that passed its check, or was kept with nothing but `SOFT_FINDINGS`,
+    is taken, and only the very bytes that were checked."""
+    if entry.get("fallback") is not False:
+        return None, "it was a neutral card"
+    accepted = entry.get("accepted")
+    if not isinstance(accepted, str):
+        return None, "no accepted picture on record"
+    if "reused_from" not in entry:  # one taken from an even earlier build has its check on record there
+        attempts = entry.get("attempts")
+        attempt = next((a for a in attempts if isinstance(a, dict) and a.get("file") == accepted), None) \
+            if isinstance(attempts, list) else None
+        if attempt is None:
+            return None, "its accepted attempt is not on record"
+        check = attempt.get("check")
+        found = set(check_findings(check if isinstance(check, dict) else {}))
+        kept = entry.get("kept_with")
+        if found - (SOFT_FINDINGS & set(kept if isinstance(kept, list) else [])):
+            return None, f"its check found {', '.join(sorted(found))}"
+    root = earlier.dir.resolve()
+    final, source = (root / str(entry.get("file"))).resolve(), (root / accepted).resolve()
+    if not (final.is_relative_to(root) and source.is_relative_to(root)):
+        return None, "its file is outside the package"
+    try:
+        data = final.read_bytes()
+        if data != source.read_bytes():
+            return None, "its file is not the accepted attempt"
+    except OSError:
+        return None, "its file is missing"
+    reused = entry.get("reused_from")
+    if isinstance(reused, dict) and reused.get("sha256") and hashlib.sha256(data).hexdigest() != reused["sha256"]:
+        return None, "its file is not the picture on record"
+    size = _image_size(data)
+    if size is None or min(size) < MIN_PICTURE_PX:
+        return None, f"its file is unusable: image {size}"
+    return data, None
+
+
+def _take_earlier(matches: list[dict], earlier: EarlierPictures | None) -> tuple[dict | None, bytes | None, str]:
+    """The first of `matches` that can stand in and its bytes, else (None, None, why none can)."""
+    why = "its prompt changed"
+    for entry in matches:
+        data, why = _reusable_picture(entry, earlier)
+        if data is not None:
+            return entry, data, ""
+    return None, None, why
+
+
+def _reused_entry(name: str, prompt: str, taken: dict, data: bytes, earlier: EarlierPictures, report: "ImagesReport") -> dict:
+    """The images report's record of a picture taken from `earlier`: nothing attempted, nothing paid, and
+    enough for the next rebuild to take it again or to redraw past it."""
+    entry = {"id": name, "file": f"images/{name}.png", "fallback": False, "accepted": f"images/{name}.png",
+             "prompt": prompt, "attempts": [],
+             "reused_from": {"package": earlier.package_id, "scene": taken["id"],
+                             "sha256": hashlib.sha256(data).hexdigest(), "variants_used": _variants_used(taken)}}
+    if taken.get("kept_with"):
+        entry["kept_with"] = taken["kept_with"]
+        report.notes.append(f"{name}: the reused picture was kept in {earlier.package_id} with findings: "
+                            f"{', '.join(str(k) for k in taken['kept_with'])}")
+    return entry
+
+
+def _variants_used(entry: dict) -> int:
+    """How many generator variants of this prompt the earlier builds used: a redraw goes past them,
+    since the provider's cache would hand back the very picture that was rejected."""
+    reused = entry.get("reused_from")
+    if isinstance(reused, dict) and isinstance(reused.get("variants_used"), int):
+        return reused["variants_used"]
+    attempts = entry.get("attempts")
+    used = [a.get("variant", a.get("n")) for a in attempts if isinstance(a, dict)] if isinstance(attempts, list) else []
+    return max((v for v in used if isinstance(v, int)), default=-1) + 1
+
+
 def generate_scene_images(
     script: dict,
     template: TemplatePackage,
@@ -175,11 +306,15 @@ def generate_scene_images(
     client: OpenRouterClient,
     model: str = DEFAULT_MODEL,
     check_model: str = DEFAULT_CHECK_MODEL,
+    earlier: EarlierPictures | None = None,
+    redraw: Collection[str] = (),
 ) -> tuple[Path, ImagesReport]:
     """Writes <out>/images/<scene>.png for every scene shot (and cover.png for
     a custom cover) -- the directory `build` then reads scene art from -- plus
     every attempt under images/attempts/. Returns that directory and the
-    report for package.json."""
+    report for package.json. `earlier`: a package whose accepted pictures
+    stand in where nothing that feeds them changed; `redraw` (`--redraw`):
+    picture names, in this script or the earlier package, never taken from it."""
     style = load_style(channel_id)
     images_dir = Path(out_dir) / "images"
     if images_dir.exists():
@@ -194,6 +329,9 @@ def generate_scene_images(
     everyone = sorted({p for s in script["scenes"] for p in s.get("real_people", [])})
     screen = template.data["studio"]["screen"]
     screen_aspect = "4:5" if screen["w"] / screen["h"] <= 0.9 else ("1:1" if screen["w"] / screen["h"] <= 1.15 else "5:4")
+    claimed: set[str] = set()
+    reused_names: list[str] = []
+    drawn_again: list[str] = []
     for name, visual, kind in jobs:
         cleaned = clean_visual(visual, everyone)
         # clean_visual's job; this is the last line before the network. Only the scene text comes from the
@@ -205,23 +343,39 @@ def generate_scene_images(
         attempts: list[dict] = []
         accepted = None
         aspect = screen_aspect if kind == "screen" else "9:16"
+        first_prompt = scene_prompt(style, template, cleaned, stronger, serious, screen=kind == "screen", aspect=aspect)
+        matches = _earlier_matches(earlier, name, first_prompt, claimed)
+        requested = name in redraw or any(e["id"] in redraw for e in matches)
+        taken, data, why_not = (None, None, "named in --redraw") if requested else _take_earlier(matches, earlier)
+        if taken is not None:
+            (images_dir / f"{name}.png").write_bytes(data)
+            claimed.add(taken["id"])
+            reused_names.append(name)
+            report.scenes.append(_reused_entry(name, first_prompt, taken, data, earlier, report))
+            continue
+        if earlier is not None:
+            drawn_again.append(f"{name} ({why_not})")
+        # 0 for a first build, as ever. A prompt asked before starts past what was asked: past MAX_REDRAWS when
+        # the earlier record is gone, so a redraw never gets the rejected picture back from the provider's cache.
+        first_variant = max(map(_variants_used, matches)) if matches else (1 + MAX_REDRAWS if requested else 0)
         for n in range(1 + MAX_REDRAWS):
             prompt = scene_prompt(style, template, cleaned, stronger, serious, screen=kind == "screen", aspect=aspect)
+            variant = {"variant": first_variant + n} if first_variant else {}
             try:
-                reply = client.generate_image(model, prompt, aspect, variant=n)
+                reply = client.generate_image(model, prompt, aspect, variant=first_variant + n)
             except NoImageError as e:
-                attempts.append({"n": n, "prompt": prompt, "refused": str(e)[:300], "cost_usd": round(e.cost_usd, 4)})
+                attempts.append({"n": n, **variant, "prompt": prompt, "refused": str(e)[:300], "cost_usd": round(e.cost_usd, 4)})
                 continue
             rel = f"images/attempts/{name}-{n}.png"
             (Path(out_dir) / rel).write_bytes(reply.png)
             size = _image_size(reply.png)
             if size is None or min(size) < MIN_PICTURE_PX:
-                attempts.append({"n": n, "prompt": prompt, "file": rel, "unusable": f"image {size}",
+                attempts.append({"n": n, **variant, "prompt": prompt, "file": rel, "unusable": f"image {size}",
                                  "cost_usd": round(reply.cost_usd, 4)})
                 continue
             check = client.ask_json(check_model, CHECK_PROMPT + _sentence(cleaned), (reply.png,))
             found = check_findings(check.data)
-            attempts.append({"n": n, "prompt": prompt, "file": rel, "check": check.data, "found": found,
+            attempts.append({"n": n, **variant, "prompt": prompt, "file": rel, "check": check.data, "found": found,
                              "cost_usd": round(reply.cost_usd + check.cost_usd, 4)})
             if not found:
                 accepted = rel
@@ -229,11 +383,11 @@ def generate_scene_images(
             stronger = list(dict.fromkeys(stronger + [FINDINGS[k] for k in found]))
         target = images_dir / f"{name}.png"
         entry = {"id": name, "file": f"images/{name}.png"}
+        if requested:
+            entry["redraw_requested"] = True
         if not accepted:
             what = f"{name} screen behind the anchor" if kind == "screen" else name
-            found_all = sorted({k for a in attempts for k in a.get("found", [])}
-                               | {"refused" for a in attempts if "refused" in a}
-                               | {"unusable image" for a in attempts if "unusable" in a})
+            found_all = attempt_findings(attempts)
             failed = f"{what}: no generated picture passed the check after {len(attempts)} attempt(s) ({', '.join(found_all)})"
             soft = next((a for a in attempts if a.get("found") and set(a["found"]) <= SOFT_FINDINGS), None)
             if soft:
@@ -250,4 +404,8 @@ def generate_scene_images(
         else:
             fallback_card(template, logo).save(target)
         report.scenes.append({**entry, "fallback": accepted is None, "accepted": accepted, "attempts": attempts})
+    if earlier is not None:
+        report.notes.append(f"{len(reused_names)} of {len(jobs)} picture(s) reused from {earlier.package_id}, unchanged, "
+                            f"without a new check or cost: {', '.join(reused_names) or 'none'}; drawn again: "
+                            f"{', '.join(drawn_again) or 'none'}")
     return images_dir, report

@@ -15,6 +15,7 @@ import math
 import shutil
 import sys
 import wave
+from collections.abc import Collection
 from pathlib import Path
 
 import jsonschema
@@ -297,6 +298,33 @@ def _render_cover(
     return {"frame": script["cover"]["frame"], "layout": layout, "picture": source}
 
 
+def resolve_redraw(script: dict, redraw: Collection[str]) -> tuple[set[str], list[str]]:
+    """`--redraw` names -> the pictures to draw again (`scene_images.picture_jobs`), and notes on any name
+    that isn't one. A remark on the cover or on an anchor shot is about the picture it shows: for a cover
+    without its own, the scene's (`_cover_picture_id`); on an anchor shot without its own, the next scene
+    shot's (engine._render_anchor_shot). A name that isn't in this script stays: it may be a scene id of the
+    earlier package, before Script moved the scenes."""
+    from .scene_images import picture_jobs
+
+    drawn = {name for name, _visual, _kind in picture_jobs(script)}
+    names, notes = set(redraw), []
+    for name in sorted(set(redraw) - drawn):
+        scene = next((s for s in script["scenes"] if s["id"] == name), None)
+        if name == "cover":
+            shown = _cover_picture_id(script, drawn.__contains__)
+        elif scene is not None:
+            following = _next_scene_shot(script, name)
+            shown = following["id"] if following else None
+        else:
+            continue
+        if shown in drawn:
+            names.add(shown)
+            notes.append(f"--redraw {name}: it shows {shown}'s picture, which is drawn again")
+        else:
+            notes.append(f"--redraw {name}: it shows no drawn picture, so there is nothing to draw again")
+    return names, notes
+
+
 def _keyframe_targets(template: TemplatePackage, timeline: Timeline, n_frames: int) -> dict[int, list[tuple[str, str]]]:
     """Frame index -> list of (scene_id, kind) keyframes to also save at
     that index: the first frame after the scene's transition ends, and the
@@ -331,6 +359,7 @@ def _assemble_package(
     channel_profile: dict,
     extra_notes: list[str],
     anchor: dict,
+    images: dict | None = None,
 ) -> dict:
     total_words = 0
     total_span = 0.0
@@ -395,6 +424,8 @@ def _assemble_package(
         "disclosures": disclosures,
         "notes": extra_notes,
     }
+    if images is not None:  # before the checks: picture_fallback reads it
+        package["images"] = images
     package["validate"] = run_checks(out_dir, package, channel_profile)
     return package
 
@@ -446,6 +477,10 @@ def build_package(
     images: str | None = None,
     image_client=None,
     cover_layout: str = "bottom",
+    reuse_from: Path | None = None,
+    reuse_package_id: str | None = None,
+    redraw: Collection[str] = (),
+    notes: Collection[str] = (),
 ) -> Path:
     """`keep_work` keeps frames/ (every rendered logical frame) after the
     build for debugging; by default it is deleted once nothing needs it.
@@ -454,6 +489,11 @@ def build_package(
     `images="openrouter"`: draw the scene pictures with the image provider
     (studio.scene_images) instead of reading them from `assets_dir`;
     `image_client` replaces the OpenRouter client (tests).
+    `reuse_from`: the directory of an earlier package of this video (its
+    package.json and images/; `reuse_package_id` is how the report names it),
+    whose accepted pictures stand in where nothing that feeds them changed
+    (studio.scene_images), except those `redraw` names; an unreadable one
+    means every picture is drawn, with a note. `notes`: added to package.notes.
     `cover_layout`: where the cover title's plate goes, "bottom" or "top"
     (`studio pick` alternates them).
     `music_file`/`music_track`: see `studio.music.choose_music`;
@@ -492,19 +532,28 @@ def build_package(
     audio_cfg = audio_settings(audio_overrides)
 
     images_report = None
+    if images is None and (reuse_from is not None or redraw):
+        raise BuildError("--reuse-from and --redraw are about drawn pictures: they need --images")
     if images is not None:
         if images != "openrouter":
             raise BuildError(f"--images {images!r}: the only image provider is 'openrouter'")
         if assets_dir is not None:
             raise BuildError("--images and --assets both give the scene pictures: pass one")
         from .openrouter import OpenRouterClient
-        from .scene_images import generate_scene_images
+        from .scene_images import generate_scene_images, load_earlier_pictures
 
         cfg = image_settings()
+        earlier, unreadable = (None, None) if reuse_from is None else load_earlier_pictures(
+            reuse_from, reuse_package_id or str(reuse_from))
+        redraw_names, redraw_notes = resolve_redraw(script, redraw)
         assets_dir, images_report = generate_scene_images(
             script, template, channel_id, out_dir, image_client or OpenRouterClient(),
-            model=cfg["model"], check_model=cfg["check_model"],
+            model=cfg["model"], check_model=cfg["check_model"], earlier=earlier, redraw=redraw_names,
         )
+        if unreadable:
+            images_report.notes.append(f"the earlier package's pictures can't be reused ({unreadable}): every picture "
+                                       "was drawn again")
+        images_report.notes.extend(redraw_notes)
 
     tts_name_resolved = _resolve_tts_name(tts_name, channel_profile)
     # Each anchor speaks with its own voice (format.md, 'Ведущие').
@@ -518,7 +567,7 @@ def build_package(
     pause_s = template.data.get("timing", {}).get("scene_pause_s", 0.3)
 
     pronunciations = script.get("pronunciations", [])
-    extra_notes = list(anchor_notes)
+    extra_notes = list(notes) + anchor_notes
     for text in unused_pronunciations([s["narration"] for s in script["scenes"]], pronunciations):
         note = (
             f"pronunciation hint {text!r} matched no narration word and was not applied "
@@ -679,9 +728,8 @@ def build_package(
         channel_profile=channel_profile,
         extra_notes=extra_notes,
         anchor={"id": anchor_id, "chosen_by": chosen_by},
+        images=images_report.to_package() if images_report is not None else None,
     )
-    if images_report is not None:
-        package["images"] = images_report.to_package()
 
     schema = repo.load_contract_schema("video_package.schema.json")
     validator = jsonschema.Draft202012Validator(schema)

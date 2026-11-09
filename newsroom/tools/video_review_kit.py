@@ -11,7 +11,7 @@
 просмотр нужно вчетверо меньше. Инструмент проверяет это на каждом кадре; кадр вне сетки остаётся как есть
 (`full_size_images` в сводке).
 В stdout — `video_package_id` (id артефакта, который ты смотришь: впиши его в свой отчёт), список скачанного и короткая
-сводка пакета: длительность, шаблон, ведущий, трек, проверки студии, заметки. Папка `--out` очищается перед скачиванием.
+сводка пакета: длительность, шаблон, ведущий, трек, проверки студии, заметки, картинки из прошлой сборки. Папка `--out` очищается перед скачиванием.
 Открывай картинки инструментом чтения файлов: так ты их видишь.
 """
 from __future__ import annotations
@@ -40,7 +40,7 @@ def compact(package: dict) -> dict:
         return next((a for a in scene.get("attempts") or [] if a.get("file") == scene.get("accepted")), {})
 
     scenes = [{"id": s.get("id"), "file": s.get("file"), "accepted": s.get("accepted"), "fallback": s.get("fallback"),
-               "kept_with": s.get("kept_with"), "attempts": len(s.get("attempts") or []),
+               "kept_with": s.get("kept_with"), "reused_from": s.get("reused_from"), "attempts": len(s.get("attempts") or []),
                "found": kept(s).get("found", [])} for s in images.get("scenes") or []]
     return {**package, "images": {**{k: v for k, v in images.items() if k != "scenes"}, "scenes": scenes}}
 
@@ -103,6 +103,8 @@ def main() -> int:
         "studio_checks_passed": package.get("validate", {}).get("passed"),
         "failed_checks": failed,
         "notes": package.get("notes", []),
+        "reused_pictures": {s["id"]: s["reused_from"] for s in (package.get("images") or {}).get("scenes", [])
+                            if s.get("reused_from")},
         "scenes": [{"id": s["id"], "keyframes": [k["path"] for k in s.get("keyframes", [])],
                     "real_people": s.get("real_people", []), "ai_label_shown": s.get("ai_label_shown")}
                    for s in package.get("scenes", [])],

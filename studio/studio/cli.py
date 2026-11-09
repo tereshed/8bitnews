@@ -53,6 +53,10 @@ def _cmd_build(args: argparse.Namespace) -> int:
             anchor_id=args.anchor,
             images=args.images,
             cover_layout=args.cover_layout,
+            reuse_from=Path(args.reuse_from) if args.reuse_from else None,
+            reuse_package_id=args.reuse_package_id,
+            redraw=[name for name in (args.redraw or "").split(",") if name],
+            notes=args.note,
         )
     except (BuildError, RepoRootNotSet, FileNotFoundError) as e:
         print(f"build failed: {e}", file=sys.stderr)
@@ -147,7 +151,8 @@ def _cmd_pick(args: argparse.Namespace) -> int:
         if isinstance(recent, dict):  # hub releases_recent's answer, with each release's status
             recent, cover_recent = recent_from_hub(recent)
         exclude = json.loads(Path(args.exclude).read_text()) if args.exclude else {}
-        result = pick(script, profile, recent, exclude=exclude, cover_recent=cover_recent)
+        keep = json.loads(Path(args.keep).read_text()) if args.keep else None
+        result = pick(script, profile, recent, exclude=exclude, cover_recent=cover_recent, keep=keep)
     except (BuildError, RepoRootNotSet, FileNotFoundError, json.JSONDecodeError, AttributeError, TypeError) as e:
         print(f"pick failed: {e}", file=sys.stderr)
         return 1
@@ -193,6 +198,14 @@ def build_parser() -> argparse.ArgumentParser:
                               "instead of reading them from --assets")
     p_build.add_argument("--cover-layout", default="bottom", choices=COVER_LAYOUTS,
                          help="where the cover title's plate goes (studio pick alternates them); default: bottom")
+    p_build.add_argument("--reuse-from", default=None,
+                         help="directory of an earlier package of this video (package.json, images/): its accepted "
+                              "pictures stand in where nothing that feeds them changed; needs --images")
+    p_build.add_argument("--reuse-package-id", default=None, help="what images.scenes[].reused_from calls that package")
+    p_build.add_argument("--redraw", default=None,
+                         help="comma-separated pictures (scene ids, cover) not to take from --reuse-from; a neutral "
+                              "card on one of them fails the picture_fallback_redrawn check")
+    p_build.add_argument("--note", action="append", default=[], help="a line for package.notes (repeatable)")
     p_build.set_defaults(func=_cmd_build)
 
     music = sub.add_parser("music", help="music helpers")
@@ -232,6 +245,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_pick.add_argument("--channels-dir", default=None)
     p_pick.add_argument("--recent", default=None, help="hub releases_recent's answer, or a JSON list of package.json, newest first")
     p_pick.add_argument("--exclude", default=None, help='JSON file {"anchor": [...], "template": [...], "music_track": [...]} to leave out')
+    p_pick.add_argument("--keep", default=None,
+                        help="JSON file with an earlier package's choices (template, anchor, music_track, cover_layout, "
+                             "package_archive): each stays unless excluded or no longer valid")
     p_pick.set_defaults(func=_cmd_pick)
 
     p_pkg_validate = sub.add_parser("validate", help="run studio validate's checks against a built package")

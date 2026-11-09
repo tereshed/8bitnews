@@ -20,6 +20,7 @@ def test_all_checks_pass_on_the_freshly_built_package(built_package, test_channe
         "package_schema", "template_valid", "keyframes_grid", "ai_label", "face_clear",
         "video_matches_keyframes", "no_black_frames", "disclosures",
         "loudness", "true_peak", "silence", "music_under_voice", "video_no_music",
+        "picture_fallback", "picture_fallback_redrawn",
     }
     assert all(c["ok"] for c in package["validate"]["checks"])
 
@@ -578,3 +579,40 @@ def test_template_valid_fails_when_the_copy_is_another_template(built_package, t
     check = _check(built_package, test_channels_dir, corrupt_copy, "template_valid", corrupt)
     assert check["ok"] is False
     assert "package says 'night-report'" in check["note"]
+
+
+def _picture_checks(scenes):
+    from pathlib import Path
+
+    from studio.checks import CHECKS
+
+    package = {} if scenes is None else {"images": {"scenes": scenes}}
+    return {check_id: CHECKS[check_id](Path("."), package, {}) for check_id in ("picture_fallback", "picture_fallback_redrawn")}
+
+
+def _card(scene_id, *found, **extra):
+    return {"id": scene_id, "file": f"images/{scene_id}.png", "fallback": True, "accepted": None, **extra,
+            "attempts": [{"n": 0, "found": list(found)}, {"n": 1, "refused": "no"}, {"n": 2, "unusable": "image None"}]}
+
+
+def test_no_drawn_pictures_and_no_cards_pass_the_picture_checks():
+    for scenes in (None, [], [{"id": "S1", "fallback": False, "attempts": []}]):
+        assert all(c["ok"] for c in _picture_checks(scenes).values())
+
+
+def test_a_card_fails_picture_fallback_with_every_scene_and_what_was_found():
+    checks = _picture_checks([_card("S2", "text"), _card("cover", "flags_or_seals", "extra_people"),
+                              {"id": "S3", "fallback": False, "attempts": []}])
+    assert checks["picture_fallback_redrawn"]["ok"]
+    check = checks["picture_fallback"]
+    assert not check["ok"] and check["value"] == 2
+    assert "S2 (3 attempt(s): refused, text, unusable image)" in check["note"]
+    assert "cover (3 attempt(s): extra_people, flags_or_seals, refused, unusable image)" in check["note"]
+
+
+def test_a_card_on_a_picture_named_in_redraw_is_a_check_of_its_own():
+    checks = _picture_checks([_card("S2", "text", redraw_requested=True), _card("S5", "logos")])
+    assert not checks["picture_fallback_redrawn"]["ok"] and "S2 (" in checks["picture_fallback_redrawn"]["note"]
+    assert "S5" not in checks["picture_fallback_redrawn"]["note"]
+    assert not checks["picture_fallback"]["ok"] and "S5 (" in checks["picture_fallback"]["note"]
+    assert "S2" not in checks["picture_fallback"]["note"]

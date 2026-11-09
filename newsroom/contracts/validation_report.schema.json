@@ -85,7 +85,7 @@
           },
           "scene_id": {
             "type": "string",
-            "description": "S1, S2, ...; empty for the whole video"
+            "description": "S1, S2, ..., or cover for the cover's picture; empty for the whole video"
           },
           "keyframe": {
             "type": "string",

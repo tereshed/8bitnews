@@ -550,8 +550,27 @@ vp = schema("video_package",
                             "id": {"type": "string", "minLength": 1, "description": "Scene id, or 'cover' for a custom cover"},
                             "file": str1,
                             "fallback": {"type": "boolean",
-                                         "description": "true: no attempt passed the check and a neutral card stands in"},
+                                         "description": "true: no attempt passed the check and a neutral card stands "
+                                                        "in; the checks picture_fallback or picture_fallback_redrawn fail"},
                             "accepted": {"type": ["string", "null"]},
+                            "prompt": {"type": "string",
+                                       "description": "A reused picture: the prompt it answers, which the next "
+                                                      "rebuild compares (a drawn one has it in attempts[0])"},
+                            "reused_from": {"type": "object", "required": ["package", "scene", "sha256"],
+                                            "description": "The picture is the earlier package's, unchanged, with no new "
+                                                           "generator call: attempts is empty and it costs nothing. "
+                                                           "Absent when it was drawn for this build.",
+                                            "properties": {
+                                                "package": {"type": "string", "minLength": 1,
+                                                            "description": "video_package id (or path) it came from"},
+                                                "scene": {"type": "string", "minLength": 1,
+                                                          "description": "Its id there: scene ids can shift"},
+                                                "sha256": {"type": "string", "minLength": 1},
+                                                "variants_used": {"type": "integer", "minimum": 0,
+                                                                  "description": "Generator variants already asked for "
+                                                                                 "this prompt: a redraw goes past them"}}},
+                            "redraw_requested": {"type": "boolean",
+                                                 "description": "true: named in --redraw (or its earlier picture was)"},
                             "kept_with": {"type": "array", "items": {"type": "string"},
                                           "description": "No attempt passed, and the kept one still has these "
                                                          "findings: only extra_people, people the scene doesn't "
@@ -570,7 +589,11 @@ vp = schema("video_package",
      "pick": {"type": "object", "description": "What studio pick chose against the channel's last videos, and why",
               "properties": {"template": str1, "anchor": str1, "music_track": {"type": ["string", "null"]},
                              "music_key": {"type": ["string", "null"]}, "cover_layout": cover_layout,
-                             "reasons": {"type": "object"}}}},
+                             "excluded": {"type": "object",
+                                          "description": "What reviewers rejected on the way to this build: a rebuild keeps excluding it"},
+                             "reasons": {"type": "object"},
+                             "notes": {"type": "array", "items": str1,
+                                       "description": "What a rebuild could not keep from its earlier package, and why"}}}},
     {"media": media, "vscene": vscene, "vmusic": vmusic})
 vp["allOf"] = [
     {"if": {"required": ["duration_s", "music"],
@@ -597,7 +620,7 @@ schemas["validation_report"] = schema("validation_report",
              "id": {"type": "string", "pattern": "^Q[0-9]+$"},
              "severity": {"enum": ["blocker", "major", "minor"]},
              "area": {"enum": ["technical", "format", "policy", "visual", "text", "audio", "metadata"]},
-             "scene_id": {"type": "string", "description": "S1, S2, ...; empty for the whole video"},
+             "scene_id": {"type": "string", "description": "S1, S2, ..., or cover for the cover's picture; empty for the whole video"},
              "keyframe": {"type": "string", "description": "Keyframe it is seen on, e.g. S3_mid"},
              "finding": str1,
              "fix_owner": {"enum": ["script", "video"],

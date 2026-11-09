@@ -6,7 +6,12 @@ import argparse
 import json
 from pathlib import Path
 
-from hublib import artifact, artifact_details
+from hublib import SCRIPT_PROBLEM_PREFIX, artifact, artifact_details
+
+# Studio checks only a change to the script can pass: the words don't fit the channel's length, or a picture
+# named in --redraw became a neutral card again. Any other failed check is Video's.
+SCRIPT_CHECKS = ("duration", "picture_fallback_redrawn")
+NOTES_IN_SUMMARY = 1500  # characters: the router sees only the summary, and rule 8 hands these notes to Script
 
 
 def build_report(result_id: str, delegation: dict, fetch=artifact, fetch_details=artifact_details) -> dict:
@@ -21,7 +26,7 @@ def build_report(result_id: str, delegation: dict, fetch=artifact, fetch_details
     kind = {"Research": "research_dossier", "Script": "script", "Video": "video_package",
             "QA": "validation_report", "Legal": "legal_review"}[team]
     if kind not in ids:
-        if team == "Video" and delegation.get("summary", "").startswith("Сценарий не собирается:"):
+        if team == "Video" and delegation.get("summary", "").strip().lstrip("\"'«`* ").startswith(SCRIPT_PROBLEM_PREFIX):
             report.update(verdict="fail", fix_owners={"script": ["studio"]}, notes=[delegation["summary"]])
         return report
     if team in ("Research", "Script"):
@@ -45,7 +50,7 @@ def build_report(result_id: str, delegation: dict, fetch=artifact, fetch_details
         failed = [check for check in validation["checks"] if not check["ok"]]
         report["verdict"] = "built" if validation["passed"] and not failed and validation["checks"] else "fail"
         for check in failed:
-            fix("script" if check["id"] == "duration" else "video", check["id"])
+            fix("script" if check["id"] in SCRIPT_CHECKS else "video", check["id"])
             report["notes"].append(f"{check['id']}: {check.get('note', '')}")
         if report["verdict"] == "fail" and not failed:
             fix("video", "inconsistent_validation")
@@ -79,7 +84,10 @@ def summary(report: dict) -> str:
     ids = ", ".join(f"{kind}={value}" for kind, value in sorted(report["artifacts"].items()))
     fixes = ", ".join(f"{owner}=[{','.join(ids)}]" for owner, ids in sorted(report["fix_owners"].items()))
     platforms = ", ".join(f"{name}={verdict}" for name, verdict in sorted(report.get("platforms", {}).items()))
-    return f"{team} {report['state']}: {report['verdict']}. ids: {ids}. fix: {fixes}. platforms: {platforms}"
+    line = f"{team} {report['state']}: {report['verdict']}. ids: {ids}. fix: {fixes}. platforms: {platforms}"
+    if report["team"] == "Video" and report["verdict"] == "fail" and report["notes"]:
+        line += f". notes: {' | '.join(report['notes'])[:NOTES_IN_SUMMARY]}"
+    return line
 
 
 def main():
