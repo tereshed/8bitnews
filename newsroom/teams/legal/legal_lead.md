@@ -27,8 +27,11 @@
 
 При повторном челлендже сверь замечания с прошлым `legal_review`: закрытые не переноси, незакрытые оставь с теми же ID.
 
-**Проверка по изменениям.** Во входе `delta: true`, а `law_report` и `platform_report` нет: сценарий доработан, и Legal
-проверяет только правку, это делаешь ты один.
+**Поля привязки.** В `legal_review` всегда пиши `script` — id сценария, который ты проверил. В режиме `final` ещё `law_report` и
+`platform_report` — id двух отчётов. Без них контракт и `release_submit.py` ревью не примут.
+
+**Проверка по изменениям.** Только `mode: script`: во входе `delta: true`, а `law_report` и `platform_report` нет. Сценарий
+доработан, и Legal проверяет только правку, это делаешь ты один. Инструмент упал — сдай `legal_review` как в конце п. 3.
 1. Из корня репозитория: `python3 newsroom/tools/script_diff.py --old <previous_script> --new <id script> --review <previous_legal_review>`.
 2. `must_escalate: true` — решение уже принято кодом, сам не проверяй и не спорь с ним. Сдай `legal_review` из файла
    `escalation_file` без изменений, summary возьми дословно из поля `summary`. Роутер запустит всю команду.
@@ -36,10 +39,13 @@
    выжимка, сработавший раздел полной базы. По каждому замечанию из `previous_issues` реши, закрыто ли оно: незакрытое оставь с
    тем же ID. `platforms`, `required_disclosures`, `publish_notes` и `final_checks` возьми из `carry_over`, поправь то, что
    изменила правка, и не теряй `СТОП:` в `publish_notes`. В `notes` напиши `delta review against <id>`.
-   Правка несёт риск, который ты не можешь оценить по изменениям, — сдай `legal_review` как в п. 2: `verdict: fix_required`,
-   замечание `X0` с `fix_owner: script`, summary начни с `ПОЛНАЯ ПРОВЕРКА:` и назови причину.
+   Правка несёт риск, который ты не можешь оценить по изменениям, — сдай `legal_review`: `verdict: fix_required`, замечание `X0`
+   с `fix_owner: editor`, summary и `summary_ru` начни с `ПОЛНАЯ ПРОВЕРКА:` и назови причину.
 
-**Режим final.** Первым шагом запусти `legal_final_scope.py` (`_common`): при `scope: new_only` отчёты покрывают только то, чего
-в сценарии не было видно, и твой стык — кадр, музыка и обложка рядом с текстом, уже прошедшим Legal.
+**Режим final.** Нет обоих отчётов — `legal_review` не сдавай, заверши прогон ошибкой: одного тебя для готового ролика мало.
+Запусти `legal_final_scope.py` (`_common`). При `scope: new_only` отчёты покрывают только то, чего в сценарии не было видно, и
+твой стык — кадр, музыка и обложка рядом с текстом, уже прошедшим Legal. Перенеси `carry_over` в итоговый `legal_review`, это его
+больше никто не повторит: все `publish_notes` с `СТОП:` дословно, `required_disclosures`, а площадка из `excluded_platforms`
+остаётся `exclude`.
 
 Сдай `legal_review`.

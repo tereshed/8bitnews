@@ -24,7 +24,7 @@ def script(*scenes, **fields):
             **fields}
 
 
-REVIEW = {"mode": "script", "channel_id": "8bitnews-us", "country": "US", "verdict": "pass",
+REVIEW = {"mode": "script", "channel_id": "8bitnews-us", "country": "US", "verdict": "pass", "script": "a",
           "platforms": {"youtube": {"verdict": "pass"}}, "issues": [{"id": "R1", "severity": "low", "fix_owner": "script"}],
           "required_disclosures": [], "publish_notes": ["СТОП: проверь исход голосования"], "final_checks": ["AI label"]}
 OLD_META = {"id": "a", "created_at": "2026-11-09T10:00:00Z"}
@@ -85,22 +85,37 @@ def test_doubt_about_which_version_was_reviewed_goes_to_the_whole_team(old_meta,
     assert run(script(), script(), review, old_meta, new_meta, review_meta)["must_escalate"] is True
 
 
+def test_reordering_or_removing_a_scene_goes_to_the_whole_team():
+    # moving an allegation next to a person, or deleting a denial, changes the meaning with no text edited
+    a, b, c = scene("S1"), scene("S2"), scene("S3")
+    assert run(script(a, b, c), script(a, c, b))["must_escalate"] is True
+    assert run(script(a, b, c), script(a, c))["must_escalate"] is True
+
+
+def test_a_diff_cannot_build_on_an_escalation_or_on_a_review_of_another_version():
+    held = escalation(REVIEW, ["новые цифры: 7"], "a")
+    assert run(script(), script(), held)["must_escalate"] is True
+    assert run(script(), script(), {**REVIEW, "script": "z"})["must_escalate"] is True
+    assert run(script(), script(), {k: v for k, v in REVIEW.items() if k != "script"})["must_escalate"] is True
+
+
 def test_escalation_review_holds_the_video_and_satisfies_the_contract():
     jsonschema = pytest.importorskip("jsonschema")
-    doc = escalation(REVIEW, ["новые цифры: 7"])
+    doc = escalation(REVIEW, ["новые цифры: 7"], "b")
     jsonschema.validate(doc, json.loads((ROOT / "newsroom/contracts/legal_review.schema.json").read_text()))
     assert doc["verdict"] == "fix_required"
-    assert doc["issues"][0]["fix_owner"] == "script"  # never "none": that route would send the script to Video
+    assert doc["issues"][0]["fix_owner"] == "editor"  # "none" or "video" would send the script to Video
+    assert doc["script"] == "b" and doc["summary_ru"].startswith(ESCALATE_PREFIX)
     assert doc["publish_notes"] == REVIEW["publish_notes"]
     assert ESCALATE_PREFIX == "ПОЛНАЯ ПРОВЕРКА:"
 
 
-def test_stage_report_keeps_an_escalation_out_of_video():
+def test_stage_report_stops_for_a_human_if_a_router_closes_on_an_escalation():
     from stage_report import build_report
 
     delegation = {"team": "Legal", "state": "done", "artifacts": [{"kind": "legal_review", "id": "r2"}]}
-    report = build_report("d", delegation, fetch=lambda _id, _kind: escalation(REVIEW, ["x"]))
-    assert report["verdict"] == "fix_required" and report["fix_owners"] == {"script": ["X0"]}
+    report = build_report("d", delegation, fetch=lambda _id, _kind: escalation(REVIEW, ["x"], "b"))
+    assert report["verdict"] == "fix_required" and report["fix_owners"] == {"editor": ["X0"]}
 
 
 PACKAGE = {"script": "a"}
@@ -108,7 +123,14 @@ FINAL_REVIEW = {"id": "r", "created_at": REVIEW_META["created_at"], "content": R
 
 
 def test_final_looks_only_at_what_is_new_when_the_reviewed_script_was_built():
-    assert final_scope(OLD_META, FINAL_REVIEW, PACKAGE) == {"scope": "new_only", "reasons": []}
+    result = final_scope(OLD_META, FINAL_REVIEW, PACKAGE)
+    assert (result["scope"], result["reasons"]) == ("new_only", [])
+
+
+def test_final_hands_on_what_only_the_script_review_decided():
+    review = {**FINAL_REVIEW, "content": {**REVIEW, "platforms": {"youtube": {"verdict": "pass"}, "tiktok": {"verdict": "exclude"}}}}
+    carry = final_scope(OLD_META, review, PACKAGE)["carry_over"]
+    assert carry["publish_notes"] == REVIEW["publish_notes"] and carry["excluded_platforms"] == ["tiktok"]
 
 
 def test_video_only_findings_keep_the_narrow_scope():
@@ -124,7 +146,9 @@ def test_video_only_findings_keep_the_narrow_scope():
     ({"id": "a"}, FINAL_REVIEW, PACKAGE),  # no date
     (OLD_META, {**FINAL_REVIEW, "content": {**REVIEW, "mode": "final"}}, PACKAGE),
     (OLD_META, {**FINAL_REVIEW, "content": {**REVIEW, "verdict": "kill"}}, PACKAGE),
-    (OLD_META, {**FINAL_REVIEW, "content": escalation(REVIEW, ["x"])}, PACKAGE),  # an escalation is no pass
+    (OLD_META, {**FINAL_REVIEW, "content": escalation(REVIEW, ["x"], "a")}, PACKAGE),  # an escalation is no pass
+    (OLD_META, {**FINAL_REVIEW, "content": {**REVIEW, "script": "v2"}}, PACKAGE),  # reviewed v2, built stale v1
+    (OLD_META, {**FINAL_REVIEW, "content": {k: v for k, v in REVIEW.items() if k != "script"}}, PACKAGE),
     (OLD_META, {"id": "r", "content": REVIEW}, PACKAGE),
 ])
 def test_final_checks_the_text_too_on_any_doubt(script_meta, review, package):
@@ -176,3 +200,18 @@ def test_slug_matches_the_links_past_reports_use():
                                     "9-чек-лист-красные-флаги-для-ревьюера", "4"])
 def test_past_youtube_references_resolve(anchor):
     assert section((ROOT / "platforms/youtube/rules.md").read_text(), anchor)
+
+
+def final_report(task="t", mode="final"):
+    return lambda _id, _kind: {"task_id": task, "content": {"mode": mode}}
+
+
+def test_release_needs_both_final_reports_from_the_legal_task():
+    from release_submit import reports_problems
+
+    good = {"law_report": "l", "platform_report": "p"}
+    assert reports_problems(good, "t", final_report()) == []
+    assert len(reports_problems({}, "t", final_report())) == 2  # legal_lead alone: nobody else looked at the video
+    assert reports_problems(good, "t", final_report(mode="script"))  # reports about the script, not the video
+    assert reports_problems(good, "t", final_report(task="other"))  # reports from an earlier build's task
+    assert reports_problems(good, None, final_report())

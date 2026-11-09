@@ -20,6 +20,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 MAX_CHANGED_SCENES = 3
 ESCALATE_PREFIX = "ПОЛНАЯ ПРОВЕРКА:"
+ESCALATION_ISSUE = "X0"
 SCENE_TEXT = ("narration", "on_screen_text", "source_plate", "visual")
 SCENE_OTHER = ("shot", "blocks", "fact_ids", "real_people")
 TOP_LEVEL = ("hook_type", "serious_mode", "music", "pronunciations", "language", "channel_id")
@@ -81,8 +82,10 @@ def compare(old: dict, new: dict) -> dict:
     removed = [s for s in old_scenes if s not in new_scenes]
     if added:
         reasons.append(f"новые сцены: {', '.join(added)}")
-    if len(removed) > 1:
-        reasons.append(f"убрано больше одной сцены: {', '.join(removed)}")
+    if removed:
+        reasons.append(f"убраны сцены: {', '.join(removed)} (без них остальной текст может читаться иначе)")
+    if [s for s in new_scenes if s in old_scenes] != [s for s in old_scenes if s in new_scenes]:
+        reasons.append("изменён порядок сцен: обвинение могло оказаться рядом с другим человеком")
     old_facts = {f for s in old_scenes.values() for f in s.get("fact_ids") or []}
     for scene_id, scene in new_scenes.items():
         before = old_scenes.get(scene_id, {})
@@ -138,6 +141,10 @@ def version_problems(old_meta: dict, new_meta: dict, review_meta: dict, review: 
         problems.append(f"прошлое ревью не по сценарию (mode: {review.get('mode')})")
     if review.get("verdict") == "kill":
         problems.append("прошлое ревью сняло ролик (kill)")
+    if any(issue.get("id") == ESCALATION_ISSUE for issue in review.get("issues", [])):
+        problems.append("прошлое ревью — запрос полной проверки, а не сама проверка")
+    if not old_meta.get("id") or review.get("script") != old_meta.get("id"):
+        problems.append(f"прошлое ревью было о сценарии {review.get('script')}, а не о {old_meta.get('id')}")
     stamps = [old_meta.get("created_at"), review_meta.get("created_at"), new_meta.get("created_at")]
     if not all(stamps):
         problems.append("нет дат артефактов: не понять, о какой версии было ревью")
@@ -146,27 +153,29 @@ def version_problems(old_meta: dict, new_meta: dict, review_meta: dict, review: 
     return problems
 
 
-def escalation(review: dict, reasons: list[str]) -> dict:
+def escalation(review: dict, reasons: list[str], script_id: str) -> dict:
     """A valid legal_review that holds the video and sends the script to the whole team.
 
-    If a router closes the task on it, `fix_owner: script` keeps the script out of Video, so the failure is safe."""
+    If a router closes the task on it, `fix_owner: editor` stops the run for a human: the script reaches neither Video
+    nor another round of diff review."""
     text = "; ".join(reasons)
     return {
         "mode": "script",
         "channel_id": review.get("channel_id"),
         "country": review.get("country"),
+        "script": script_id,
         "verdict": "fix_required",
         "platforms": {name: {"verdict": "fix_required", "reason": "Full review required"}
                       for name in (review.get("platforms") or {"youtube": None})},
         "issues": [{
-            "id": "X0", "family": "other", "severity": "high", "scope": review.get("country") or "unknown",
+            "id": ESCALATION_ISSUE, "family": "other", "severity": "high", "scope": review.get("country") or "unknown",
             "where": "script", "excerpt": text, "rule": {"ref": "newsroom/teams/legal/legal_lead.md", "summary": text},
             "scenario": "The script changed beyond a point fix, so the earlier review does not cover it.",
-            "fix": "None yet: the Legal router runs the whole team on this script.", "fix_owner": "script"}],
+            "fix": "None yet: the Legal router runs the whole team on this script.", "fix_owner": "editor"}],
         "required_disclosures": review.get("required_disclosures") or [],
         "publish_notes": review.get("publish_notes") or [],
         "final_checks": review.get("final_checks") or [],
-        "summary_ru": f"Нужна проверка всей командой: {text}"[:400],
+        "summary_ru": f"{ESCALATE_PREFIX} {text}"[:400],
         "checked_against": ["newsroom/tools/script_diff.py"],
     }
 
@@ -195,7 +204,7 @@ def main() -> int:
     review = artifact_details(args.review, "legal_review")
     result = decide(old["content"], new["content"], review["content"], old, new, review)
     if result["must_escalate"]:
-        pathlib.Path(args.out).write_text(json.dumps(escalation(review["content"], result["reasons"]), indent=2,
+        pathlib.Path(args.out).write_text(json.dumps(escalation(review["content"], result["reasons"], new.get("id") or args.new), indent=2,
                                                      ensure_ascii=False))
         result["escalation_file"] = args.out
         result["summary"] = f"{ESCALATE_PREFIX} {'; '.join(result['reasons'])}"[:500]

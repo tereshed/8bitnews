@@ -282,11 +282,20 @@ schemas["platform_report"] = risk_report("platform_report",
     "platform_reviewer output: risks of sanctions on each enabled platform.", "P")
 lr = schema("legal_review",
     "legal_lead output and final result of the Legal team.",
-    ["mode", "channel_id", "country", "verdict", "platforms", "issues", "required_disclosures", "summary_ru", "checked_against"],
+    ["mode", "channel_id", "country", "verdict", "platforms", "issues", "required_disclosures", "summary_ru", "checked_against",
+     "script"],
     {"mode": review_mode,
      "channel_id": str1,
      "country": {"type": "string", "pattern": "^[A-Z]{2}$"},
      "verdict": {"enum": ["pass", "fix_required", "kill"]},
+     "script": {"type": "string", "minLength": 1,
+                "description": "id of the script artifact this review covers: tools compare it with what was built, so a "
+                               "review of another version does not count"},
+     "law_report": {"type": "string", "minLength": 1,
+                    "description": "final mode: id of the law_report merged here; release_submit refuses a final review "
+                                   "without both reports"},
+     "platform_report": {"type": "string", "minLength": 1,
+                         "description": "final mode: id of the platform_report merged here"},
      "platforms": {"type": "object", "minProperties": 1, "additionalProperties": {
          "type": "object", "required": ["verdict"], "properties": {
              "verdict": {"enum": ["pass", "fix_required", "exclude"]},
@@ -312,8 +321,8 @@ lr = schema("legal_review",
                                       "of another build"}},
     {"risk_issue": risk_issue, "disclosure": disclosure})
 lr["allOf"] = [
-    {"if": {"properties": {"mode": {"const": "final"}}}, "then": {"required": ["video_package"]},
-     "description": "A final review names the build it looked at"},
+    {"if": {"properties": {"mode": {"const": "final"}}}, "then": {"required": ["video_package", "law_report", "platform_report"]},
+     "description": "A final review names the build it looked at and the two reports behind it"},
     {"if": {"properties": {"verdict": {"const": "kill"}}}, "then": {"required": ["kill_reason"]}},
     {"if": {"required": ["issues"], "properties": {"issues": {"contains": {
          "properties": {"severity": {"enum": ["blocker", "high"]}},

@@ -5,7 +5,8 @@
 
 `scope: new_only` — ролик собран из того самого сценария, что прошёл Legal, открытых замечаний к тексту нет: текст заново
 не разбираем, смотрим то, чего в сценарии не было видно. `scope: full` — причины в `reasons`, проверяем и текст. Если что-то
-не удалось установить, инструмент отвечает `full`.
+не удалось установить, инструмент отвечает `full`. В `carry_over` — то, что ревью сценария решило и текст ролика не изменит:
+условия выпуска, раскрытия, что проверить на кадрах, исключённые площадки. legal_lead переносит это в итоговый `legal_review`.
 """
 from __future__ import annotations
 
@@ -26,6 +27,8 @@ def decide(script_meta: dict, review_meta: dict, package: dict) -> dict:
         reasons.append(f"вердикт ревью: {review.get('verdict')}")
     if not script_meta.get("id") or package.get("script") != script_meta.get("id"):
         reasons.append(f"ролик собран из другого сценария: {package.get('script')}, а не {script_meta.get('id')}")
+    if not review.get("script") or review.get("script") != package.get("script"):
+        reasons.append(f"ревью было о сценарии {review.get('script')}, а ролик собран из {package.get('script')}")
     script_at, review_at = script_meta.get("created_at"), review_meta.get("created_at")
     if not script_at or not review_at:
         reasons.append("нет дат артефактов")
@@ -35,7 +38,12 @@ def decide(script_meta: dict, review_meta: dict, package: dict) -> dict:
         if issue.get("severity") in ("blocker", "high") and issue.get("fix_owner") in ("script", "editor") \
                 and issue.get("resolved_by_exclusion") is not True:
             reasons.append(f"в ревью открыто замечание к тексту: {issue.get('id')}")
-    return {"scope": "full" if reasons else "new_only", "reasons": reasons}
+    return {"scope": "full" if reasons else "new_only", "reasons": reasons, "carry_over": {
+        "publish_notes": review.get("publish_notes") or [],
+        "required_disclosures": review.get("required_disclosures") or [],
+        "final_checks": review.get("final_checks") or [],
+        "excluded_platforms": sorted(name for name, info in (review.get("platforms") or {}).items()
+                                     if info.get("verdict") == "exclude")}}
 
 
 def main() -> int:
