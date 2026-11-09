@@ -210,6 +210,15 @@ def test_a_rebuild_keeps_all_of_it_though_a_fresh_pick_would_differ(profile):
     assert all(again.reasons[k] == "kept from the earlier package" for k in ("template", "anchor", "music_track", "cover_layout"))
 
 
+def test_an_inherited_exclude_of_another_value_keeps_the_earlier_choice(profile):
+    s = _script()
+    first = pick(s, profile, [])
+    value = first.to_dict()["anchor"]
+    other = "some-anchor-rejected-earlier"
+    assert other != value
+    assert pick(s, profile, [], exclude={"anchor": [other]}, keep=_keep(first)).to_dict()["anchor"] == value
+
+
 @pytest.mark.parametrize("kind", ["anchor", "template", "music_track"])
 def test_a_kind_named_in_exclude_is_picked_again_and_the_others_stay(profile, kind):
     s = _script()

@@ -404,6 +404,10 @@ def test_a_summary_without_the_prefix_is_not_taken_for_a_script_problem():
     ({"id": "Q1", "severity": "major", "fix_owner": "video", "scene_id": "cover"}, ["cover"], []),
     ({"id": "P1", "severity": "high", "fix_owner": "video", "where": "S2 picture and S10 keyframe"}, ["S2", "S10"], []),
     ({"id": "P1", "severity": "high", "fix_owner": "video", "where": "обложка"}, ["cover"], []),
+    ({"id": "P1", "severity": "high", "fix_owner": "video", "where": "S3-S5"}, ["S3", "S4", "S5"], []),
+    ({"id": "P1", "severity": "high", "fix_owner": "video", "where": "Scene 3 and S5"}, ["S5", "S3"], []),
+    ({"id": "P1", "severity": "high", "fix_owner": "video", "where": "в сцене 7"}, ["S7"], []),
+    ({"id": "P1", "severity": "high", "fix_owner": "video", "where": "the opening scene"}, [], ["P1"]),
     ({"id": "Q2", "severity": "major", "fix_owner": "video", "area": "audio"}, [], ["Q2"]),
     ({"id": "Q3", "severity": "minor", "fix_owner": "video", "scene_id": "S3"}, [], []),
     ({"id": "R1", "severity": "low", "fix_owner": "video", "where": "S3"}, [], []),
@@ -420,8 +424,8 @@ def test_a_rejected_anchor_stays_excluded_across_rebuilds():
     assert video_build.merged_excludes({}, {}) == {}
 
 
-def _earlier_stub(monkeypatch, script="", passed=True, scenes=()):
-    package = {"script": script, "pick": {}, "validate": {"passed": passed}, "images": {"scenes": list(scenes)}}
+def _earlier_stub(monkeypatch, script="", passed=True, scenes=(), pick=None):
+    package = {"script": script, "pick": pick or {}, "validate": {"passed": passed}, "images": {"scenes": list(scenes)}}
     seen = []
 
     def fetch(hub, ref, dest, channel_id):
@@ -448,11 +452,26 @@ def test_a_rework_report_finds_the_package_and_redraws_what_it_rejects(tmp_path,
     assert build[build.index("--redraw") + 1] == "S2"
 
 
-def test_a_finding_with_no_picture_means_a_full_rebuild(tmp_path, monkeypatch):
-    seen = _earlier_stub(monkeypatch)
-    _report_stub(monkeypatch, {"video_package": "prev", "issues": [{**FINDING, "scene_id": ""}]})
+def test_a_finding_with_no_picture_draws_every_picture_again_and_keeps_the_excludes(tmp_path, monkeypatch):
+    seen = _earlier_stub(monkeypatch, scenes=[{"id": "S1", "fallback": False}, {"id": "S2", "fallback": False}],
+                         pick={"excluded": {"anchor": ["m7"]}})
+    _report_stub(monkeypatch, {"video_package": "prev", "issues": [{**FINDING, "scene_id": "", "where": "00:23"}]})
     code, _, runs, _ = _rebuild_run(tmp_path, monkeypatch, rework="report")
-    assert code == 0 and seen == [] and "--redraw" not in runs[1][0] and "--reuse-from" not in runs[1][0]
+    assert code == 0 and seen == ["prev"]
+    assert runs[1][0][runs[1][0].index("--redraw") + 1] == "S1,S2,cover"
+
+
+def test_a_phone_called_s24_is_no_scene(tmp_path, monkeypatch):
+    _earlier_stub(monkeypatch, scenes=[{"id": "S3", "fallback": False}])
+    _report_stub(monkeypatch, {"video_package": "prev", "issues": [{**FINDING, "scene_id": "S3", "where": "S3 shows a Galaxy S24"}]})
+    code, _, runs, _ = _rebuild_run(tmp_path, monkeypatch, rework="report")
+    assert code == 0 and runs[1][0][runs[1][0].index("--redraw") + 1] == "S3"
+
+
+def test_redraw_all_expands_to_every_picture(tmp_path, monkeypatch):
+    _earlier_stub(monkeypatch, scenes=[{"id": "S1", "fallback": False}])
+    code, _, runs, _ = _rebuild_run(tmp_path, monkeypatch, reuse="prev", redraw="all")
+    assert code == 0 and runs[1][0][runs[1][0].index("--redraw") + 1] == "S1,cover"
 
 
 def test_a_review_of_the_script_has_no_package_so_the_build_is_a_first_one(tmp_path, monkeypatch):

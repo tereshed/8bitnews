@@ -207,7 +207,7 @@ def _keep_earlier(fresh: Pick, keep: dict, script: dict, channel_profile: dict, 
 
     def settled(kind: str, field: str, candidates: list[str], recent_n: int, used_field: str, fresh_value):
         value = keep.get(field)
-        if exclude.get(field):
+        if value in (exclude.get(field) or []):
             return fresh_value
         problem = _keep_problem(value, candidates, _used(neighbours, used_field), recent_n)
         if problem:
