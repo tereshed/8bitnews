@@ -35,6 +35,11 @@ const (
 	minSessionLead = 5 * time.Minute
 	// How many tries the poster gets before the video goes on without it.
 	thumbnailAttempts = 3
+	// How many passes the poster waits for YouTube to finish processing the
+	// video: with the backoff, 1, 5 and 15 minutes. A Short's thumbnails.set
+	// before processing has succeeded may not be applied, and still answers
+	// success (YouTube Data API, thumbnails.set).
+	processingWaits = 3
 	// How long before its slot a video is read back again: a video can be
 	// rejected well after the read-back at upload.
 	recheckBefore = 30 * time.Minute
@@ -69,6 +74,7 @@ const (
 var (
 	errStillScheduled = errors.New("YouTube оставил расписание")
 	errFinalising     = &youtube.Error{Retry: true, Message: "YouTube is finalising the upload"}
+	errProcessing     = &youtube.Error{Retry: true, Message: "YouTube is still processing the video: the poster waits"}
 )
 
 // Store is what the worker reads and writes (internal/store).
@@ -575,8 +581,7 @@ func (p *Publisher) sendVideo(ctx context.Context, item service.PublishQueueItem
 		case err != nil:
 			return false, err
 		case state.VideoID != "":
-			job.VideoID = state.VideoID
-			return true, p.save(ctx, job)
+			return true, p.gotVideo(ctx, job, state.VideoID)
 		case state.Finalising(size):
 			return false, errFinalising
 		case job.PublishAt == nil || job.PublishAt.Before(p.now().Add(minSessionLead)):
@@ -627,16 +632,22 @@ func (p *Publisher) sendVideo(ctx context.Context, item service.PublishQueueItem
 	if state.VideoID == "" {
 		return false, &youtube.Error{Retry: true, Message: fmt.Sprintf("the upload stopped at byte %d of %d", state.Offset, size)}
 	}
-	job.VideoID = state.VideoID
-	return true, p.save(ctx, job)
+	return true, p.gotVideo(ctx, job, state.VideoID)
+}
+
+// gotVideo records the video. The upload's failures don't count against what
+// comes after it: from here on, the waits are the poster's (processingWaits).
+func (p *Publisher) gotVideo(ctx context.Context, job *store.PublishJob, videoID string) error {
+	job.VideoID, job.Attempts, job.LastError = videoID, 0, ""
+	return p.save(ctx, job)
 }
 
 func shortsURL(videoID string) string {
 	return "https://www.youtube.com/shorts/" + videoID
 }
 
-// finish reads back what YouTube made of the video, sets the poster and tells
-// the group.
+// finish reads back what YouTube made of the video, sets the poster once
+// YouTube has processed the video, and tells the group.
 func (p *Publisher) finish(ctx context.Context, r store.Release, refresh string, job *store.PublishJob) error {
 	v, there, err := p.stillThere(ctx, r.ID, refresh, job)
 	if err != nil || !there {
@@ -649,7 +660,7 @@ func (p *Publisher) finish(ctx context.Context, r store.Release, refresh string,
 			return p.hold(ctx, r.ID, "загруженный ролик "+job.VideoID+" не такой, как просили: "+strings.Join(wrong, "; "))
 		}
 	}
-	poster, err := p.poster(ctx, r, refresh, job)
+	poster, err := p.poster(ctx, r, v, refresh, job)
 	if err != nil {
 		return err
 	}
@@ -667,7 +678,7 @@ func (p *Publisher) finish(ctx context.Context, r store.Release, refresh string,
 		text += "\n⚠️ YouTube не подтвердил метку AI: проверьте её в Studio."
 	}
 	if poster != "" {
-		text += "\n⚠️ Обложку поставить не удалось: " + poster + ". Ролик в расписании без неё; поставьте её в Studio."
+		text += "\n⚠️ " + poster
 	}
 	// The message first: if it doesn't go out, this comes round again.
 	if err := p.notify.Notify(context.WithoutCancel(ctx), r.Moderation.MessageID, text); err != nil {
@@ -772,10 +783,13 @@ func thumbnailType(key string) string {
 	return "image/png"
 }
 
-// poster sets the cover. It returns what the group should hear if the video
-// goes on without one: the owner requires a poster, but a video on the schedule
-// isn't worth losing over it.
-func (p *Publisher) poster(ctx context.Context, r store.Release, refresh string, job *store.PublishJob) (string, error) {
+// poster sets the cover once YouTube has processed the video: before that, a
+// Short may keep a frame of its own although the call answers success. While
+// it waits, so does the message to the group. It returns what the group should
+// hear if the video goes on without a poster, or with one that may not hold:
+// the owner requires a poster, but a video on the schedule isn't worth losing
+// over it.
+func (p *Publisher) poster(ctx context.Context, r store.Release, v youtube.Video, refresh string, job *store.PublishJob) (string, error) {
 	if job.ThumbnailSet {
 		return "", nil
 	}
@@ -788,10 +802,19 @@ func (p *Publisher) poster(ctx context.Context, r store.Release, refresh string,
 		}
 	}
 	if media.Cover == "" {
-		return "в пакете нет обложки", nil
+		return withoutPoster("в пакете нет обложки"), nil
+	}
+	early := v.ProcessingStatus != "succeeded"
+	if early && job.Attempts < processingWaits {
+		return "", errProcessing
 	}
 	err := p.sendPoster(ctx, media.Cover, refresh, job)
 	switch {
+	case err == nil && early:
+		// Not marked: if the message doesn't go out, the next pass sets the
+		// poster again, maybe after processing by then, and the group still hears.
+		p.log.Warn("publisher: the poster went up before YouTube finished processing", "release_id", r.ID, "processing", v.ProcessingStatus)
+		return "Обложку hub поставил, пока YouTube ещё обрабатывал ролик (дольше 20 минут): так она может не встать. Проверьте её в Studio.", nil
 	case err == nil:
 		job.ThumbnailSet = true
 		return "", p.save(ctx, job)
@@ -802,7 +825,11 @@ func (p *Publisher) poster(ctx context.Context, r store.Release, refresh string,
 		return "", err
 	}
 	p.log.Error("publisher: the poster didn't go up", "release_id", r.ID, "error", err)
-	return err.Error(), nil
+	return withoutPoster(err.Error()), nil
+}
+
+func withoutPoster(why string) string {
+	return "Обложку поставить не удалось: " + why + ". Ролик в расписании без неё; поставьте её в Studio."
 }
 
 func (p *Publisher) sendPoster(ctx context.Context, key, refresh string, job *store.PublishJob) error {

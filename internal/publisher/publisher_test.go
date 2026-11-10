@@ -60,6 +60,9 @@ type upload struct {
 type video struct {
 	UploadStatus, RejectionReason, Privacy, PublishAt string
 	Synthetic                                         *bool
+	// Processing is processingDetails.processingStatus; "" reads as
+	// "succeeded", and "none" leaves processingDetails out.
+	Processing string
 }
 
 func yes() *bool { b := true; return &b }
@@ -112,8 +115,16 @@ func (f *fakeYouTube) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		items := []any{}
 		if v, ok := f.videos[r.URL.Query().Get("id")]; ok {
-			items = append(items, map[string]any{"status": map[string]any{"uploadStatus": v.UploadStatus, "rejectionReason": v.RejectionReason,
-				"privacyStatus": v.Privacy, "publishAt": v.PublishAt, "containsSyntheticMedia": v.Synthetic}})
+			item := map[string]any{"status": map[string]any{"uploadStatus": v.UploadStatus, "rejectionReason": v.RejectionReason,
+				"privacyStatus": v.Privacy, "publishAt": v.PublishAt, "containsSyntheticMedia": v.Synthetic}}
+			switch v.Processing {
+			case "":
+				item["processingDetails"] = map[string]any{"processingStatus": "succeeded"}
+			case "none":
+			default:
+				item["processingDetails"] = map[string]any{"processingStatus": v.Processing}
+			}
+			items = append(items, item)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"items": items})
 	case path == "/api/videos" && r.Method == http.MethodPut:
@@ -714,6 +725,94 @@ func TestAPosterThatFailsIsRetriedThenTheVideoGoesOnWithoutIt(t *testing.T) {
 	f.pass()
 	if len(f.say.said) != 1 {
 		t.Errorf("told again: %q", f.say.said)
+	}
+}
+
+// processing sets how far YouTube is with a video.
+func (f *fixture) processing(id, status string) {
+	f.yt.mu.Lock()
+	defer f.yt.mu.Unlock()
+	f.yt.videos[id].Processing = status
+}
+
+func TestThePosterWaitsForYouTubeToProcessTheVideo(t *testing.T) {
+	f := newFixture(t)
+	f.yt.afterUpload = func(v *video) { v.Processing = "processing" }
+	f.pass()
+	vid := f.st.job.VideoID
+	// The link is there at once: the video exists and can go out.
+	if vid == "" || f.st.link == "" || f.st.hold != "" {
+		t.Fatalf("job %+v, link %q, hold %q", f.st.job, f.st.link, f.st.hold)
+	}
+	if len(f.yt.thumbs) != 0 || len(f.say.said) != 0 || f.st.job.Attempts != 1 || !f.st.job.NextAttemptAt.Equal(f.now.Add(time.Minute)) {
+		t.Fatalf("didn't wait: thumbs %d, told %q, job %+v", len(f.yt.thumbs), f.say.said, f.st.job)
+	}
+	f.due()
+	f.pass()
+	if len(f.yt.thumbs) != 0 || len(f.say.said) != 0 || f.st.job.Attempts != 2 {
+		t.Fatalf("second pass: thumbs %d, told %q, job %+v", len(f.yt.thumbs), f.say.said, f.st.job)
+	}
+	f.processing(vid, "succeeded")
+	f.due()
+	f.pass()
+	if string(f.yt.thumbs[vid]) != "PNGDATA" || !f.st.job.ThumbnailSet || f.st.job.AnnouncedAt == nil || f.st.job.Attempts != 0 || f.st.job.LastError != "" {
+		t.Fatalf("after processing: thumbs %q, job %+v", f.yt.thumbs[vid], f.st.job)
+	}
+	if len(f.say.said) != 1 || strings.Contains(f.say.said[0], "Обложку") || !strings.Contains(f.say.said[0], "Загружен") {
+		t.Errorf("told %q", f.say.said)
+	}
+	if f.yt.puts != 1 || len(f.yt.started) != 1 {
+		t.Errorf("uploaded again: puts %d, started %d", f.yt.puts, len(f.yt.started))
+	}
+}
+
+func TestAPosterStillProcessingAfterTheWaitsGoesUpWithAWarning(t *testing.T) {
+	for _, status := range []string{"processing", "none"} {
+		f := newFixture(t)
+		f.yt.afterUpload = func(v *video) { v.Processing = status }
+		f.pass()
+		for i := 1; i < processingWaits; i++ {
+			f.due()
+			f.pass()
+		}
+		if len(f.yt.thumbs) != 0 || len(f.say.said) != 0 || f.st.job.Attempts != processingWaits {
+			t.Fatalf("%s: waits: thumbs %d, told %q, job %+v", status, len(f.yt.thumbs), f.say.said, f.st.job)
+		}
+		// Telegram is down at that moment: the warning mustn't be lost.
+		f.say.down = true
+		f.due()
+		f.pass()
+		vid := f.st.job.VideoID
+		if string(f.yt.thumbs[vid]) != "PNGDATA" || f.st.job.AnnouncedAt != nil {
+			t.Fatalf("%s: after the waits: thumbs %q, job %+v", status, f.yt.thumbs[vid], f.st.job)
+		}
+		f.say.down = false
+		f.due()
+		f.pass()
+		if f.st.job.AnnouncedAt == nil || f.st.hold != "" {
+			t.Fatalf("%s: job %+v, hold %q", status, f.st.job, f.st.hold)
+		}
+		if len(f.say.said) != 1 || !strings.Contains(f.say.said[0], "Обложку hub поставил") || !strings.Contains(f.say.said[0], "Studio") {
+			t.Errorf("%s: told %q", status, f.say.said)
+		}
+	}
+}
+
+func TestAnUploadsFailuresDontShortenThePostersWait(t *testing.T) {
+	f := newFixture(t)
+	f.yt.afterUpload = func(v *video) { v.Processing = "processing" }
+	f.yt.startErr = func(w http.ResponseWriter) bool {
+		writeErr(w, http.StatusServiceUnavailable, "backendError")
+		return true
+	}
+	for i := 0; i < processingWaits; i++ {
+		f.pass()
+		f.due()
+	}
+	f.yt.startErr = nil
+	f.pass()
+	if f.st.job.VideoID == "" || len(f.yt.thumbs) != 0 || len(f.say.said) != 0 || f.st.job.Attempts != 1 {
+		t.Errorf("thumbs %d, told %q, job %+v", len(f.yt.thumbs), f.say.said, f.st.job)
 	}
 }
 
