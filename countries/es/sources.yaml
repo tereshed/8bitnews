@@ -7,6 +7,9 @@
 # ownership: private | public_broadcaster | state_funded | state_controlled
 # paywall: true — большинство материалов за платным или лимитированным доступом. В списках источников hub помечает
 # такие ссылки «(de pago)», а state_funded и state_controlled — «(medio estatal)» (policy.md, «Источники в ролике»).
+# news_sitemap — лента свежих материалов издания с прямыми ссылками. WebSearch для большинства испанских доменов не
+# работает, поэтому local_press_analyst ищет материалы по сюжету grep'ом по этой ленте (проверено 10.11.2026: лента
+# отвечает, статья проходит source_check). У изданий без поля пригодной ленты нет или их статьи hub не принимает.
 
 country: ES
 language: es-ES
@@ -17,35 +20,35 @@ local:
   - { outlet: Agencia EFE, domain: efe.com, kind: wire, leaning: center, ownership: state_funded, aka: [EFE, Agencia EFE, EFE Verde], note: "государственная компания" }
   - { outlet: EFE Verde, domain: efeverde.com, kind: wire, leaning: center, ownership: state_funded, note: "экологическая служба EFE" }
   - { outlet: Europa Press, domain: europapress.es, kind: wire, leaning: center }
-  - { outlet: RTVE, domain: rtve.es, kind: press, leaning: center, ownership: state_funded, aka: [RTVE], note: "руководство избирают Cortes; баланс меняется с большинством" }
+  - { outlet: RTVE, domain: rtve.es, kind: press, leaning: center, ownership: state_funded, aka: [RTVE], news_sitemap: "https://www.rtve.es/sitemaps/sitemaps-news.xml", note: "руководство избирают Cortes; баланс меняется с большинством" }
   # центр и деловые
-  - { outlet: La Vanguardia, domain: lavanguardia.com, kind: press, leaning: center, note: "Барселона, взгляд из Каталонии" }
+  - { outlet: La Vanguardia, domain: lavanguardia.com, kind: press, leaning: center, news_sitemap: "https://www.lavanguardia.com/sitemap-news.xml", note: "Барселона, взгляд из Каталонии" }
   - { outlet: El Confidencial, domain: elconfidencial.com, kind: press, leaning: center }
-  - { outlet: 20minutos, domain: 20minutos.es, kind: press, leaning: center }
+  - { outlet: 20minutos, domain: 20minutos.es, kind: press, leaning: center, news_sitemap: "https://www.20minutos.es/sitemap-google-news.xml" }
   - { outlet: Expansión, domain: expansion.com, kind: press, leaning: center, paywall: true, note: "деловая" }
   - { outlet: Cinco Días, domain: cincodias.elpais.com, kind: press, leaning: center, paywall: true, note: "деловая, группа Prisa" }
   - { outlet: La Voz de Galicia, domain: lavozdegalicia.es, kind: press, leaning: center, note: "региональная" }
   # левее центра
   - { outlet: El País, domain: elpais.com, kind: press, leaning: lean_left, paywall: true }
   - { outlet: Cadena SER, domain: cadenaser.com, kind: press, leaning: lean_left }
-  - { outlet: laSexta, domain: lasexta.com, kind: press, leaning: lean_left }
-  - { outlet: El Periódico, domain: elperiodico.com, kind: press, leaning: lean_left }
-  - { outlet: elDiario.es, domain: eldiario.es, kind: press, leaning: left }
-  - { outlet: infoLibre, domain: infolibre.es, kind: press, leaning: left }
+  - { outlet: laSexta, domain: lasexta.com, kind: press, leaning: lean_left, news_sitemap: "https://www.lasexta.com/sitemaps/news.xml" }
+  - { outlet: El Periódico, domain: elperiodico.com, kind: press, leaning: lean_left, note: "боту hub отдаёт заглушку вместо статьи: source_check — dead, no archive copy (10.11.2026)" }
+  - { outlet: elDiario.es, domain: eldiario.es, kind: press, leaning: left, news_sitemap: "https://www.eldiario.es/sitemap_google_news_25b87.xml" }
+  - { outlet: infoLibre, domain: infolibre.es, kind: press, leaning: left, news_sitemap: "https://www.infolibre.es/sitemap_google_news_382e2.xml" }
   - { outlet: Público, domain: publico.es, kind: press, leaning: left }
   # правее центра
   - { outlet: El Mundo, domain: elmundo.es, kind: press, leaning: lean_right, paywall: true }
   - { outlet: ABC, domain: abc.es, kind: press, leaning: lean_right, paywall: true }
-  - { outlet: El Español, domain: elespanol.com, kind: press, leaning: lean_right }
-  - { outlet: Antena 3 Noticias, domain: antena3.com, kind: press, leaning: lean_right }
-  - { outlet: Onda Cero, domain: ondacero.es, kind: press, leaning: lean_right }
+  - { outlet: El Español, domain: elespanol.com, kind: press, leaning: lean_right, news_sitemap: "https://www.elespanol.com/sitemap_google_news.xml" }
+  - { outlet: Antena 3 Noticias, domain: antena3.com, kind: press, leaning: lean_right, news_sitemap: "https://www.antena3.com/noticias/sitemaps/news.xml" }
+  - { outlet: Onda Cero, domain: ondacero.es, kind: press, leaning: lean_right, news_sitemap: "https://www.ondacero.es/sitemaps/news.xml" }
   - { outlet: COPE, domain: cope.es, kind: press, leaning: lean_right }
-  - { outlet: La Razón, domain: larazon.es, kind: press, leaning: right }
-  - { outlet: Libertad Digital, domain: libertaddigital.com, kind: press, leaning: right }
-  - { outlet: The Objective, domain: theobjective.com, kind: press, leaning: right }
-  - { outlet: OKdiario, domain: okdiario.com, kind: press, leaning: right }
+  - { outlet: La Razón, domain: larazon.es, kind: press, leaning: right, news_sitemap: "https://www.larazon.es/sitemaps/news.xml" }
+  - { outlet: Libertad Digital, domain: libertaddigital.com, kind: press, leaning: right, news_sitemap: "https://www.libertaddigital.com/sitemaps/last-news.xml" }
+  - { outlet: The Objective, domain: theobjective.com, kind: press, leaning: right, news_sitemap: "https://theobjective.com/sitemap-news.xml" }
+  - { outlet: OKdiario, domain: okdiario.com, kind: press, leaning: right, news_sitemap: "https://okdiario.com/sitemaps/okd-sitemap-google-news.xml" }
   # взгляд из автономий: сюжеты о Каталонии и Стране Басков сверяем с местной прессой
-  - { outlet: Ara, domain: ara.cat, kind: press, language: ca, note: "Каталония, каталонский язык", paywall: true }
+  - { outlet: Ara, domain: ara.cat, kind: press, language: ca, news_sitemap: "https://www.ara.cat/sitemap_google_news_ee125.xml", note: "Каталония, каталонский язык", paywall: true }
   - { outlet: El Correo, domain: elcorreo.com, kind: press, leaning: center, note: "Страна Басков", paywall: true }
   - { outlet: Deia, domain: deia.eus, kind: press, note: "Страна Басков, близка к баскским националистам" }
   - { outlet: Naiz, domain: naiz.eus, kind: press, leaning: left, note: "Страна Басков, левые абертцале" }

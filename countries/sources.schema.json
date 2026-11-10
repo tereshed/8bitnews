@@ -36,6 +36,11 @@
           "type": "boolean",
           "description": "Most articles are behind a paywall or a metered one: hub marks the outlet's links \"(paywall)\" in a video's sources (countries/<cc>/policy.md)."
         },
+        "news_sitemap": {
+          "type": "string",
+          "pattern": "^https://[^\\s]+$",
+          "description": "The outlet's news sitemap (fresh articles with direct URLs). local_press_analyst greps it for a story's words, because WebSearch refuses most Spanish news domains. Agents don't read it otherwise; hub ignores it."
+        },
         "note": { "type": "string", "minLength": 1 }
       }
     }
