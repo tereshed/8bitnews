@@ -123,13 +123,13 @@ var listTemplate = template.Must(template.New("list").Parse(rowCard + head + `<t
 <nav class="tabs" aria-label="Каналы">{{range .Tabs}}<a href="{{.URL}}"{{if .Active}} class="on" aria-current="page"{{end}}>{{.Label}}</a>{{end}}</nav>
 {{if .YouTubeOn}}<p class="hint"><a href="/admin/youtube">Подключение каналов YouTube</a></p>{{end}}
 {{if .Empty}}<p>Роликов пока нет.</p>{{end}}
+{{with .InProgress}}<h2>В работе · {{len .}}</h2>
+<p class="hint">Сюжет выбран, ролик ещё не сдан. Стадию hub не видит; прогон обычно идёт 1,5–2 часа.</p>
+{{range .}}<div class="progress"><b>{{.StoryTitle}}</b>{{with .Turn}}<div class="meta">{{.}}</div>{{end}}<div class="meta">{{.ChannelID}} · взят {{.When}} · {{.Age}}{{if .Stale}} · <span class="warn">больше 4 ч без ролика — прогон, возможно, остановился</span>{{end}}</div></div>{{end}}
+{{end}}
 {{range .Sections}}<h2>{{.Title}} · {{len .Rows}}</h2>
 {{with .Hint}}<p class="hint">{{.}}</p>{{end}}
 {{range .Rows}}{{template "row" .}}{{end}}
-{{end}}
-{{with .InProgress}}<h2>В работе · {{len .}}</h2>
-<p class="hint">Сюжет выбран, ролик ещё не сдан. Стадию hub не видит; прогон мог и остановиться.</p>
-{{range .}}<div class="progress"><b>{{.StoryTitle}}</b><div class="meta">{{.ChannelID}} · {{.When}}</div></div>{{end}}
 {{end}}
 {{with .Closed}}<details><summary>Закрытые · {{len .}}</summary>
 {{range .}}{{template "row" .}}{{end}}
