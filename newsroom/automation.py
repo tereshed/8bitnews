@@ -25,8 +25,9 @@ def schedules(root=ROOT):
         runs = channel.get("schedule", {}).get("runs", [])
         for index, cron in enumerate(runs):
             several = (f"Запуск {index + 1} из {len(runs)} за день: у канала в те же сутки идут и другие запуски, "
-                       "и сюжет соседнего может быть ещё не сдан в hub. Бери сюжет, которого нет среди релизов канала "
-                       "за сегодня (story_find_similar), и не повторяй их новыми поворотами того же дня. "
+                       "их сюжеты зарегистрированы в hub ещё до релиза. Если story_find_similar показывает у сюжета "
+                       "поворот без releases с reported_at за последние 48 часов, сюжет занят соседним запуском: бери "
+                       "следующего кандидата, даже если твой поворот новее. "
                        if len(runs) > 1 else "")
             desired.append({"project_id": sync.PROJECT_ID, "name": f"8bitnews/{channel['id']}/{index + 1}",
                             "team_id": team, "cron_expression": cron, "timezone": channel["timezone"],
