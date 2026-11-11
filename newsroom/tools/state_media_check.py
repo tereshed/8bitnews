@@ -12,7 +12,10 @@ by their name or an `aka` name, alone or in a reprint's form («EFE (via Infobae
 text, and that is what analyst.md asks for:
 - the `note` of a fact citing state media says so;
 - the `position` or `label` of a world cluster with a representative from state media says so;
-- each `review` sentence that names a state outlet says so in that sentence;
+- each sentence of a cluster's `label`, `position` or `on_development` that names a state outlet says so
+  in that sentence, link or no link;
+- each `review` sentence that names a state outlet says so in that sentence. A one-word name is matched
+  as written («EFE», «Lusa»: not «la prensa lusa»), a longer one ignoring case;
 - one line of `risks` says so.
 
 "Says so" is a word for it: «estatal», «state-funded», «state media», «state-run», «government-run»…
@@ -126,9 +129,14 @@ class StateMedia:
         state = [o for o in outlets(sources_yaml) if o.get("ownership") in STATE]
         self.domains = {o["domain"].lower(): o["outlet"] for o in state}
         self.names = {}
+        self.prose = []  # (pattern, outlet) for names in running text
         for o in state:
             for name in [o["outlet"], *(o.get("aka") or [])]:
                 self.names[name.lower()] = o["outlet"]
+                # A one-word name is matched as written: «EFE», «Lusa», but not «efe» or «la prensa lusa»
+                # (Portuguese). Longer names ignore case: «al jazeera».
+                flags = re.I if " " in name.strip() else 0
+                self.prose.append((re.compile(r"(?<!\w)" + re.escape(name.strip()) + r"(?!\w)", flags), o["outlet"]))
 
     def by_url(self, url: str) -> str | None:
         host = (urllib.parse.urlparse(url or "").hostname or "").lower()
@@ -154,8 +162,7 @@ class StateMedia:
         return self.by_url(item.get("url", "")) or self.by_outlet(item.get("outlet", ""))
 
     def named_in(self, sentence: str) -> list[str]:
-        return sorted({outlet for name, outlet in self.names.items()
-                       if re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", sentence, re.I)})
+        return sorted({outlet for pattern, outlet in self.prose if pattern.search(sentence)})
 
 
 def sentences(text: str) -> list[str]:
@@ -174,6 +181,15 @@ def check(doc: dict, media: StateMedia) -> list[str]:
         used.update(cited)
         if cited and not MARK.search((cluster.get("position") or "") + " " + (cluster.get("label") or "")):
             problems.append(f"{cluster.get('id')}: a representative is from {', '.join(cited)}; say it is state media in position")
+        # An outlet the cluster's text leans on without a representative (11.11: «DW (public broadcaster) …»).
+        # Each sentence that names one carries the mark itself, as in review.
+        for field in ("label", "position", "on_development"):
+            for sentence in sentences(cluster.get(field) or ""):
+                named = sorted(set(media.named_in(sentence)) - set(cited))
+                used.update(named)
+                if named and not MARK.search(sentence):
+                    problems.append(f"{cluster.get('id')}.{field}: «{sentence[:90]}» names {', '.join(named)} "
+                                    "without saying it is state media")
     for group in doc.get("local_groups") or []:
         used.update(o for o in (media.of(r) for r in group.get("representatives") or []) if o)
     review = doc.get("review")

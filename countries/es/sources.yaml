@@ -5,6 +5,10 @@
 # Издания с выраженной позицией (left, right) представляют позицию своей стороны; факт подтверждай ещё и источником
 # без такой позиции или первоисточником. Правило одно для обеих сторон.
 # ownership: private | public_broadcaster | state_funded | state_controlled
+#   state_funded — государство владеет изданием или финансирует его прямо из бюджета (EFE, RTVE, DW, France 24);
+#   state_controlled — то же, и правительство управляет редакцией (TASS, Xinhua); public_broadcaster — общественное
+#   вещание на свой целевой сбор с независимым управлением (BBC, NHK). Издания нет в списке — классифицируй по тому же
+#   правилу и по источнику о его финансировании; не нашёл такого источника — не повышай до state_*.
 # paywall: true — большинство материалов за платным или лимитированным доступом. В списках источников hub помечает
 # такие ссылки «(de pago)», а state_funded и state_controlled — «(medio estatal)» (policy.md, «Источники в ролике»).
 # news_sitemap — лента свежих материалов издания с прямыми ссылками. WebSearch для большинства испанских доменов не
@@ -78,11 +82,16 @@ world:
       - { outlet: Público, domain: publico.pt, language: pt, ownership: private, note: "Португалия" }
       - { outlet: AFP, domain: afp.com, language: fr, ownership: private, note: "агентство" }
       - { outlet: Politico Europe, domain: politico.eu, language: en, ownership: private, note: "институты ЕС" }
+      - { outlet: Deutsche Welle, domain: dw.com, language: de, ownership: state_funded, aka: [DW, Deutsche Welle], note: "только федеральный бюджет Германии (закон о DW), без абонентской платы" }
+      - { outlet: France 24, domain: france24.com, language: fr, ownership: state_funded, aka: [France 24], note: "France Médias Monde: единственный владелец — государство, основной доход — госдотация" }
+      - { outlet: RFI, domain: rfi.fr, language: fr, ownership: state_funded, aka: [RFI, Radio France Internationale], note: "France Médias Monde, как France 24" }
+      - { outlet: Lusa, domain: lusa.pt, language: pt, ownership: state_funded, aka: [Lusa, Agência Lusa], note: "агентство Португалии; государство владеет 95,86% с июля 2024" }
   - region: Eastern Europe
     outlets:
       - { outlet: The Kyiv Independent, domain: kyivindependent.com, language: en, ownership: private }
       - { outlet: Gazeta Wyborcza, domain: wyborcza.pl, language: pl, ownership: private }
       - { outlet: TASS, domain: tass.com, language: en, ownership: state_controlled }
+      - { outlet: Radio Free Europe/Radio Liberty, domain: rferl.org, language: en, ownership: state_funded, aka: [RFE/RL, Radio Free Europe], note: "грант Конгресса США через USAGM" }
       # RT нет в списке намеренно: вещание RT запрещено в ЕС (Council Regulation (EU) 2022/350), оператор — в Испании.
   - region: Latin America
     outlets:
@@ -103,12 +112,14 @@ world:
       - { outlet: Global Times, domain: globaltimes.cn, language: en, ownership: state_controlled }
       - { outlet: South China Morning Post, domain: scmp.com, language: en, ownership: private }
       - { outlet: NHK World, domain: nhk.or.jp, language: en, ownership: public_broadcaster }
+      - { outlet: CGTN, domain: cgtn.com, language: en, ownership: state_controlled, aka: [CGTN], note: "China Media Group, как Xinhua" }
   - region: Middle East
     outlets:
       - { outlet: Al Jazeera, domain: aljazeera.com, language: en, ownership: state_funded }
       - { outlet: Haaretz, domain: haaretz.com, language: en, ownership: private, paywall: true }
       - { outlet: Arab News, domain: arabnews.com, language: en, ownership: private, note: "близок к официальной позиции Саудовской Аравии" }
       - { outlet: Tehran Times, domain: tehrantimes.com, language: en, ownership: state_controlled }
+      - { outlet: Anadolu Agency, domain: aa.com.tr, language: en, ownership: state_controlled, aka: [Anadolu Agency, Anadolu Ajansı, Agencia Anadolu], note: "Турция; государственное агентство, Казначейство — крупнейший акционер" }
   - region: Africa
     outlets:
       - { outlet: Daily Maverick, domain: dailymaverick.co.za, language: en, ownership: private }
