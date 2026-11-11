@@ -22,14 +22,20 @@ def schedules(root=ROOT):
     desired = []
     for path in sorted((root / "channels").glob("*/channel.yaml")):
         channel = yaml.safe_load(path.read_text())
-        for index, cron in enumerate(channel.get("schedule", {}).get("runs", [])):
+        runs = channel.get("schedule", {}).get("runs", [])
+        for index, cron in enumerate(runs):
+            several = (f"Запуск {index + 1} из {len(runs)} за день: у канала в те же сутки идут и другие запуски, "
+                       "и сюжет соседнего может быть ещё не сдан в hub. Бери сюжет, которого нет среди релизов канала "
+                       "за сегодня (story_find_similar), и не повторяй их новыми поворотами того же дня. "
+                       if len(runs) > 1 else "")
             desired.append({"project_id": sync.PROJECT_ID, "name": f"8bitnews/{channel['id']}/{index + 1}",
                             "team_id": team, "cron_expression": cron, "timezone": channel["timezone"],
                             "work_intent": "explanation", "is_active": True,
                             "description": f"channel_id: {channel['id']}\nОдин запуск = один новый поворот сюжета. "
+                            + several +
                             "Пройди Newsroom до release_receipt. Сначала проверь доступ к hub и историю канала. "
                             "Если hub недоступен или подходящей новости нет — не запускай Research и Video. "
-                            "Публикация после одобрения модератора; самостоятельно не публикуй."})
+                            "Сам не публикуй и никому не пиши: готовый ролик ставит в расписание hub."})
     return desired
 
 

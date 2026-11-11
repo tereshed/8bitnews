@@ -30,8 +30,11 @@ def test_schedule_creation_uses_channel_timezone_and_is_repeatable():
     session = Session()
     automation.apply_schedules(session, desired)
     automation.apply_schedules(session, desired)
-    assert len(session.created) == len(desired) == 1
-    session.existing[0] = dict(session.existing[0], cron_expression="0 8 * * *")
+    # 8bitnews-es: five a day since 11.11.2026, each run told its number and that the others may still be under way
+    assert len(session.created) == len(desired) == 5
+    assert [s["name"] for s in desired] == [f"8bitnews/8bitnews-es/{i}" for i in range(1, 6)]
+    assert "Запуск 3 из 5 за день" in desired[2]["description"]
+    session.existing[0] = dict(session.existing[0], cron_expression="0 7 * * *")
     with pytest.raises(ValueError, match="differs"):
         automation.apply_schedules(session, desired)
 
