@@ -46,6 +46,10 @@ def test_parses_quotes_and_lists_with_commas():
     ("https://www.aa.com.tr/en/x", "Anadolu Agency"),
     ("https://www.lusa.pt/x", "Lusa"),
     ("https://www.cgtn.com/x", "CGTN"),
+    ("https://www.svoboda.org/a/x", "Radio Svoboda"),
+    ("https://www.hispantv.com/x", "HispanTV"),
+    ("https://www.prensa-latina.cu/x", "Prensa Latina"),
+    ("https://www.telesurtv.net/x", "teleSUR"),
     ("https://www.bbc.com/news/x", None),  # licence fee: public_broadcaster, no mark
 ])
 def test_matches_a_domain_and_its_subdomains(url, outlet):
@@ -109,14 +113,40 @@ def test_a_reprint_counts_and_a_spanish_mark_does_too():
 
 @pytest.mark.parametrize("sentence, named", [
     ("Según Lusa, el Gobierno portugués no reaccionó [W1].", ["Lusa"]),
+    ("Según LUSA, nada [W1].", ["Lusa"]),
     ("La prensa lusa apenas recoge la huelga [W1].", []),  # «lusa» = Portuguese
     ("La letra efe no es una agencia.", []),
     ("Según EFE, nada más [F1].", ["Agencia EFE"]),
-    ("Para la deutsche welle, es un aviso [W1].", ["Deutsche Welle"]),
+    ("Según Efe, hay ocho detenidos [F1].", ["Agencia EFE"]),  # the common Spanish spelling
+    ("Según Tass, X.", ["TASS"]),
     ("DW y France 24 lo destacan [W1].", ["Deutsche Welle", "France 24"]),
+    ("Según Prensa Latina, X [W1].", ["Prensa Latina"]),
+    ("La prensa latina apenas lo recoge [W1].", []),
+    ("Radio Liberty y Anadolu lo recogen [W1].", ["Anadolu Agency", "Radio Free Europe/Radio Liberty"]),
 ])
-def test_one_word_names_are_matched_as_written(sentence, named):
+def test_each_word_keeps_its_first_letter_as_written(sentence, named):
     assert ES.named_in(sentence) == named
+
+
+@pytest.mark.parametrize("sentence, unmarked", [
+    ("Según DW (medio estatal alemán), X [W1].", []),
+    ("Según la cadena estatal alemana DW, X [W1].", []),
+    ("DW, funded from the German federal budget (state-funded), centres rents.", []),
+    ("DW (servicio público alemán) y Al Jazeera (medio estatal) coinciden [W1].", ["Deutsche Welle"]),
+    ("Al Jazeera (medio estatal) y DW coinciden [W1].", ["Deutsche Welle"]),
+    ("State-funded DW (11 Nov, 09:11 UTC, with AP material) reported X.", []),  # a mark before the name counts
+    ("Los medios estatales Al Jazeera (Catar) y Anadolu (Turquía) lo recuerdan [W2].", []),
+    ("Según DW, el Gobierno no ha respondido a ninguna de las preguntas de los sindicatos ni a la respuesta gubernamental [W1].",
+     ["Deutsche Welle"]),
+])
+def test_the_mark_stands_next_to_the_name(sentence, unmarked):
+    assert ES.unmarked_in(sentence) == unmarked
+
+
+def test_abbreviations_dont_end_a_sentence():
+    text = "Radio Free Europe, financiada por EE. UU. (medio estatal), lo recoge [W1]. Otra frase [W1]."
+    assert smc.sentences(text) == ["Radio Free Europe, financiada por EE. UU. (medio estatal), lo recoge [W1].", "Otra frase [W1]."]
+    assert ES.unmarked_in(smc.sentences(text)[0]) == []
 
 
 def test_a_state_outlet_named_in_a_clusters_text_needs_a_mark_too():
@@ -124,9 +154,16 @@ def test_a_state_outlet_named_in_a_clusters_text_needs_a_mark_too():
     # One mark elsewhere in the text doesn't cover DW: each sentence that names a state outlet carries its own.
     doc = dossier()
     doc["world_clusters"][0]["position"] = "State-funded Al Jazeera argues X. DW (public broadcaster) likewise centres rents."
-    assert [p.split(":")[0] for p in smc.check(doc, ES)] == ["W1.position"]
+    assert [p.split(":")[0] for p in smc.check(doc, ES)] == ["W1"]
     doc["world_clusters"][0]["position"] = "State-funded Al Jazeera argues X. DW, funded from the German federal budget (state-funded), centres rents."
     assert smc.check(doc, ES) == []
+    # Once marked in the cluster's text, later mentions there needn't repeat it (review sentences still do).
+    doc["world_clusters"][0]["position"] = "State-funded Al Jazeera argues X. Al Jazeera adds Y. State-funded DW centres rents."
+    assert smc.check(doc, ES) == []
+    # A representative's outlet is held to the same rule where the text names it.
+    doc["world_clusters"][0]["representatives"].append({"outlet": "DW", "url": "https://www.dw.com/es/a"})
+    doc["world_clusters"][0]["position"] = "State-funded Al Jazeera argues X. DW (public broadcaster) likewise centres rents."
+    assert [p.split(":")[0] for p in smc.check(doc, ES)] == ["W1"]
 
 
 def test_no_state_media_asks_for_nothing():

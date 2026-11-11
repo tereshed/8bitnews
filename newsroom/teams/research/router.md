@@ -15,9 +15,9 @@
 4. Ревью approved и в summary critical=0, major=0 → DONE outcome=done. Это единственный
    путь к outcome=done: последний артефакт задачи — ревью approved на последнюю версию research_dossier.
 5. Ревью changes_requested (или critical/major > 0 при approved — трактуй в пользу проблем):
-   - адресат каждого замечания — его поле `assignee` (в старых ревью — `to`). Поля нет — по месту: факты и источники →
-     fact_researcher, группы мнений → local_press_analyst, мировые кластеры → world_press_analyst, review/risks/сведение →
-     analyst;
+   - адресат каждого замечания — его поле `assignee` (в старых ревью — `to`). Поля нет или в нём не агент команды —
+     по месту: факты и источники → fact_researcher, группы мнений → local_press_analyst, мировые кластеры →
+     world_press_analyst, review/risks/сведение → analyst;
    - есть замечания для fact_researcher, local_press_analyst или world_press_analyst → запусти только их, каждому
      только его замечания, параллельно одним шагом; затем analyst пересобирает досье с новыми отчётами и получает
      ещё и замечания, адресованные ему;

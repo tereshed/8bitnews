@@ -5,10 +5,12 @@
 # Издания с выраженной позицией (left, right) представляют позицию своей стороны; факт подтверждай ещё и источником
 # без такой позиции или первоисточником. Правило одно для обеих сторон.
 # ownership: private | public_broadcaster | state_funded | state_controlled
-#   state_funded — государство владеет изданием или финансирует его прямо из бюджета (EFE, RTVE, DW, France 24);
-#   state_controlled — то же, и правительство управляет редакцией (TASS, Xinhua); public_broadcaster — общественное
-#   вещание на свой целевой сбор с независимым управлением (BBC, NHK). Издания нет в списке — классифицируй по тому же
-#   правилу и по источнику о его финансировании; не нашёл такого источника — не повышай до state_*.
+#   state_funded — государство — владелец или главный акционер издания, или основной доход издания — прямо из
+#   госбюджета (EFE, RTVE, DW, France 24). Владение решает и при целевом сборе (RTVE). state_controlled — то же, и
+#   есть источник, что правительство управляет редакцией (TASS, Xinhua). public_broadcaster — общественное вещание,
+#   которым государство не владеет как акционер, на свой целевой сбор (BBC, NHK). Разовые или частичные платежи
+#   государства издание государственным не делают (AFP — private).
+#   Издания нет в списке — классифицируй по тому же правилу и по источнику о владельце или финансировании.
 # paywall: true — большинство материалов за платным или лимитированным доступом. В списках источников hub помечает
 # такие ссылки «(de pago)», а state_funded и state_controlled — «(medio estatal)» (policy.md, «Источники в ролике»).
 # news_sitemap — лента свежих материалов издания с прямыми ссылками. WebSearch для большинства испанских доменов не
@@ -83,15 +85,17 @@ world:
       - { outlet: AFP, domain: afp.com, language: fr, ownership: private, note: "агентство" }
       - { outlet: Politico Europe, domain: politico.eu, language: en, ownership: private, note: "институты ЕС" }
       - { outlet: Deutsche Welle, domain: dw.com, language: de, ownership: state_funded, aka: [DW, Deutsche Welle], note: "только федеральный бюджет Германии (закон о DW), без абонентской платы" }
-      - { outlet: France 24, domain: france24.com, language: fr, ownership: state_funded, aka: [France 24], note: "France Médias Monde: единственный владелец — государство, основной доход — госдотация" }
-      - { outlet: RFI, domain: rfi.fr, language: fr, ownership: state_funded, aka: [RFI, Radio France Internationale], note: "France Médias Monde, как France 24" }
+      - { outlet: France 24, domain: france24.com, language: fr, ownership: state_funded, aka: [France 24, France24], note: "France Médias Monde: единственный владелец — государство, основной доход — госдотация" }
+      - { outlet: RFI, domain: rfi.fr, language: fr, ownership: state_funded, aka: [RFI, Radio France Internationale, Radio Francia Internacional], note: "France Médias Monde, как France 24" }
       - { outlet: Lusa, domain: lusa.pt, language: pt, ownership: state_funded, aka: [Lusa, Agência Lusa], note: "агентство Португалии; государство владеет 95,86% с июля 2024" }
   - region: Eastern Europe
     outlets:
       - { outlet: The Kyiv Independent, domain: kyivindependent.com, language: en, ownership: private }
       - { outlet: Gazeta Wyborcza, domain: wyborcza.pl, language: pl, ownership: private }
       - { outlet: TASS, domain: tass.com, language: en, ownership: state_controlled }
-      - { outlet: Radio Free Europe/Radio Liberty, domain: rferl.org, language: en, ownership: state_funded, aka: [RFE/RL, Radio Free Europe], note: "грант Конгресса США через USAGM" }
+      - { outlet: Radio Free Europe/Radio Liberty, domain: rferl.org, language: en, ownership: state_funded, aka: [RFE/RL, Radio Free Europe, Radio Liberty], note: "некоммерческая корпорация на грант Конгресса США через USAGM; в 2025 грант прекращали и восстанавливали через суд (проверено 11.11.2026)" }
+      - { outlet: Radio Svoboda, domain: svoboda.org, language: ru, ownership: state_funded, aka: [Radio Svoboda, Радио Свобода], note: "русская служба RFE/RL" }
+      - { outlet: Current Time, domain: currenttime.tv, language: ru, ownership: state_funded, aka: [Current Time, Настоящее время], note: "телеканал RFE/RL" }
       # RT нет в списке намеренно: вещание RT запрещено в ЕС (Council Regulation (EU) 2022/350), оператор — в Испании.
   - region: Latin America
     outlets:
@@ -101,6 +105,8 @@ world:
       - { outlet: El Tiempo, domain: eltiempo.com, language: es, ownership: private }
       - { outlet: La Tercera, domain: latercera.com, language: es, ownership: private }
       - { outlet: Folha de S.Paulo, domain: folha.uol.com.br, language: pt, ownership: private }
+      - { outlet: Prensa Latina, domain: prensa-latina.cu, language: es, ownership: state_controlled, aka: [Prensa Latina], note: "Куба; агентство правительства, без редакционной независимости" }
+      - { outlet: teleSUR, domain: telesurtv.net, language: es, ownership: state_controlled, aka: [teleSUR, Telesur], note: "основной владелец и источник денег — правительство Венезуэлы, оно же контролирует канал" }
   - region: Maghreb
     outlets:
       - { outlet: Le Matin, domain: lematin.ma, language: fr, ownership: private, note: "Марокко" }
@@ -112,14 +118,15 @@ world:
       - { outlet: Global Times, domain: globaltimes.cn, language: en, ownership: state_controlled }
       - { outlet: South China Morning Post, domain: scmp.com, language: en, ownership: private }
       - { outlet: NHK World, domain: nhk.or.jp, language: en, ownership: public_broadcaster }
-      - { outlet: CGTN, domain: cgtn.com, language: en, ownership: state_controlled, aka: [CGTN], note: "China Media Group, как Xinhua" }
+      - { outlet: CGTN, domain: cgtn.com, language: en, ownership: state_controlled, aka: [CGTN], note: "China Media Group (CCTV, CNR, CRI), подчинена Отделу пропаганды ЦК КПК" }
   - region: Middle East
     outlets:
       - { outlet: Al Jazeera, domain: aljazeera.com, language: en, ownership: state_funded }
       - { outlet: Haaretz, domain: haaretz.com, language: en, ownership: private, paywall: true }
       - { outlet: Arab News, domain: arabnews.com, language: en, ownership: private, note: "близок к официальной позиции Саудовской Аравии" }
       - { outlet: Tehran Times, domain: tehrantimes.com, language: en, ownership: state_controlled }
-      - { outlet: Anadolu Agency, domain: aa.com.tr, language: en, ownership: state_controlled, aka: [Anadolu Agency, Anadolu Ajansı, Agencia Anadolu], note: "Турция; государственное агентство, Казначейство — крупнейший акционер" }
+      - { outlet: Anadolu Agency, domain: aa.com.tr, language: en, ownership: state_funded, aka: [Anadolu Agency, Anadolu Ajansı, Agencia Anadolu, Anadolu], note: "Турция; Казначейство — крупнейший акционер (47,75%)" }
+      - { outlet: HispanTV, domain: hispantv.com, language: es, ownership: state_controlled, aka: [HispanTV], note: "Иран; испаноязычный канал государственной IRIB, главу IRIB назначает верховный лидер" }
   - region: Africa
     outlets:
       - { outlet: Daily Maverick, domain: dailymaverick.co.za, language: en, ownership: private }

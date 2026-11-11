@@ -12,10 +12,11 @@ by their name or an `aka` name, alone or in a reprint's form («EFE (via Infobae
 text, and that is what analyst.md asks for:
 - the `note` of a fact citing state media says so;
 - the `position` or `label` of a world cluster with a representative from state media says so;
-- each sentence of a cluster's `label`, `position` or `on_development` that names a state outlet says so
-  in that sentence, link or no link;
-- each `review` sentence that names a state outlet says so in that sentence. A one-word name is matched
-  as written («EFE», «Lusa»: not «la prensa lusa»), a longer one ignoring case;
+- each sentence of a cluster's `label`, `position` or `on_development`, and of `review`, that names a state
+  outlet says so next to the name: just before it, just after it, or in a parenthesis right after it
+  («DW (servicio público)» is not marked, «Al Jazeera (medio estatal) y DW» marks only Al Jazeera).
+  Each word of a name keeps its first letter as written («EFE», «Efe», «Lusa», «Prensa Latina»; not «efe»,
+  «la prensa lusa», «la prensa latina»);
 - one line of `risks` says so.
 
 "Says so" is a word for it: «estatal», «state-funded», «state media», «state-run», «government-run»…
@@ -133,10 +134,7 @@ class StateMedia:
         for o in state:
             for name in [o["outlet"], *(o.get("aka") or [])]:
                 self.names[name.lower()] = o["outlet"]
-                # A one-word name is matched as written: «EFE», «Lusa», but not «efe» or «la prensa lusa»
-                # (Portuguese). Longer names ignore case: «al jazeera».
-                flags = re.I if " " in name.strip() else 0
-                self.prose.append((re.compile(r"(?<!\w)" + re.escape(name.strip()) + r"(?!\w)", flags), o["outlet"]))
+                self.prose.append((name_pattern(name), o["outlet"]))
 
     def by_url(self, url: str) -> str | None:
         host = (urllib.parse.urlparse(url or "").hostname or "").lower()
@@ -164,9 +162,56 @@ class StateMedia:
     def named_in(self, sentence: str) -> list[str]:
         return sorted({outlet for pattern, outlet in self.prose if pattern.search(sentence)})
 
+    def unmarked_in(self, sentence: str) -> list[str]:
+        """State outlets the sentence names with no mark next to any mention of them."""
+        sentence = protect(sentence)  # same length: positions stay
+        named, marked = set(), set()
+        for pattern, outlet in self.prose:
+            for m in pattern.finditer(sentence):
+                named.add(outlet)
+                if marked_next_to(sentence, m.start(), m.end()):
+                    marked.add(outlet)
+        return sorted(named - marked)
+
+
+def name_pattern(name: str) -> re.Pattern:
+    """Each word keeps its first letter as written and ignores case in the rest: «EFE», «Efe», «LUSA», «Lusa»,
+    «Prensa Latina», but not «efe» (the letter), «la prensa lusa» (Portuguese) or «la prensa latina»."""
+    def word(w: str) -> str:
+        return re.escape(w[0]) + (r"(?i:" + re.escape(w[1:]) + ")" if len(w) > 1 else "")
+    return re.compile(r"(?<!\w)" + r"\s+".join(word(w) for w in name.split()) + r"(?!\w)")
+
+
+def marked_next_to(sentence: str, start: int, end: int) -> bool:
+    """The mark belongs to this name: a parenthesis right after the name decides («DW (servicio público)» is not
+    marked); otherwise it stands just before the name or in the words right after it, up to the second comma or
+    the end of the clause («DW, funded from the federal budget (state-funded), …»). Marks inside earlier
+    parentheses belong to other names («Al Jazeera (medio estatal) y DW»)."""
+    before = re.sub(r"\([^()]*\)", " ", sentence[max(0, start - 40):start])[-30:]
+    if MARK.search(before):  # «state-funded DW (11 Nov)», «los medios estatales Al Jazeera y Anadolu»
+        return True
+    after = sentence[end:]
+    if after.lstrip().startswith("("):
+        inner = after.lstrip()[1:]
+        return bool(MARK.search(inner[:inner.find(")")] if ")" in inner else inner))
+    tail = after[:80]
+    stop = re.search(r"[.;!?]", tail)
+    commas = [i for i, ch in enumerate(tail) if ch == ","]
+    cut = min([len(tail)] + ([stop.start()] if stop else []) + (commas[1:2]))
+    return bool(MARK.search(tail[:cut]))
+
+
+# Abbreviations whose dots don't end a sentence: «EE. UU.», «U.S.», «Sr.».
+ABBREV = re.compile(r"\b(?:EE\. ?UU|U\.S|U\.K|Sra?|Dra?|núm|p\. ?ej)\.")
+
+
+def protect(text: str) -> str:
+    """The abbreviations' dots as one-dot leaders, same length."""
+    return ABBREV.sub(lambda m: m.group(0).replace(".", "․"), text or "")
+
 
 def sentences(text: str) -> list[str]:
-    return [s for s in re.split(r"(?<=[.!?])\s+(?=\S)", text or "") if s.strip()]
+    return [s.replace("․", ".") for s in re.split(r"(?<=[.!?])\s+(?=\S)", protect(text)) if s.strip()]
 
 
 def check(doc: dict, media: StateMedia) -> list[str]:
@@ -179,17 +224,22 @@ def check(doc: dict, media: StateMedia) -> list[str]:
     for cluster in doc.get("world_clusters") or doc.get("clusters") or []:
         cited = sorted({o for o in (media.of(r) for r in cluster.get("representatives") or []) if o})
         used.update(cited)
-        if cited and not MARK.search((cluster.get("position") or "") + " " + (cluster.get("label") or "")):
-            problems.append(f"{cluster.get('id')}: a representative is from {', '.join(cited)}; say it is state media in position")
-        # An outlet the cluster's text leans on without a representative (11.11: «DW (public broadcaster) …»).
-        # Each sentence that names one carries the mark itself, as in review.
+        text = " ".join(cluster.get(k) or "" for k in ("label", "position", "on_development"))
+        silent = [o for o in cited if o not in media.named_in(text)]  # named ones are held to the sentence rule below
+        if silent and not MARK.search((cluster.get("position") or "") + " " + (cluster.get("label") or "")):
+            problems.append(f"{cluster.get('id')}: a representative is from {', '.join(silent)}; say it is state media in position")
+        # A state outlet the cluster's text names, with or without a representative from it, is marked next to
+        # the name at least once in that text (11.11: «DW (public broadcaster) likewise centres rents»).
+        named, marked = set(), set()
         for field in ("label", "position", "on_development"):
             for sentence in sentences(cluster.get(field) or ""):
-                named = sorted(set(media.named_in(sentence)) - set(cited))
-                used.update(named)
-                if named and not MARK.search(sentence):
-                    problems.append(f"{cluster.get('id')}.{field}: «{sentence[:90]}» names {', '.join(named)} "
-                                    "without saying it is state media")
+                here = set(media.named_in(sentence))
+                named |= here
+                marked |= here - set(media.unmarked_in(sentence))
+        used.update(named)
+        if named - marked:
+            problems.append(f"{cluster.get('id')}: the text names {', '.join(sorted(named - marked))} and never says "
+                            "it is state media next to the name; say it once in position")
     for group in doc.get("local_groups") or []:
         used.update(o for o in (media.of(r) for r in group.get("representatives") or []) if o)
     review = doc.get("review")
@@ -198,9 +248,9 @@ def check(doc: dict, media: StateMedia) -> list[str]:
             if field == "language" or not isinstance(text, str):
                 continue
             for sentence in sentences(text):
-                named = media.named_in(sentence)
-                if named and not MARK.search(sentence):
-                    problems.append(f"review.{field}: «{sentence[:90]}» names {', '.join(named)} without saying it is state media")
+                unmarked = media.unmarked_in(sentence)
+                if unmarked:
+                    problems.append(f"review.{field}: «{sentence[:90]}» names {', '.join(unmarked)} without saying it is state media")
     if "risks" in doc and used and not any(MARK.search(r if isinstance(r, str) else json.dumps(r, ensure_ascii=False))
                                            for r in doc.get("risks") or []):
         problems.append(f"risks: the dossier rests on {', '.join(sorted(used))}; add a line that it is state media")
