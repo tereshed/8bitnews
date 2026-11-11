@@ -370,7 +370,8 @@ func TestListGroupsByWhatIsNext(t *testing.T) {
 		t.Fatalf("status %d", rec.Code)
 	}
 	body := rec.Body.String()
-	order := []string{"Решить · 1", "To decide", "Загрузить на YouTube · 1", "To upload", "Подтвердить выход · 1", "To confirm", "Вышли · 1", "Is live", "В работе · 1", "A story being made", "Закрытые · 1", "Was rejected"}
+	// What is being made comes first (owner 11.11: «посмотреть, что сейчас в работе»).
+	order := []string{"В работе · 1", "A story being made", "идёт 0 мин", "Решить · 1", "To decide", "Загрузить на YouTube · 1", "To upload", "Подтвердить выход · 1", "To confirm", "Вышли · 1", "Is live", "Закрытые · 1", "Was rejected"}
 	at := 0
 	for _, want := range order {
 		i := strings.Index(body[at:], want)
@@ -706,5 +707,28 @@ func TestAnAutomaticVideoPastItsSlotGoesToTheSectionWithButtons(t *testing.T) {
 	}
 	if strings.Count(body, "🟢 Вышел") != 1 {
 		t.Errorf("buttons: %d", strings.Count(body, "🟢 Вышел"))
+	}
+}
+
+func TestInProgressShowsHowLongARunHasGoneAndWhenItMayHaveStopped(t *testing.T) {
+	f := newFixture("approved")
+	now := time.Date(2026, 11, 11, 16, 0, 0, 0, time.UTC)
+	f.h.now = func() time.Time { return now }
+	long := strings.Repeat("The Council of Ministers approved a decree on rail safety ", 8)
+	f.store.progress = []store.InProgress{
+		{ChannelID: "8bitnews-es", StoryTitle: "Running fine", Development: long, CreatedAt: now.Add(-105 * time.Minute)},
+		{ChannelID: "8bitnews-es", StoryTitle: "Stuck somewhere", CreatedAt: now.Add(-5 * time.Hour)},
+	}
+	body := f.get("/admin", true).Body.String()
+	fine := body[strings.Index(body, "Running fine"):strings.Index(body, "Stuck somewhere")]
+	if !strings.Contains(fine, "идёт 1 ч 45 мин") || strings.Contains(fine, "остановился") {
+		t.Errorf("a 1 h 45 min run:\n%s", fine)
+	}
+	if !strings.Contains(fine, "…") || strings.Contains(fine, long) {
+		t.Errorf("a long development is not cut short:\n%s", fine)
+	}
+	stuck := body[strings.Index(body, "Stuck somewhere"):]
+	if !strings.Contains(stuck, "идёт 5 ч 00 мин") || !strings.Contains(stuck, "возможно, остановился") {
+		t.Errorf("a 5 h run with no video isn't flagged:\n%s", stuck)
 	}
 }

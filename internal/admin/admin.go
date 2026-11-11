@@ -295,7 +295,40 @@ type tab struct {
 
 type progressRow struct {
 	store.InProgress
-	When string
+	When  string
+	Age   string // «идёт 1 ч 45 мин»
+	Turn  string // the development, cut short
+	Stale bool   // no video after staleAfter: the run may have stopped
+}
+
+// staleAfter: a run takes 1.5–2 hours, three with reworks; after this many
+// hours with no release the row says the run may have stopped.
+const staleAfter = 4 * time.Hour
+
+func (h *Handler) progressRowOf(p store.InProgress) progressRow {
+	age := h.now().Sub(p.CreatedAt)
+	if age < 0 {
+		age = 0
+	}
+	mins := int(age.Minutes())
+	text := fmt.Sprintf("идёт %d мин", mins)
+	if mins >= 60 {
+		text = fmt.Sprintf("идёт %d ч %02d мин", mins/60, mins%60)
+	}
+	return progressRow{InProgress: p, When: h.when(p.CreatedAt), Age: text, Turn: cut(p.Development, 220), Stale: age > staleAfter}
+}
+
+// cut shortens s to at most n runes, at a word boundary, with an ellipsis.
+func cut(s string, n int) string {
+	r := []rune(strings.TrimSpace(s))
+	if len(r) <= n {
+		return string(r)
+	}
+	t := string(r[:n])
+	if i := strings.LastIndex(t, " "); i > n/2 {
+		t = t[:i]
+	}
+	return strings.TrimRight(t, " ,;:—-") + "…"
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request, id Identity) {
@@ -357,7 +390,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, id Identity) {
 	}
 	for _, p := range progress {
 		if channel == "" || p.ChannelID == channel {
-			page.InProgress = append(page.InProgress, progressRow{InProgress: p, When: h.when(p.CreatedAt)})
+			page.InProgress = append(page.InProgress, h.progressRowOf(p))
 		}
 	}
 	page.Empty = len(page.Sections) == 0 && len(page.InProgress) == 0 && len(page.Closed) == 0
