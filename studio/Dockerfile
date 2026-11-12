@@ -1,5 +1,9 @@
 #syntax=docker/dockerfile:1
-FROM python:3.12-slim
+# The official python:3.12-slim, pulled from ECR Public instead of Docker Hub: the same image (index
+# sha256:5e2bdb1b0d54…, amd64 sha256:05a994d2344e…, checked 12.11.2026), a different route. From 12.11 ~12:20 UTC
+# every build in the PolyMaths sandboxes failed on the Docker Hub route with «failed to compute cache key: short
+# read: expected 29856132 bytes but got 0».
+FROM public.ecr.aws/docker/library/python:3.12-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
