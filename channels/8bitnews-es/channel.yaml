@@ -46,9 +46,10 @@ format:
   description: format.md
   aspect: "9:16"
   duration_s: { min: 45, max: 90 }
-  # Все голоса на скорости 1,0 (выбор владельца 04.11.2026). Темп сильно зависит от текста: 162–181 слово в минуту,
-  # в серьёзном режиме от 149. Бюджет считан по медленному концу, минимум — по быстрому.
-  words: { rate: 2.5, min: 135, seconds_per_word: 0.37, serious_rate: 2.25, serious_min: 125, serious_seconds_per_word: 0.41 }
+  # Все голоса на скорости 1,0 (выбор владельца 04.11.2026). Темп сильно зависит от текста: по 9 роликам 05–12.11
+  # голос с паузами читал 2,2–2,7 слова в секунду, медиана 2,4 (format.md, «Длительность и темп»). Бюджет 2,3 —
+  # ниже медианы, чтобы сценарий у 90 с не выходил за предел; минимум — по быстрому концу.
+  words: { rate: 2.3, min: 135, seconds_per_word: 0.40, serious_rate: 2.05, serious_min: 125, serious_seconds_per_word: 0.45 }
   templates: [nes-desk]
   default_template: nes-desk
   # Голос у каждого ведущего свой: voice_id в studio/channels/8bitnews-es/anchors/<id>/manifest.json.
