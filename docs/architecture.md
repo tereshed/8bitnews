@@ -248,7 +248,7 @@ RU не делаем **[решено]**: независимая аналитик
 - Скрипты `newsroom/tools/` ходят в hub по REST с ключом из skill'а проекта `hub-access` (`hub.env`), а генератор
   картинок — с ключом из skill'а `studio-video` (`video.env`, секрет `STUDIO_OPENROUTER_API_KEY`). Skills выдаются
   поимённо (поле `skills` агентов в `newsroom/teams/*/team.json`, `newsroom/sync.py`): `hub-access` — video_producer,
-  qa_validator, editor и агентам Legal; `studio-video` — только video_producer. Агентам, которые ходят по вебу
+  qa_validator, editor, producer (только архив источников по одобренному досье, без веб-инструментов) и агентам Legal; `studio-video` — только video_producer. Агентам, которые ходят по вебу
   (Research, editor в поиске), ключ генератора не выдаётся.
 - Веб-поиск и загрузка страниц — встроенные инструменты агентов.
 - Ключи S3, TTS, генерации изображений — секреты проекта PolyMaths.
