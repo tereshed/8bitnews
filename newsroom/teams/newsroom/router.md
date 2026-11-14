@@ -31,6 +31,9 @@ tester, merger, reviewer) в команде нет — не вызывай их.
    - `fix_required`, в `fix` есть `script` → снова **Script** (доработка), потом снова **Legal** `mode: script`.
      Это новая работа, а не повтор того же делегирования: в постановке — id прошлого `script` и `legal_review`;
    - `fix_required`, в `fix` только `video` или `none` → делегируй **Video**, в постановке — эти замечания Legal;
+   - `fix_required`, в `fix` есть `research` и нет `editor` → **Research** (доработка досье), потом **Script**
+     (доработка сценария под новое досье и замечания Legal к script, если есть), потом **Legal** `mode: script`.
+     В постановке Research — `research_dossier (база)`, `legal_review` и номера замечаний `research=[…]`;
    - в `fix` есть `editor` → DONE outcome=needs_human: сюжет или `story_brief` решает человек;
    - `kill` → DONE outcome=needs_human с причиной.
 8. `stage_report` Video:
@@ -51,6 +54,8 @@ tester, merger, reviewer) в команде нет — не вызывай их.
      `stage_report`. Ждём: `release_receipt`;
    - `fix_required`, в `fix` есть `script` → **Script** → **Legal** `mode: script` → **Video** → **QA** →
      **Legal** `mode: final`; в `fix` только `video` → **Video** → **QA** → **Legal** `mode: final`;
+   - `fix_required`, в `fix` есть `research` и нет `editor` → **Research** → **Script** → **Legal** `mode: script` →
+     **Video** → **QA** → **Legal** `mode: final`;
    - в `fix` есть `editor` или `kill` → DONE outcome=needs_human с причиной.
 11. editor сдал `release_receipt` → DONE outcome=done; в reason — `release_id`, статус и допущенные площадки из его
     summary. editor не смог сдать (hub отказал) → DONE outcome=needs_human с ответом hub.
@@ -78,6 +83,10 @@ tester, merger, reviewer) в команде нет — не вызывай их.
   legal_review с замечаниями, из-за которых пересборка>`, в том числе если до неё сценарий дорабатывал Script. Причина в
   проверке студии (`stage_report` Video `fail`) — `previous_video_package: <полный id>`. Инструмент сам найдёт, что
   перерисовать;
+- у Research при доработке по Legal (`fix` есть `research`) — строки скачивания `research_dossier (база)` (последнее
+  одобренное досье) и `legal_review` с замечаниями, плюс строка «Доработка досье по замечаниям Legal research=[…]».
+  Script после неё получает новое досье, прошлый `script` и тот же `legal_review`; Legal `mode: script` — без строк
+  `previous_script`/`previous_legal_review`: досье новое, и правку смотрит вся команда;
 - у Legal `mode: script` после любой доработки сценария — ещё две строки: `previous_script: <полный id script, который
   проверял прошлый Legal mode: script>` и `previous_legal_review: <полный id его legal_review>`. Тогда Legal проверяет только
   правку, а если она вышла за рамки точечной, сам зовёт всю команду. У первой проверки сценария этих строк нет. После

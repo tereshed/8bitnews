@@ -35,7 +35,7 @@ def decide(script_meta: dict, review_meta: dict, package: dict) -> dict:
     elif review_at <= script_at:
         reasons.append("сценарий новее ревью: эту версию Legal не видел")
     for issue in review.get("issues", []):
-        if issue.get("severity") in ("blocker", "high") and issue.get("fix_owner") in ("script", "editor") \
+        if issue.get("severity") in ("blocker", "high") and issue.get("fix_owner") in ("script", "research", "editor") \
                 and issue.get("resolved_by_exclusion") is not True:
             reasons.append(f"в ревью открыто замечание к тексту: {issue.get('id')}")
     return {"scope": "full" if reasons else "new_only", "reasons": reasons, "carry_over": {
