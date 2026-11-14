@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
-from hublib import SCRIPT_PROBLEM_PREFIX, artifact, artifact_details
+from hublib import SCRIPT_PROBLEM_PREFIX, Hub, artifact, artifact_details
 
 # Studio checks only a change to the script can pass: the words don't fit the channel's length, or a picture
 # named in --redraw became a neutral card again. Any other failed check is Video's.
 SCRIPT_CHECKS = ("duration", "picture_fallback_redrawn")
 NOTES_IN_SUMMARY = 1500  # characters: the router sees only the summary, and rule 8 hands these notes to Script
+ARCHIVE_TIMEOUT = 10  # seconds: hub answers at once and archives in the background
 
 
 def build_report(result_id: str, delegation: dict, fetch=artifact, fetch_details=artifact_details) -> dict:
@@ -94,12 +96,36 @@ def summary(report: dict) -> str:
     return line
 
 
+def archive_sources(report: dict) -> dict | None:
+    """Ask hub to save an approved research_dossier's sources to the Wayback Machine now, while the pages are up.
+
+    hub otherwise archives them only at release_submit, hours later, and refuses the video if a cited page is
+    down or blocks hub by then with no copy yet (rtve.es on 12.11, exteriores.gob.es on 13.11). Best effort: any
+    failure is one warning line on stderr and changes neither the verdict nor the exit code. Returns what to
+    record under report["archive"], or None when the report is not an approved Research dossier."""
+    if report["team"] != "Research" or report["verdict"] != "approved":
+        return None
+    try:
+        dossier = artifact(report["artifacts"]["research_dossier"], "research_dossier")
+        answer = Hub().archive_sources(dossier, timeout=ARCHIVE_TIMEOUT)
+        return {"queued": answer["queued"], "skipped_recent": answer["skipped_recent"]}
+    except (Exception, SystemExit) as e:  # hublib and pm_artifact report missing keys and HTTP errors by sys.exit
+        error = " ".join(str(e).split())[:300] or type(e).__name__
+        print(f"stage_report: hub did not take the dossier's sources for archiving: {error}", file=sys.stderr)
+        return {"error": error}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("delegation_result_id")
     parser.add_argument("--out", required=True)
+    parser.add_argument("--no-archive", action="store_true",
+                        help="don't send an approved research_dossier to hub to archive its sources")
     args = parser.parse_args()
     report = build_report(args.delegation_result_id, artifact(args.delegation_result_id, "delegation_result"))
+    archive = None if args.no_archive else archive_sources(report)
+    if archive is not None:
+        report["archive"] = archive  # not in the summary: the router's next step doesn't depend on it
     Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2))
     Path(args.out + ".summary.txt").write_text(summary(report))
     print(summary(report))
