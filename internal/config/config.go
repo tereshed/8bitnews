@@ -82,7 +82,8 @@ type Config struct {
 
 	// SourcesBackgroundArchiveTimeout bounds the background job that
 	// archives "ok" sources via Save Page Now after a release has already
-	// been created.
+	// been created, and the one that archives an approved dossier's sources
+	// (POST /api/v1/sources/archive).
 	SourcesBackgroundArchiveTimeout time.Duration
 
 	// MetricsAddr, if set, serves /metrics unauthenticated on this

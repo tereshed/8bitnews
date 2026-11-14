@@ -293,7 +293,8 @@ type sourceOutcome struct {
 //     redirecting away from it). A Save Page Now capture made now would
 //     only archive that error response, so it is not attempted at all —
 //     only a *pre-existing* snapshot (recorded with HTTP 200 before the
-//     page went bad) counts.
+//     page went bad) counts. SourcesArchive takes such snapshots when
+//     Research's dossier is approved, hours before submit.
 //
 // A snapshot is always made and looked up by the URL the source cites, not
 // where the check ended up: a page that now redirects to the site's home page

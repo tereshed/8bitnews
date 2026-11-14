@@ -46,6 +46,9 @@ func NewRouter(svc *service.Service, mcpHandler, pages, admin http.Handler, metr
 	mux.HandleFunc("POST /api/v1/media/download-url", h.handleMediaDownloadURL)
 	mux.HandleFunc("POST /api/v1/releases", h.handleReleaseSubmit)
 	mux.HandleFunc("GET /api/v1/releases/{release_id}", h.handleReleaseGet)
+	// REST only: newsroom/tools/stage_report.py calls it when Research's
+	// dossier is approved; no agent decides to.
+	mux.HandleFunc("POST /api/v1/sources/archive", h.handleSourcesArchive)
 	// The publishing routes take the publisher's key only: the pipeline's agents
 	// read web pages and hold the other one.
 	publisher := func(next http.HandlerFunc) http.HandlerFunc { return requirePublisher(publisherKey, next) }

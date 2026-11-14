@@ -122,6 +122,22 @@ func (h *handler) handleReleaseSubmit(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// handleSourcesArchive answers 202 at once: the sources are checked and saved
+// in the background.
+func (h *handler) handleSourcesArchive(w http.ResponseWriter, r *http.Request) {
+	req, err := decodeJSON[service.SourcesArchiveRequest](r)
+	if err != nil {
+		writeErrorMessage(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
+		return
+	}
+	resp, err := h.svc.SourcesArchive(req)
+	if err != nil {
+		writeServiceError(w, h.log, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, resp)
+}
+
 func (h *handler) handleReleaseGet(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.svc.ReleaseGet(r.Context(), service.ReleaseGetRequest{
 		ReleaseID: r.PathValue("release_id"),

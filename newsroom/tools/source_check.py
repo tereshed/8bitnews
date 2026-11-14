@@ -22,8 +22,10 @@ One line per link, printed as soon as it is known:
 
 Exit codes: 0 when every link passes, 1 when some are `bad`, 2 on bad input.
 
-`ok` is not a promise. hub runs on another IP and speaks HTTP/2. At submit time it also
-tries Save Page Now, which may rescue a `bad` link, but often fails (some sites block the
+`ok` is not a promise. hub runs on another IP and speaks HTTP/2. hub also sends the dossier's
+links, except dead and blocked ones, to Save Page Now as soon as the dossier is approved
+(stage_report.py, POST /api/v1/sources/archive), and again at submit time, so a page that
+goes down or blocks hub later can still pass. Save Page Now often fails (some sites block the
 archive too), so this tool doesn't count on it.
 """
 from __future__ import annotations

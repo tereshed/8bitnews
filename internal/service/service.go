@@ -2,6 +2,7 @@ package service
 
 import (
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/tereshed/8bitnews/internal/publish"
@@ -45,11 +46,16 @@ type Service struct {
 	sourcesConcurrency              int
 	sourcesCheckDeadline            time.Duration
 	sourcesBackgroundArchiveTimeout time.Duration
+
+	// recentArchives and archiveJobs belong to SourcesArchive: the URLs it
+	// saved lately, and its background jobs.
+	recentArchives *recentArchives
+	archiveJobs    sync.WaitGroup
 }
 
 // Deps are Service's dependencies and tunables. Checker, Wayback and
 // Availability may be nil for callers (tests) that never exercise
-// ReleaseSubmit's source-checking/archiving path.
+// ReleaseSubmit's source-checking/archiving path or SourcesArchive.
 type Deps struct {
 	Store        *store.Store
 	Media        *storage.Client
@@ -65,8 +71,8 @@ type Deps struct {
 	// source-checking phase. Zero uses defaultSourcesCheckDeadline.
 	SourcesCheckDeadline time.Duration
 	// SourcesBackgroundArchiveTimeout bounds the background job that
-	// archives "ok" sources after a release has been created. Zero uses
-	// defaultSourcesBackgroundArchiveTimeout.
+	// archives "ok" sources after a release has been created, and each
+	// SourcesArchive job. Zero uses defaultSourcesBackgroundArchiveTimeout.
 	SourcesBackgroundArchiveTimeout time.Duration
 
 	// Publish is what the upload packages of the publish queue link to.
@@ -108,5 +114,7 @@ func New(deps Deps) *Service {
 		sourcesConcurrency:              concurrency,
 		sourcesCheckDeadline:            deadline,
 		sourcesBackgroundArchiveTimeout: archiveTimeout,
+
+		recentArchives: newRecentArchives(recentArchiveTTL),
 	}
 }

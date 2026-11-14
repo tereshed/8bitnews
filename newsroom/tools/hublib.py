@@ -2,7 +2,7 @@
 
 Ключи — из env или из файлов skills проекта (PolyMaths подставляет секреты `${secret:…}` только в файлы skills
 и конфиги MCP, не в файлы песочницы):
-- `hub-access/hub.env` — `HUB_URL`, `HUB_API_KEY`: Video, QA, Legal, editor;
+- `hub-access/hub.env` — `HUB_URL`, `HUB_API_KEY`: Video, QA, Legal, editor, producer (архив источников досье);
 - `studio-video/video.env` — `STUDIO_OPENROUTER_API_KEY`: только Video (генератор картинок).
 """
 from __future__ import annotations
@@ -54,12 +54,12 @@ class Hub:
             url, key = keys["HUB_URL"], keys["HUB_API_KEY"]
         self.url, self.key = url.rstrip("/"), key
 
-    def call(self, method: str, path: str, body: dict | None = None) -> dict:
+    def call(self, method: str, path: str, body: dict | None = None, timeout: float = 120) -> dict:
         req = urllib.request.Request(self.url + path, method=method,
                                      data=json.dumps(body).encode() if body is not None else None,
                                      headers={"Authorization": f"Bearer {self.key}", "Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=120, context=SSL_CONTEXT) as resp:
+            with urllib.request.urlopen(req, timeout=timeout, context=SSL_CONTEXT) as resp:
                 return json.loads(resp.read())
         except urllib.error.HTTPError as e:
             raise SystemExit(f"hub {method} {path}: HTTP {e.code} {e.read().decode(errors='replace')[:500]}")
@@ -90,6 +90,11 @@ class Hub:
 
     def release_submit(self, manifest: dict) -> dict:
         return self.call("POST", "/api/v1/releases", manifest)
+
+    def archive_sources(self, research_dossier: dict, timeout: float = 120) -> dict:
+        """hub checks the dossier's sources and saves them to the Wayback Machine in the background; it answers at
+        once with {"queued": n, "skipped_recent": k}."""
+        return self.call("POST", "/api/v1/sources/archive", {"research_dossier": research_dossier}, timeout=timeout)
 
 
 def artifact(artifact_id: str, kind: str | None = None):

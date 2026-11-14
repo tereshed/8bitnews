@@ -47,6 +47,9 @@
       "name": "producer",
       "role": "producer",
       "prompt": "producer.md",
+      "skills": [
+        "hub-access"
+      ],
       "role_description": "Выпускающий продюсер: запускает stage_report.py по delegation_result команды Research, Script, Legal, Video или QA и сдаёт неизменённые JSON и summary. Код проверяет привязку ревью к последнему артефакту, извлекает вердикты, UUID и адресатов доработок. Сам вердикты не интерпретирует.",
       "code_backend": "claude-code",
       "provider_kind": "anthropic_oauth",
@@ -65,9 +68,7 @@
             "Write",
             "Glob",
             "Grep",
-            "Skill",
-            "WebFetch",
-            "WebSearch"
+            "Skill"
           ]
         }
       }
