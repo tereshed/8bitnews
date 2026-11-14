@@ -45,7 +45,7 @@ def build_report(result_id: str, delegation: dict, fetch=artifact, fetch_details
     doc = fetch(ids[kind], kind)
 
     def fix(owner, issue_id):
-        if owner not in ("script", "video", "editor", "none") or not issue_id:
+        if owner not in ("script", "research", "video", "editor", "none") or not issue_id:
             raise ValueError("Invalid fix owner or missing issue ID")
         report["fix_owners"].setdefault(owner, []).append(issue_id)
 

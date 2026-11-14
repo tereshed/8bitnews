@@ -96,3 +96,14 @@ def test_a_legal_pass_needs_a_platform_to_publish_on(platforms, verdict, owners)
     report = build_report("d", delegation, fetch=lambda _id, _kind: doc)
     assert report["verdict"] == verdict and report["fix_owners"] == owners
 
+
+def test_a_legal_issue_for_research_reaches_the_router():
+    """Legal can send a dossier fix to Research (a source whose headline breaks the election rule) instead of stopping
+    the run for a human with fix_owner editor."""
+    delegation = {"team": "Legal", "state": "done", "artifacts": [{"kind": "legal_review", "id": "r"}]}
+    doc = {"mode": "script", "verdict": "fix_required", "platforms": {"youtube": {"verdict": "pass"}},
+           "issues": [{"id": "R1", "severity": "blocker", "fix_owner": "research"},
+                      {"id": "P1", "severity": "medium", "fix_owner": "script"}]}
+    report = build_report("d", delegation, fetch=lambda _id, _kind: doc)
+    assert report["verdict"] == "fix_required"
+    assert report["fix_owners"] == {"research": ["R1"], "script": ["P1"]}
