@@ -370,7 +370,7 @@ def test_every_anchor_voice_keeps_the_channel_pace(voice_id):
         wavs = []
         for s in scenes:
             text, groups = build_synthesis_text(s["narration"], prons)
-            wavs.append(adapter.synthesize(text, voice_id, hinted_tokens(groups, s["narration"], prons)).wav_path)
+            wavs.append(adapter.synthesize(text, voice_id, hinted_tokens(groups)).wav_path)
         out = Path(tempfile.mkdtemp()) / "pace.wav"
         concat_wavs_with_silence(wavs, 0.3, out)
         with wave.open(str(out)) as w:

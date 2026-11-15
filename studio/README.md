@@ -509,9 +509,14 @@ debugging. `package.duration_s` is the measured length of `video.mp4`
 (ffprobe), and `package.script` is the script's path relative to the repo
 root when it lives inside it.
 
-**Pronunciations** match single whole words. A hint that matches no word
-(e.g. a multi-word phrase) is not applied: `build` prints a warning and
-records it in `package.notes`.
+**Pronunciations** match whole words, case-sensitively: a hint's `text` may be
+one word or a phrase ("Deutsche Welle"), which matches the same words in a row
+with no punctuation between them; punctuation around the word or phrase and a
+trailing 's stay. Where hints overlap, the longer phrase wins. A phrase's
+respelling is timed back onto its original words one to one when it has as
+many words, otherwise in proportion to their length. A hint that matches no
+word is not applied: `build` prints a warning and records it in
+`package.notes`.
 
 **Plates never cut text.** `scene_title` and `source_plate` wrap scene text
 to the plate width and hold up to `max_lines` lines (template schema, 1–3,
@@ -726,8 +731,6 @@ minute). A sandbox with fewer or slower cores takes proportionally longer.
 
 ## Known gaps
 
-- Pronunciation hints match single words only; a multi-word hint is
-  reported, not applied.
 - `script.music.cue` is not followed beyond fades and ducking.
 - Kokoro reads at most 510 phonemes per pass: a scene is split at sentence
   ends, and one sentence longer than that fails the build.

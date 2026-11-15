@@ -585,7 +585,7 @@ def build_package(
     for text in unused_pronunciations([s["narration"] for s in script["scenes"]], pronunciations):
         note = (
             f"pronunciation hint {text!r} matched no narration word and was not applied "
-            "(hints match single whole words only)"
+            "(a hint matches whole words in the same case, with no punctuation inside a phrase)"
         )
         print(f"warning: {note}", file=sys.stderr)
         extra_notes.append(note)
@@ -598,11 +598,10 @@ def build_package(
     sounds = {i: transition_sound(template, i) for i in range(len(script["scenes"]))} if not serious else {}
     sounds = {i: p for i, p in sounds.items() if p is not None}
     for i, scene in enumerate(script["scenes"]):
-        synth_text, group_sizes = build_synthesis_text(scene["narration"], pronunciations)
+        synth_text, groups = build_synthesis_text(scene["narration"], pronunciations)
         synth_narrations[scene["id"]] = synth_text
-        hinted = hinted_tokens(group_sizes, scene["narration"], pronunciations)
-        tts_result = adapter.synthesize(synth_text, voice_id, hinted)
-        words = regroup_words(scene["narration"], group_sizes, tts_result.words)
+        tts_result = adapter.synthesize(synth_text, voice_id, hinted_tokens(groups))
+        words = regroup_words(scene["narration"], groups, tts_result.words)
         duration = tts_result.duration_s
         if i in sounds:
             lead = prepend_silence(tts_result.wav_path, _wav_length(sounds[i]))

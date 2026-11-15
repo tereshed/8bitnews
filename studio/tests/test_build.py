@@ -709,7 +709,7 @@ def test_build_removes_scratch_but_keeps_the_voice_stem(built_package):
 
 def test_build_notes_an_unmatched_pronunciation_hint(built_package):
     notes = built_package["package"]["notes"]
-    assert any("Pixel Council" in n for n in notes)  # fixture hint that matches no single word
+    assert any("Pixel Council" in n for n in notes)  # the narration has "city council", lowercase
 
 
 def test_script_artifact_is_repo_relative_inside_the_repo(tmp_path):
