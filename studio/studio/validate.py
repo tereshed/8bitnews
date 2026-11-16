@@ -24,6 +24,7 @@ from .cover_title import (
 )
 from .errors import TemplateValidationError
 from .palette import channel_palette_set, image_colors_in_palette
+from .palette import contrast_ratio as _contrast_ratio
 from .paths import TEMPLATE_SCHEMA_PATH
 from .safe_zones import common_safe_rect, rect_within, rects_intersect
 from .text_render import text_size
@@ -37,22 +38,6 @@ _MIN_LINE_PROBE_TEXT = "W"
 # 2px pad, then FONT_PX+2 per line).
 _TEXT_PLATES = ("scene_title", "source_plate")
 _DEFAULT_PLATE_MAX_LINES = 2
-
-
-def _srgb_to_linear(c: float) -> float:
-    c = c / 255.0
-    return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-
-
-def _luminance(rgb: tuple[int, int, int]) -> float:
-    r, g, b = (_srgb_to_linear(c) for c in rgb)
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b
-
-
-def _contrast_ratio(a: tuple[int, int, int], b: tuple[int, int, int]) -> float:
-    la, lb = _luminance(a), _luminance(b)
-    lighter, darker = max(la, lb), min(la, lb)
-    return (lighter + 0.05) / (darker + 0.05)
 
 
 def _hex_to_rgb(h: str) -> tuple[int, int, int]:

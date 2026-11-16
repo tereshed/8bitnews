@@ -4,6 +4,7 @@ plate, the desk in front of the anchor, and what `studio template
 validate` holds the templates to."""
 import json
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -13,9 +14,10 @@ from PIL import Image
 from studio.builtin_script import BUILTIN_SCRIPT, builtin_timeline
 from studio.channel_assets import load_channel_assets
 from studio.constants import FONT_PX, LOGICAL_W
-from studio.engine import content_plate_boxes, render_frame, subtitle_box, subtitle_layout
+from studio.engine import _logo_card, address_lines, content_plate_boxes, render_frame, subtitle_box, subtitle_layout
 from studio.errors import TemplateValidationError
 from studio.template_pkg import load_template
+from studio.text_render import draw_text
 from studio.validate import validate_template
 
 FONT = load_channel_assets("8bitnews-us").font(FONT_PX)
@@ -209,11 +211,10 @@ def test_validate_rejects_an_ai_line_outside_the_safe_zone(nes_desk_dir, tmp_pat
                                                     lambda d: d["plates"]["ai_label"].update(y=420))
 
 
-def test_the_last_anchor_shot_shows_the_logo_unstretched(nes_desk_dir):
+def _last_screen(template, assets) -> np.ndarray:
+    """The screen of an outro's last anchor shot, down to the rows the anchor's head can't reach."""
     from studio.timeline import uniform_timeline
 
-    template = load_template(nes_desk_dir)
-    assets = load_channel_assets("8bitnews-us")
     script = json.loads(json.dumps(BUILTIN_SCRIPT))
     script["scenes"][-1].update(shot="anchor", real_people=[])  # an outro: no scene shot after it
     timeline = uniform_timeline(script)
@@ -221,15 +222,104 @@ def test_the_last_anchor_shot_shows_the_logo_unstretched(nes_desk_dir):
     frame = render_frame(script, timeline, template, assets, (last.start_s + last.end_s) / 2)
     screen = template.data["studio"]["screen"]
     top = template.data["studio"]["anchor"]["y"] - screen["y"]  # the anchor's head may overlap the screen's bottom
-    content = np.asarray(frame.crop((screen["x"], screen["y"], screen["x"] + screen["w"], screen["y"] + screen["h"])))[:top]
+    return np.asarray(frame.crop((screen["x"], screen["y"], screen["x"] + screen["w"], screen["y"] + screen["h"])))[:top]
+
+
+def _logo_at(content: np.ndarray, logo: Image.Image) -> tuple[int, int, int]:
+    """(scale, top, bottom) of the logo on a black card: the same whole-pixel
+    scale both ways (never stretched), centered across."""
+    for k in range(1, 9):
+        big = Image.new("RGBA", (logo.width * k, logo.height * k), (0, 0, 0, 255))
+        big.alpha_composite(logo.resize(big.size, Image.NEAREST))
+        want, x = np.asarray(big.convert("RGB")), (content.shape[1] - big.width) // 2
+        for y in range(content.shape[0] - big.height + 1):
+            if (content[y:y + big.height, x:x + big.width] == want).all():
+                return k, y, y + big.height
+    raise AssertionError("no whole-pixel scaled logo on the card")
+
+
+def _assert_lines(region: np.ndarray, lines: list[str], fg: tuple[int, int, int]) -> None:
+    """`region` (black, else `fg`) holds exactly `lines`, top to bottom, each
+    pixel for pixel as the font draws it and centered across."""
+    ink = (region != 0).any(axis=2)
+    assert {tuple(int(c) for c in px) for px in region[ink]} == {fg}
+    rows = np.nonzero(ink.any(axis=1))[0]
+    bands = np.split(rows, np.nonzero(np.diff(rows) > 1)[0] + 1)
+    assert len(bands) == len(lines)
+    for band, line in zip(bands, lines):
+        got = ink[band[0]:band[-1] + 1]
+        cols = np.nonzero(got.any(axis=0))[0]
+        canvas = Image.new("RGB", (len(line) * FONT_PX + 8, FONT_PX + 8))
+        draw_text(canvas, (4, 4), line, FONT, (255, 255, 255))
+        want = np.asarray(canvas).any(axis=2)
+        ys, xs = np.nonzero(want)
+        assert np.array_equal(got[:, cols[0]:cols[-1] + 1], want[ys.min():ys.max() + 1, xs.min():xs.max() + 1]), line
+        assert abs(cols[0] - (region.shape[1] - 1 - cols[-1])) <= 1, line
+
+
+def _assert_inside_margin(card: np.ndarray, margin: int = 8) -> None:
+    ys, xs = np.nonzero((card != 0).any(axis=2))
+    assert ys.min() >= margin and xs.min() >= margin and xs.max() < card.shape[1] - margin
+    assert ys.max() < card.shape[0] - margin
+
+
+@pytest.mark.parametrize("channel", ["8bitnews-us", "8bitnews-es"])
+def test_the_last_anchor_shot_shows_the_logo_and_the_sources_address(nes_desk_dir, channel):
+    """format.md block 7 'Финал': the address of the sources page in the frame
+    (`labels.json` `sources_url`), under the logo, in the pixel font, inside the card's margin."""
+    assets = load_channel_assets(channel)
+    content = _last_screen(load_template(nes_desk_dir), assets)
+    k, top, bottom = _logo_at(content, assets.logo)
+    assert k >= 2
+    assert not content[:top].any()
+    _assert_lines(content[bottom:], ["hub.8bitlang.org", f"/c/{channel}"], (252, 252, 252))  # NES white on black
+    _assert_inside_margin(content)
+
+
+def test_without_a_sources_address_the_last_screen_is_the_logo_only(nes_desk_dir):
+    assets = load_channel_assets("8bitnews-us")
+    assets = replace(assets, labels=replace(assets.labels, sources_url=None))
+    content = _last_screen(load_template(nes_desk_dir), assets)
+    w, h = 170, 136
 
     def card(k):  # the logo k times its size, centered on a black card
-        c = Image.new("RGBA", (screen["w"], screen["h"]), (0, 0, 0, 255))
+        c = Image.new("RGBA", (w, h), (0, 0, 0, 255))
         big = assets.logo.resize((assets.logo.width * k, assets.logo.height * k), Image.NEAREST)
-        c.alpha_composite(big, ((screen["w"] - big.width) // 2, (screen["h"] - big.height) // 2))
-        return np.asarray(c.convert("RGB"))[:top]
+        c.alpha_composite(big, ((w - big.width) // 2, (h - big.height) // 2))
+        return np.asarray(c.convert("RGB"))[:content.shape[0]]
 
     assert any((card(k) == content).all() for k in range(2, 9))
+
+
+@pytest.mark.parametrize("address, chars, lines", [
+    # the most even of the fewest lines: not "hub.8bitlang.org/c" and "/8bitnews-es"
+    ("hub.8bitlang.org/c/8bitnews-es", 19, ["hub.8bitlang.org", "/c/8bitnews-es"]),
+    ("hub.8bitlang.org/c/8bitnews-es", 16, ["hub.8bitlang.org", "/c/8bitnews-es"]),
+    ("hub.8bitlang.org/c/8bitnews-es", 30, ["hub.8bitlang.org/c/8bitnews-es"]),
+    ("ex.org/aa/bb/cc", 6, ["ex.org", "/aa", "/bb/cc"]),
+])
+def test_the_address_breaks_only_before_a_slash(address, chars, lines):
+    assert address_lines(address, chars) == lines
+
+
+@pytest.mark.parametrize("chars", [15, 12])
+def test_an_address_part_longer_than_a_line_is_never_split(chars):
+    with pytest.raises(ValueError, match="longer than"):
+        address_lines("hub.8bitlang.org/c/8bitnews-es", chars)  # the host is 16 characters
+
+
+def test_a_short_screen_gets_a_smaller_logo_and_never_text_past_the_card():
+    logo = load_channel_assets("8bitnews-es").logo
+    address, fg = "hub.8bitlang.org/c/8bitnews-es", (252, 252, 252)
+    card = np.asarray(_logo_card(logo, 170, 60, (0, 0, 0), address, FONT, fg).convert("RGB"))
+    k, top, bottom = _logo_at(card, logo)
+    assert k == 1  # 4 on the 136-px screen
+    _assert_lines(card[bottom:], ["hub.8bitlang.org", "/c/8bitnews-es"], fg)
+    _assert_inside_margin(card)
+    with pytest.raises(ValueError, match="don't fit"):
+        _logo_card(logo, 170, 50, (0, 0, 0), address, FONT, fg)
+    with pytest.raises(ValueError, match="longer than"):
+        _logo_card(logo, 120, 136, (0, 0, 0), address, FONT, fg)  # 13 characters a line: the host is 16
 
 
 def test_validate_rejects_a_plate_under_itself(nes_desk_dir, tmp_path):

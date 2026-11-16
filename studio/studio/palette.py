@@ -26,6 +26,23 @@ def rgb_to_hex(rgb: tuple[int, int, int]) -> str:
     return "#%02x%02x%02x" % tuple(int(c) for c in rgb)
 
 
+def _srgb_to_linear(c: float) -> float:
+    c = c / 255.0
+    return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def _luminance(rgb: tuple[int, int, int]) -> float:
+    r, g, b = (_srgb_to_linear(c) for c in rgb)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast_ratio(a: tuple[int, int, int], b: tuple[int, int, int]) -> float:
+    """WCAG contrast ratio of two colors, 1 to 21."""
+    la, lb = _luminance(a), _luminance(b)
+    lighter, darker = max(la, lb), min(la, lb)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
 @lru_cache(maxsize=8)
 def load_channel_palette(channel_id: str = "8bitnews-us") -> dict:
     path = channel_dir(channel_id) / "palette.json"
