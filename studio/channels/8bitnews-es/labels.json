@@ -1,6 +1,7 @@
 {
-  "$comment": "The words of the AI line in the channel's language (format.md, 'Текст в кадре'), drawn on every frame and checked by studio validate; the cover's line is \"<ai_illustration> · <ai_text>\".",
+  "$comment": "The words of the AI line in the channel's language (format.md, 'Текст в кадре'), drawn on every frame and checked by studio validate; the cover's line is \"<ai_illustration> · <ai_text>\". Optional sources_url: the address of the channel's sources page, no scheme, drawn under the logo on the last anchor shot's screen (format.md, block 7 'Финал'); without it the screen shows the logo only.",
   "ai_voice": "Voz IA",
   "ai_illustration": "Ilustración IA",
-  "ai_text": "Texto IA"
+  "ai_text": "Texto IA",
+  "sources_url": "hub.8bitlang.org/c/8bitnews-es"
 }

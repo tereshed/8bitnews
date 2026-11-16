@@ -5,6 +5,8 @@ reads; every visual choice is a pure function of (script, timeline,
 template, channel_assets, t_abs))."""
 from __future__ import annotations
 
+import itertools
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -19,7 +21,7 @@ from .constants import (
     MAX_SUBTITLE_CHARS_PER_LINE,
     MAX_SUBTITLE_LINES,
 )
-from .palette import Palette, hex_to_rgb, quantize_image
+from .palette import Palette, contrast_ratio, hex_to_rgb, quantize_image
 from .quantize import quantize
 from .subtitles import cue_lines, wrap_words
 from .template_pkg import TemplatePackage
@@ -243,7 +245,9 @@ def _render_anchor_shot(
     if screen_scene is not None:
         content = _render_scene_base(screen_scene, assets_dir, palette, font, screen["w"], screen["h"])
     else:
-        content = _logo_card(assets.logo, screen["w"], screen["h"], hex_to_rgb(screen.get("border_color", "#000000")))
+        bg = hex_to_rgb(screen.get("border_color", "#000000"))
+        content = _logo_card(assets.logo, screen["w"], screen["h"], bg, assets.labels.sources_url, font,
+                             _text_color_on(bg, palette))
     if screen.get("border_color"):
         b = SCREEN_BORDER_PX
         ImageDraw.Draw(frame).rectangle(
@@ -270,13 +274,58 @@ def _render_anchor_shot(
     return frame
 
 
-def _logo_card(logo: Image.Image, w: int, h: int, bg: tuple[int, int, int]) -> Image.Image:
+LOGO_CARD_MARGIN = 8
+ADDRESS_GAP = FONT_PX  # between the logo and the address under it
+ADDRESS_LINE_H = FONT_PX + 2  # a plate's line pitch
+
+
+def address_lines(address: str, max_chars: int) -> list[str]:
+    """The sources page address in as few lines of at most `max_chars` as it
+    takes, broken only before a `/` and as evenly as possible:
+    "hub.8bitlang.org", "/c/8bitnews-es". ValueError when a part between
+    slashes is longer than a line: a part is never split."""
+    parts = [p for p in re.split(r"(?=/)", address.strip()) if p]
+    for n in range(1, len(parts) + 1):
+        fits = []
+        for cuts in itertools.combinations(range(1, len(parts)), n - 1):
+            bounds = (0, *cuts, len(parts))
+            lines = ["".join(parts[a:b]) for a, b in zip(bounds, bounds[1:])]
+            if max(map(len, lines)) <= max_chars:
+                fits.append(lines)
+        if fits:
+            return min(fits, key=lambda lines: max(map(len, lines)))
+    raise ValueError(f"the sources address {address!r} has a part longer than {max_chars} characters between "
+                     "slashes, a line of the logo card")
+
+
+def _text_color_on(bg: tuple[int, int, int], palette: Palette) -> tuple[int, int, int]:
+    """The palette color that reads best on `bg` (highest contrast ratio)."""
+    return max((hex_to_rgb(c) for c in palette.hex_colors), key=lambda c: contrast_ratio(c, bg))
+
+
+def _logo_card(logo: Image.Image, w: int, h: int, bg: tuple[int, int, int], address: str | None = None,
+               font=None, fg: tuple[int, int, int] | None = None) -> Image.Image:
     """The channel logo on the screen of the last anchor shot: whole-pixel
-    scaled, centered on a plain card, with a margin -- never stretched."""
+    scaled, centered on a plain card, with a margin -- never stretched. With
+    `address` (`AiLabels.sources_url`, format.md block 7 'Финал'), its lines
+    (`address_lines`) go under the logo in `fg`, each centered, the logo
+    scaled down as far as it takes for both to fit inside the margin;
+    ValueError if they can't."""
     card = Image.new("RGBA", (w, h), (*bg, 255))
-    scale = max(1, min((w - 16) // logo.width, (h - 16) // logo.height))
+    inner_w, inner_h = w - 2 * LOGO_CARD_MARGIN, h - 2 * LOGO_CARD_MARGIN
+    lines = address_lines(address, inner_w // FONT_PX) if address else []
+    text_h = ADDRESS_GAP + len(lines) * ADDRESS_LINE_H - (ADDRESS_LINE_H - FONT_PX) if lines else 0
+    scale = min(inner_w // logo.width, (inner_h - text_h) // logo.height)
+    if lines and scale < 1:
+        raise ValueError(f"the logo and the sources address {lines} don't fit a {w}x{h} screen")
+    scale = max(1, scale)
     big = logo.resize((logo.width * scale, logo.height * scale), Image.NEAREST)
-    card.alpha_composite(big, ((w - big.width) // 2, (h - big.height) // 2))
+    top = (h - big.height - text_h) // 2
+    card.alpha_composite(big, ((w - big.width) // 2, top))
+    ty = top + big.height + ADDRESS_GAP
+    for line in lines:
+        draw_text(card, ((w - text_size(line, font)[0]) // 2, ty), line, font, fg)
+        ty += ADDRESS_LINE_H
     return card
 
 

@@ -53,6 +53,24 @@ def test_a_labels_file_without_the_ai_text_is_an_error(tmp_path, monkeypatch):
         channel_assets.load_ai_labels.cache_clear()
 
 
+def test_the_sources_address_is_optional(tmp_path, monkeypatch):
+    """format.md block 7 'Финал': each channel's sources index page; without the key, the logo only."""
+    import json
+
+    import studio.channel_assets as channel_assets
+
+    assert load_ai_labels("8bitnews-es").sources_url == "hub.8bitlang.org/c/8bitnews-es"
+    assert load_ai_labels("8bitnews-us").sources_url == "hub.8bitlang.org/c/8bitnews-us"
+    (tmp_path / "labels.json").write_text(json.dumps({"ai_voice": "AI voice", "ai_illustration": "AI illustration",
+                                                      "ai_text": "AI text"}))
+    monkeypatch.setattr(channel_assets, "channel_dir", lambda channel_id: tmp_path)
+    channel_assets.load_ai_labels.cache_clear()
+    try:
+        assert channel_assets.load_ai_labels("no-sources-url").sources_url is None
+    finally:
+        channel_assets.load_ai_labels.cache_clear()
+
+
 def test_ai_illustration_shows_whenever_a_real_person_is_in_frame(nes_desk_dir):
     """Not just for a scene's own `real_people`: an anchor shot (S1) puts the
     *next* scene-shot's image on the screen behind the anchor when it has no

@@ -12,7 +12,9 @@ APIs; nothing needs the network once the image is built.
 - `channels/8bitnews-us/` — assets shared by every template for this
   channel: the OFL pixel font, the NES palette, the logo, the anchors
   (`anchors/`: the brief they are drawn from and one sprite set per anchor),
-  and the platform safe-zone rectangles.
+  the platform safe-zone rectangles, and `labels.json`: the AI line's words
+  in the channel's language and the optional `sources_url` (below, «The
+  sources address»).
 - `templates/nes-desk/`, `templates/night-report/` — two template packages
   (data only: `template.json` + PNGs), proving the engine draws any valid
   package without template-specific code.
@@ -93,6 +95,22 @@ shown, kept separate from pixel drawing so it is unit-testable
   is as wide as its longest line and centered in its rect; a plate with
   `below` sits under that plate when it is shown (`content_plate_boxes`):
   the source on top, the title under it, the title alone at the top.
+- **The sources address** (format.md block 7 «Финал»: the address of the
+  sources page in the frame; QA and Legal, 16.11) — on the screen of the
+  last anchor shot, under the logo (`engine._logo_card`), when the channel's
+  `labels.json` has `sources_url`, without a scheme. It is the channel's
+  sources index, `hub.8bitlang.org/c/<channel id>`, not the video's own
+  `/s/<code>` page: that code comes from the hub release, which exists only
+  after the video is built. The address is drawn in the pixel font, split
+  only before a `/` into the fewest, most even lines that fit inside the
+  card's 8-px margin (`engine.address_lines`: `hub.8bitlang.org` and
+  `/c/8bitnews-es`), each line centered, in the palette color with the most
+  contrast on the screen's `border_color` (NES white on black in both
+  templates). The logo keeps a whole-pixel scale, made smaller if both
+  wouldn't fit otherwise (on the 170×136 screen it stays ×4). A part between
+  slashes longer than a line, or a screen too small for both, is an error,
+  never a cut or overflowing address. Without `sources_url`, the screen
+  shows the logo only.
 
 ### Safe zones
 
@@ -164,7 +182,8 @@ with none would leave some scenes with no motion at all.
   (2-3 frames, driven by the timeline's volume envelope) regardless of
   which motion preset the scene shown on the screen behind the anchor is
   using (the anchor scene's own picture `<assets>/<id>.png`, else the next
-  scene shot's; the last anchor shot shows the channel logo). The screen
+  scene shot's; the last anchor shot shows the channel logo and the sources
+  address, «The sources address» below). The screen
   sits centered above the anchor with a 2-px frame (`studio.screen`), and
   the desk is a layer drawn in front of the anchor (`front: true`).
 

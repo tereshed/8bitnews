@@ -73,10 +73,13 @@ class AnchorSprites:
 @dataclass(frozen=True)
 class AiLabels:
     """The words of the AI line in the channel's language (format.md, 'Текст в
-    кадре'; `channels/<id>/labels.json`)."""
+    кадре'; `channels/<id>/labels.json`), and the address of the channel's
+    sources page that the last anchor shot's screen shows under the logo
+    (format.md, block 7 'Финал'; optional: None shows the logo only)."""
     voice: str
     illustration: str
     text: str
+    sources_url: str | None = None
 
     def line(self, illustration: bool) -> str:
         return f"{self.voice} · {self.illustration}" if illustration else self.voice
@@ -110,7 +113,8 @@ def load_ai_labels(channel_id: str) -> AiLabels:
     must not reach a video unnoticed."""
     with open(channel_dir(channel_id) / "labels.json", encoding="utf-8") as f:
         data = json.load(f)
-    return AiLabels(voice=data["ai_voice"], illustration=data["ai_illustration"], text=data["ai_text"])
+    return AiLabels(voice=data["ai_voice"], illustration=data["ai_illustration"], text=data["ai_text"],
+                    sources_url=(data.get("sources_url") or "").strip() or None)
 
 
 def load_channel_logo(channel_id: str) -> Image.Image:
