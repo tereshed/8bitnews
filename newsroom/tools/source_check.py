@@ -22,6 +22,9 @@ One line per link, printed as soon as it is known:
 
 Exit codes: 0 when every link passes, 1 when some are `bad`, 2 on bad input.
 
+Some sites serve this bot from the sandbox or a laptop but send hub's server to a captcha. They are
+listed in HUB_BLOCKED: their live check is skipped and only a Wayback copy passes, as in hub.
+
 `ok` is not a promise. hub runs on another IP and speaks HTTP/2. hub also sends the dossier's
 links, except dead and blocked ones, to Save Page Now as soon as the dossier is approved
 (stage_report.py, POST /api/v1/sources/archive), and again at submit time, so a page that
@@ -78,6 +81,11 @@ SECOND_LEVELS = {
     "gv.at", "co.at", "or.at", "ac.at", "com.gr", "gov.gr", "com.ru", "gov.ru",
 }
 WAYBACK_LOCK = threading.Lock()  # one archive request at a time: parallel lookups get refused
+# Registrable domains that answer hub's server with a captcha though they let this bot in elsewhere. hub refused
+# releases over them («broken sources with no archive copy»), so here too only an archive copy passes.
+HUB_BLOCKED = {
+    "europapress.es": "hub's server gets a captcha page from this site (refusals on 15.11 and twice on 17.11)",
+}
 HEADING = re.compile(r"<title[^>]*>(.*?)</title>|<h1[^>]*>(.*?)</h1>", re.I | re.S)
 ID = re.compile(r"^[FLW][0-9]+$")
 SKIP_KEYS = {"polls", "outlets_reviewed"}  # links hub never checks
@@ -162,6 +170,9 @@ def live_status(url: str) -> str:
     """hub's CheckStatus for the live page: ok, bot_protected, dead, soft_404, unreachable (…), blocked."""
     if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
         return "blocked"
+    domain = registrable(urllib.parse.urlsplit(url).hostname or "")
+    if domain in HUB_BLOCKED:
+        return f"soft_404 ({HUB_BLOCKED[domain]})"
     status, final, body = fetch(url)
     if status == 0:
         return f"unreachable ({body})"
