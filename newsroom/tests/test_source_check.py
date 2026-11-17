@@ -151,6 +151,21 @@ def test_consent_wall_is_bot_protected(monkeypatch):
     assert source_check.live_status("https://finance.yahoo.com/news/x") == "bot_protected"
 
 
+def test_site_that_blocks_hubs_server_is_not_fetched(monkeypatch):
+    def fail(url):
+        raise AssertionError("fetched a site hub cannot open")
+    monkeypatch.setattr(source_check, "fetch", fail)
+    assert source_check.live_status("https://www.europapress.es/internacional/noticia-x.html").startswith("soft_404 (")
+
+
+@pytest.mark.parametrize("copy,passed,word", [(None, False, "bad"), ("https://web.archive.org/web/1/x", True, "archived")])
+def test_site_that_blocks_hubs_server_passes_only_with_a_copy(monkeypatch, copy, passed, word):
+    monkeypatch.setattr(source_check, "fetch", lambda url: (200, url, ARTICLE))
+    monkeypatch.setattr(source_check, "snapshot", lambda url: copy)
+    ok, line = source_check.check("https://www.europapress.es/internacional/noticia-x.html")
+    assert ok is passed and line.split()[0] == word and "captcha" in line, line
+
+
 def test_archive_down_is_unknown_not_missing(site):
     ok, line = source_check.check(site + "/forbidden-archive-down")
     assert not ok and "archive unknown" in line and "no archive copy" not in line
