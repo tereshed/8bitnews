@@ -61,6 +61,7 @@ from .engine import (
 )
 from .cover_title import COVER_LAYOUTS, cover_font_px, cover_title_layout, fit_cover_title
 from .errors import BuildError
+from .experiments import music_arm, music_left_out
 from .music import choose_music
 from .palette import hex_to_rgb
 from .paths import TEMPLATES_DIR
@@ -521,7 +522,9 @@ def build_package(
     means every picture is drawn, with a note. `notes`: added to package.notes.
     `cover_layout`: where the cover title's plate goes, "bottom" or "top"
     (`studio pick` alternates them).
-    `music_file`/`music_track`: see `studio.music.choose_music`;
+    `music_file`/`music_track`: see `studio.music.choose_music`; a script the
+    channel's `music_off` test puts in the arm "off" gets no music whatever
+    they say (`studio.experiments`), and the arm goes to package.experiment;
     `audio_overrides` replaces mix levels from config.json (tests)."""
     script_path = Path(script_path)
     out_dir = Path(out_dir)
@@ -553,7 +556,16 @@ def build_package(
     if cover_layout not in COVER_LAYOUTS:
         raise BuildError(f"cover layout {cover_layout!r}: expected one of {', '.join(COVER_LAYOUTS)}")
     check_cover(script, assets, assets_dir, images)
-    music_choice = choose_music(script, channel_profile, music_file, music_track, music_catalog, music_dir)
+    experiment = music_arm(script, channel_profile)
+    experiment_notes = []
+    if music_left_out(experiment):
+        music_choice = None
+        experiment_notes.append("the owner's music_off test (channel.yaml experiments): this story is in the arm "
+                                "without music, so the video has none although script.music asks for it")
+        if music_file or music_track:
+            experiment_notes.append("--music-file/--music-track ignored: the music_off test leaves the music out")
+    else:
+        music_choice = choose_music(script, channel_profile, music_file, music_track, music_catalog, music_dir)
     audio_cfg = audio_settings(audio_overrides)
 
     images_report = None
@@ -581,7 +593,7 @@ def build_package(
     pause_s = template.data.get("timing", {}).get("scene_pause_s", 0.3)
 
     pronunciations = script.get("pronunciations", [])
-    extra_notes = list(notes) + anchor_notes
+    extra_notes = list(notes) + anchor_notes + experiment_notes
     for text in unused_pronunciations([s["narration"] for s in script["scenes"]], pronunciations):
         note = (
             f"pronunciation hint {text!r} matched no narration word and was not applied "
@@ -769,6 +781,8 @@ def build_package(
         anchor={"id": anchor_id, "chosen_by": chosen_by},
         images=images_report.to_package() if images_report is not None else None,
     )
+    if experiment:
+        package["experiment"] = experiment
 
     schema = repo.load_contract_schema("video_package.schema.json")
     validator = jsonschema.Draft202012Validator(schema)

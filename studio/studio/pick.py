@@ -14,7 +14,8 @@ For each of the three:
      hashing), so the same script and history always give the same pick and
      different stories spread over the library.
 A value the script already fixes (an experiment arm's `script.template`)
-wins over the pick. `exclude` ({"anchor": [...], "template": [...],
+wins over the pick. A script the channel's `music_off` test puts in the arm
+"off" gets no track (`studio.experiments`); the arm is in `experiment`. `exclude` ({"anchor": [...], "template": [...],
 "music_track": [...]}) leaves out choices QA or Legal objected to, unless
 that would leave nothing.
 
@@ -41,6 +42,7 @@ from dataclasses import dataclass
 from .channel_assets import anchor_ids
 from .cover_title import COVER_LAYOUTS
 from .errors import BuildError
+from .experiments import music_arm, music_left_out
 from .music import licensed_for, load_catalog
 from .paths import TEMPLATES_DIR
 
@@ -59,10 +61,13 @@ class Pick:
     music_key: str | None = None  # the track's audio key in the store (music/catalog.yaml audio.key)
     cover_layout: str = "bottom"  # where the cover title's plate goes (`studio build --cover-layout`)
     notes: tuple[str, ...] = ()  # what a rebuild couldn't keep from its earlier package, and why
+    experiment: dict | None = None  # the arm of the channel's music test (`studio.experiments.music_arm`)
 
     def to_dict(self) -> dict:
         out = {"template": self.template, "anchor": self.anchor, "music_track": self.music_track,
                "music_key": self.music_key, "cover_layout": self.cover_layout, "reasons": self.reasons}
+        if self.experiment:
+            out["experiment"] = self.experiment
         return {**out, "notes": list(self.notes)} if self.notes else out
 
 
@@ -224,9 +229,11 @@ def _keep_earlier(fresh: Pick, keep: dict, script: dict, channel_profile: dict, 
 
     track, music_key = fresh.music_track, fresh.music_key
     music = script.get("music") or {}
-    if not music.get("enabled"):
+    if not music.get("enabled") or music_left_out(fresh.experiment):
         if keep.get("music_track"):
-            notes.append(f"track {keep['music_track']!r} of the earlier package can't stay (the script has no music now)")
+            why = ("the script has no music now" if not music.get("enabled")
+                   else "the music_off test puts the story in the arm without music")
+            notes.append(f"track {keep['music_track']!r} of the earlier package can't stay ({why})")
     else:
         keys = _track_candidates(music, channel_profile, catalog if catalog is not None else load_catalog())
         track = settled("track", "music_track", sorted(keys), RECENT["music"], "music", fresh.music_track)
@@ -242,7 +249,7 @@ def _keep_earlier(fresh: Pick, keep: dict, script: dict, channel_profile: dict, 
         notes.append(f"cover layout {was!r} of the earlier package can't stay ({problem}): picked {layout!r}")
     else:
         reasons["cover_layout"] = "kept from the earlier package"
-    return Pick(template, anchor, track, reasons, music_key, layout, tuple(notes))
+    return Pick(template, anchor, track, reasons, music_key, layout, tuple(notes), fresh.experiment)
 
 
 def pick(script: dict, channel_profile: dict, recent: list, catalog: list[dict] | None = None,
@@ -275,8 +282,11 @@ def pick(script: dict, channel_profile: dict, recent: list, catalog: list[dict] 
                                         exclude.get("anchor", []))
 
     music = script.get("music") or {}
+    experiment = music_arm(script, channel_profile)
     track = key_ = None
-    if music.get("enabled"):
+    if music_left_out(experiment):
+        reasons["music_track"] = "the music_off test: the story's dossier hash puts it in the arm without music"
+    elif music.get("enabled"):
         keys = _track_candidates(music, channel_profile, catalog if catalog is not None else load_catalog())
         track, why = _choose(sorted(keys), _used(recent, "music"), RECENT["music"], key, exclude.get("music_track", []))
         key_ = keys[track]
@@ -285,7 +295,7 @@ def pick(script: dict, channel_profile: dict, recent: list, catalog: list[dict] 
         reasons["music_track"] = "the script has no music"
     feed = recent if cover_recent is None else cover_recent
     cover_layout, reasons["cover_layout"] = _cover_layout(feed, key)
-    fresh = Pick(template, anchor, track, reasons, key_, cover_layout)
+    fresh = Pick(template, anchor, track, reasons, key_, cover_layout, experiment=experiment)
     if keep is None:
         return fresh
     return _keep_earlier(fresh, keep, script, channel_profile, _neighbours(feed, keep.get("package_archive")), catalog,

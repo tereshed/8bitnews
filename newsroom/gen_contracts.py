@@ -471,6 +471,13 @@ vmusic = {
 cover_layout = {"enum": ["bottom", "top"],
                 "description": "The cover title's plate: low in the safe zone just above the AI line, or at its top; "
                                "studio pick alternates them (owner, 07.11.2026)"}
+experiment = {
+    "type": "object", "required": ["id", "arm"], "additionalProperties": False,
+    "properties": {"id": {"enum": ["music_off"]}, "arm": {"enum": ["on", "off"]}},
+    "description": "The arm of the owner's format test this video is in (channel.yaml experiments, "
+                   "studio/studio/experiments.py): music_off 'off' = made without music although the script asks "
+                   "for it. Absent when the video is in no test.",
+}
 vp = schema("video_package",
     "video_producer output and final result of the Video team: the rendered video and everything QA and Legal "
     "need without rewatching it in full.",
@@ -576,6 +583,7 @@ vp = schema("video_package",
                                                          "findings: only extra_people, people the scene doesn't "
                                                          "describe. Absent when the picture passed."},
                             "attempts": {"type": "array", "items": {"type": "object"}}}}}}},
+     "experiment": {"$ref": "#/$defs/experiment"},
      "media": {"type": "object",
                "description": "Where the package's files are in the store (hub media_upload_url object keys), added by "
                               "newsroom/tools/video_build.py; absent in a package that was not uploaded. QA, Legal and "
@@ -593,8 +601,9 @@ vp = schema("video_package",
                                           "description": "What reviewers rejected on the way to this build: a rebuild keeps excluding it"},
                              "reasons": {"type": "object"},
                              "notes": {"type": "array", "items": str1,
-                                       "description": "What a rebuild could not keep from its earlier package, and why"}}}},
-    {"media": media, "vscene": vscene, "vmusic": vmusic})
+                                       "description": "What a rebuild could not keep from its earlier package, and why"},
+                             "experiment": {"$ref": "#/$defs/experiment"}}}},
+    {"media": media, "vscene": vscene, "vmusic": vmusic, "experiment": experiment})
 vp["allOf"] = [
     {"if": {"required": ["duration_s", "music"],
             "properties": {"duration_s": {"exclusiveMinimum": 60}, "music": {"properties": {"enabled": {"const": True}}}}},

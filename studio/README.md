@@ -384,7 +384,12 @@ video is made with (`studio/pick.py`), chosen by code against the channel's last
 - **anchor** — an active anchor not used by the last 2 videos;
 - **track** — approved, licensed for every enabled platform, the script's mood, energy
   within 1 of the nearest, not one of the last 5 videos' tracks; also its `music_key` in
-  the store;
+  the store. None when the channel's `experiments.music_off` test (owner, 18.11.2026) puts
+  the story in the arm without music: half of the scripts with music, by the hash of
+  `script.dossier`, between the test's `from` and `until` (UTC). `studio build` leaves the
+  music out for them too, whatever track it is given, and records the arm in
+  `package.json` `experiment` (`{"id": "music_off", "arm": "on" | "off"}`, also in the
+  pick) (`studio/experiments.py`);
 - **cover_layout** — where the cover title's plate goes, `bottom` or `top` (owner,
   07.11.2026): the opposite of the newest recent video that recorded one (`cover.layout`
   or `pick.cover_layout`), by the script's hash when none did. Releases hub marks

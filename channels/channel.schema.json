@@ -177,7 +177,17 @@
       "additionalProperties": false,
       "required": ["enabled"],
       "properties": {
-        "enabled": { "type": "boolean" }
+        "enabled": { "type": "boolean" },
+        "music_off": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from", "until"],
+          "description": "Between these UTC dates (inclusive) half of the videos whose script asks for music are made without it, by the hash of the story's dossier (studio/studio/experiments.py). Works only with enabled: true.",
+          "properties": {
+            "from": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+            "until": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+          }
+        }
       }
     }
   }

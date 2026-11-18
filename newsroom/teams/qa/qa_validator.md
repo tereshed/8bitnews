@@ -40,7 +40,9 @@
      («Ilustración IA · Texto IA»); «AI text» внутри `cover.text` — `minor`, `fix_owner: script`.
 4. **Ролик целиком:** длительность в диапазоне канала (`format.duration_s`); музыка есть, если её просит сценарий
    (`music.enabled`), и есть версия без музыки, если ролик длиннее 60 с; серьёзный режим — нет звуков переходов
-   и ярких цветов; в `notes` пакета нет ничего, что ломает формат.
+   и ярких цветов; в `notes` пакета нет ничего, что ломает формат. Исключение — проба владельца: при
+   `experiment.arm: "off"` (в выводе `video_review_kit.py` и в `notes` пакета) ролик собран без музыки нарочно
+   (`channel.yaml`, `experiments.music_off`), это не замечание.
 5. **Сдай `validation_report`** (`devteam-result submit`). В `video_package` — `video_package_id` из вывода
    `video_review_kit.py` (id того, что ты смотрел; иначе сдача в hub откажет):
    - `issues` — каждое замечание с `id` Q1, Q2…, `severity` (blocker — нельзя в эфир; major — надо исправить;
