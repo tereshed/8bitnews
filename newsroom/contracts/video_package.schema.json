@@ -400,6 +400,9 @@
         }
       }
     },
+    "experiment": {
+      "$ref": "#/$defs/experiment"
+    },
     "media": {
       "type": "object",
       "description": "Where the package's files are in the store (hub media_upload_url object keys), added by newsroom/tools/video_build.py; absent in a package that was not uploaded. QA, Legal and the publisher open them with hub media_download_url.",
@@ -488,6 +491,9 @@
             "minLength": 1
           },
           "description": "What a rebuild could not keep from its earlier package, and why"
+        },
+        "experiment": {
+          "$ref": "#/$defs/experiment"
         }
       }
     }
@@ -643,6 +649,28 @@
           "license"
         ]
       }
+    },
+    "experiment": {
+      "type": "object",
+      "required": [
+        "id",
+        "arm"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "enum": [
+            "music_off"
+          ]
+        },
+        "arm": {
+          "enum": [
+            "on",
+            "off"
+          ]
+        }
+      },
+      "description": "The arm of the owner's format test this video is in (channel.yaml experiments, studio/studio/experiments.py): music_off 'off' = made without music although the script asks for it. Absent when the video is in no test."
     }
   },
   "allOf": [

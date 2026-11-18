@@ -100,6 +100,7 @@ def main() -> int:
         "template": package.get("template"),
         "anchor": (package.get("anchor") or {}).get("id"),
         "music": package.get("music"),
+        **({"experiment": package["experiment"]} if package.get("experiment") else {}),
         "studio_checks_passed": package.get("validate", {}).get("passed"),
         "failed_checks": failed,
         "notes": package.get("notes", []),
