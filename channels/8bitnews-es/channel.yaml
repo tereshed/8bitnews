@@ -46,7 +46,7 @@ editorial:
     - "Energy and supply shocks that reach Spain: oil and gas routes (Hormuz, Red Sea), tankers, blackouts, shortages"
     - "Migration by sea to the Canaries, the Balearics, Ceuta and Melilla: arrivals, records, rescues, emergencies"
     - "Strikes and transport disruption that hit people across Spain on the day they happen: trains, flights, metro, roads"
-    - "From 30 November 2026: results of the 29 November general election and the forming of a government (seats, investiture, coalition talks)"
+    - "From 30 November 2026: results of the 29 November general election and the forming of a government: official results and seats, pacts, investiture votes when they happen; not claims of irregularities without an official decision"
   # Выборы 29.11.2026 (владелец 24.11: «как лучше так и освещай»): до голосования без предвыборных тем
   # (operator/legal.md#es-elections), итоги — с 30.11. Строка действует только в свой срок, снимать её не нужно.
   topics_exclude:
