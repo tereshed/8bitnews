@@ -35,10 +35,22 @@ moderation:
 
 editorial:
   tone: calm, neutral, analytical; serious mode for deaths, violence and disasters (format.md)
-  topics_include: []
-  # Снять после 29.11.2026: до выборов первые ролики идут без предвыборных тем (operator/legal.md#es-elections).
+  # Фокус канала, владелец 24.11.2026: «давай сделаем фокус на этих темах, нам важно растить просмотры». Темы — по
+  # роликам, которые лента Shorts продвинула за 05–22.11: масло (Almazaras), SMI, учения сил для Украины и осуждение удара
+  # по больнице в Газе, Semaf, 1.488 спасённых у Канар, танкер у Ормуза. Это приоритет, а не фильтр (editor.md, п. 3):
+  # нет подходящего кандидата из списка — editor берёт лучший из остальных.
+  topics_include:
+    - "Household money and daily life in Spain: food and fuel prices, wages and the minimum wage, rent and mortgages, taxes and benefits, new rules that change what people pay or must do"
+    - "Spain's own move in a big international story: Spain sends, joins, condemns, vetoes or pays (missions, troops, Gaza, Ukraine, NATO, EU)"
+    - "Attacks, sinkings, shoot-downs, explosions and other violent events of a war or armed conflict; disasters (serious mode)"
+    - "Energy and supply shocks that reach Spain: oil and gas routes (Hormuz, Red Sea), tankers, blackouts, shortages"
+    - "Migration by sea to the Canaries, the Balearics, Ceuta and Melilla: arrivals, records, rescues, emergencies"
+    - "Strikes and transport disruption that hit people across Spain on the day they happen: trains, flights, metro, roads"
+    - "From 30 November 2026: results of the 29 November general election and the forming of a government (seats, investiture, coalition talks)"
+  # Выборы 29.11.2026 (владелец 24.11: «как лучше так и освещай»): до голосования без предвыборных тем
+  # (operator/legal.md#es-elections), итоги — с 30.11. Строка действует только в свой срок, снимать её не нужно.
   topics_exclude:
-    - "General election of 29 November 2026: candidates, party campaigns and programmes, electoral polls, voting procedure"
+    - "Until polls close at 21:00 Madrid time on 29 November 2026: the general election of 29 November 2026 — candidates, party campaigns and programmes, electoral polls, voting procedure. From 30 November 2026 this line no longer applies"
     # Владелец 09.11.2026: ролики выходят без человека, а за обвинение отвечает оператор лично.
     - "Stories whose point is an accusation against a named person or company that no court has decided: criminal charges, investigations, lawsuits, allegations of misconduct, even from officials or official documents"
 
